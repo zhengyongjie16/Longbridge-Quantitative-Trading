@@ -5,17 +5,14 @@
  * - 验证 processMonitor 主流程相关场景意图、边界条件与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
-import { Period } from 'longbridge';
 
 import {
   createBuyTaskQueue,
   createSellTaskQueue,
 } from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
-import { createIndicatorCache } from '../../../src/main/asyncProgram/indicatorCache/index.js';
-import type { CandleData } from '../../../src/types/data.js';
-import type { Quote } from '../../../src/types/quote.js';
 import type { ProcessMonitorParams } from '../../../src/main/processMonitor/types.js';
+import type { Quote } from '../../../src/types/quote.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import {
   createMonitorConfigDouble,
@@ -27,7 +24,7 @@ import { createMonitorContext as createMonitorContextFromAsync } from '../asyncP
 type ProcessMonitorFn = (
   context: ProcessMonitorParams,
   quotesMap: ReadonlyMap<string, Quote | null>,
-) => Promise<void>;
+) => void;
 
 async function loadProcessMonitor(): Promise<ProcessMonitorFn> {
   const modulePath = '../../../src/main/processMonitor/index.js?real-process-monitor';
@@ -35,25 +32,9 @@ async function loadProcessMonitor(): Promise<ProcessMonitorFn> {
   return module.processMonitor as ProcessMonitorFn;
 }
 
-function createCandles(length: number, start: number, step: number): ReadonlyArray<CandleData> {
-  const candles: CandleData[] = [];
-  for (let i = 0; i < length; i += 1) {
-    const close = start + i * step;
-    candles.push({
-      open: close - 0.1,
-      high: close + 0.2,
-      low: close - 0.3,
-      close,
-      volume: 1_000 + i,
-    });
-  }
-
-  return candles;
-}
-
 function createMonitorContext(params: {
   readonly autoSearchEnabled: boolean;
-  readonly strategyGenerate: () => { immediateSignals: []; delayedSignals: [] };
+  readonly switchIntervalMinutes?: number;
 }): MonitorContext {
   return createMonitorContextFromAsync({
     config: createMonitorConfigDouble({
@@ -66,56 +47,29 @@ function createMonitorContext(params: {
         autoSearchMinTurnoverPerMinuteBear: 100_000,
         autoSearchExpiryMinMonths: 3,
         autoSearchOpenDelayMinutes: 0,
-        switchIntervalMinutes: 0,
+        switchIntervalMinutes: params.switchIntervalMinutes ?? 0,
         switchDistanceRangeBull: { min: 0.2, max: 1.5 },
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
     }),
     state: {
       monitorSymbol: 'HSI.HK',
-      monitorPrice: 20_000,
       longPrice: null,
       shortPrice: null,
       signal: null,
       pendingDelayedSignals: [],
       monitorValues: null,
       lastMonitorSnapshot: null,
-      lastCandlestickCacheVersion: null,
       incrementalIndicatorRuntime: null,
-    },
-    strategy: {
-      generateSignals: params.strategyGenerate,
     },
   });
 }
 
-function createCacheSnapshot(candles: ReadonlyArray<CandleData>, version: number) {
-  const latest = candles.at(-1);
-  const timestamp =
-    latest && typeof latest.timestamp === 'number' && Number.isFinite(latest.timestamp)
-      ? latest.timestamp
-      : null;
-  return {
-    symbol: 'HSI.HK',
-    period: Period.Min_1,
-    version,
-    candles,
-    lastBarTimestamp: timestamp,
-    lastBarConfirmed: false,
-    initialized: true,
-  };
-}
-
 describe('processMonitor end-to-end orchestration', () => {
-  it('returns early when indicator pipeline cannot build snapshot', async () => {
+  it('does not enqueue buy/sell signals when only running auto-symbol and risk scheduling', async () => {
     const processMonitor = await loadProcessMonitor();
-    let strategyCalls = 0;
     const monitorContext = createMonitorContext({
       autoSearchEnabled: false,
-      strategyGenerate: () => {
-        strategyCalls += 1;
-        return { immediateSignals: [], delayedSignals: [] };
-      },
     });
 
     const buyTaskQueue = createBuyTaskQueue();
@@ -124,10 +78,7 @@ describe('processMonitor end-to-end orchestration', () => {
 
     const params: ProcessMonitorParams = {
       context: {
-        marketDataClient: {
-          getCandlestickSnapshot: () => null,
-        },
-        indicatorCache: createIndicatorCache(),
+        marketDataClient: {},
         marketMonitor: {
           monitorPriceChanges: () => false,
           monitorIndicatorChanges: () => false,
@@ -149,35 +100,27 @@ describe('processMonitor end-to-end orchestration', () => {
       },
     };
 
-    await processMonitor(params, new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_010)]]));
+    processMonitor(params, new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_010)]]));
 
-    expect(strategyCalls).toBe(0);
+    expect(monitorTaskQueue.isEmpty()).toBeTrue();
     expect(buyTaskQueue.isEmpty()).toBeTrue();
     expect(sellTaskQueue.isEmpty()).toBeTrue();
   });
 
-  it('runs indicator+signal chain when candles are available and updates monitor price', async () => {
+  it('schedules periodic auto-symbol tasks and still keeps buy/sell queues untouched', async () => {
     const processMonitor = await loadProcessMonitor();
-    let strategyCalls = 0;
     const monitorContext = createMonitorContext({
-      autoSearchEnabled: false,
-      strategyGenerate: () => {
-        strategyCalls += 1;
-        return { immediateSignals: [], delayedSignals: [] };
-      },
+      autoSearchEnabled: true,
+      switchIntervalMinutes: 30,
     });
 
     const buyTaskQueue = createBuyTaskQueue();
     const sellTaskQueue = createSellTaskQueue();
     const monitorTaskQueue = createMonitorTaskQueue();
-    const candles = createCandles(60, 100, 0.2);
 
     const params: ProcessMonitorParams = {
       context: {
-        marketDataClient: {
-          getCandlestickSnapshot: () => createCacheSnapshot(candles, 1),
-        },
-        indicatorCache: createIndicatorCache(),
+        marketDataClient: {},
         marketMonitor: {
           monitorPriceChanges: () => false,
           monitorIndicatorChanges: () => false,
@@ -199,7 +142,7 @@ describe('processMonitor end-to-end orchestration', () => {
       },
     };
 
-    await processMonitor(
+    processMonitor(
       params,
       new Map([
         ['HSI.HK', createQuoteDouble('HSI.HK', 20_050)],
@@ -208,8 +151,8 @@ describe('processMonitor end-to-end orchestration', () => {
       ]),
     );
 
-    expect(strategyCalls).toBe(1);
-    expect(monitorContext.state.monitorPrice).toBe(20_050);
+    expect(monitorTaskQueue.pop()?.type).toBe('AUTO_SYMBOL_TICK');
+    expect(monitorTaskQueue.pop()?.type).toBe('AUTO_SYMBOL_TICK');
     expect(buyTaskQueue.isEmpty()).toBeTrue();
     expect(sellTaskQueue.isEmpty()).toBeTrue();
   });

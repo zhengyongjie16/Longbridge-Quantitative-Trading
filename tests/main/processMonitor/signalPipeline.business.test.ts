@@ -11,12 +11,15 @@ import {
   createBuyTaskQueue,
   createSellTaskQueue,
 } from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
+import { createTradingConfig } from '../../../mock/factories/configFactory.js';
 
 import type { Signal } from '../../../src/types/signal.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
-import type { MainProgramContext } from '../../../src/main/mainProgram/types.js';
 import type { MonitorContext } from '../../../src/types/state.js';
-import type { SeatSyncResult } from '../../../src/main/processMonitor/types.js';
+import type {
+  MonitorRuntimeContext,
+  SeatSyncResult,
+} from '../../../src/main/processMonitor/types.js';
 
 import {
   createIndicatorUsageProfileDouble,
@@ -118,14 +121,26 @@ function createPipelineHarness(params: {
     createPositionDouble({ symbol: 'BULL.HK', quantity: 200, availableQuantity: 200 }),
     createPositionDouble({ symbol: 'BEAR.HK', quantity: 100, availableQuantity: 100 }),
   ]);
+  const tradingConfig = createTradingConfig();
 
   const mainContext = {
     lastState: {
+      isTradingEnabled: params.isTradingEnabled ?? true,
+      canTrade: params.canTradeNow ?? true,
+      openProtectionActive: params.openProtectionActive ?? false,
+      isHalfDay: false,
       positionCache,
+    },
+    tradingConfig: {
+      ...tradingConfig,
+      global: {
+        ...tradingConfig.global,
+        doomsdayProtection: false,
+      },
     },
     buyTaskQueue,
     sellTaskQueue,
-  } as unknown as MainProgramContext;
+  } as unknown as MonitorRuntimeContext;
 
   runSignalPipeline({
     monitorSymbol: 'HSI.HK',
@@ -158,7 +173,7 @@ function createPipelineHarness(params: {
 }
 
 describe('signalPipeline business flow', () => {
-  it('routes immediate/delayed signals to correct queues and enriches seatVersion/symbolName', () => {
+  it('routes immediate/delayed signals to correct queues and binds seatVersion without quote enrichment', () => {
     const immediateBuy = createSignalDouble('BUYCALL', 'BULL.HK');
     immediateBuy.symbolName = null;
     const immediateSell = createSignalDouble('SELLPUT', 'BEAR.HK');
@@ -176,11 +191,11 @@ describe('signalPipeline business flow', () => {
 
     expect(queuedBuy?.type).toBe('IMMEDIATE_BUY');
     expect(queuedBuy?.data.seatVersion).toBe(7);
-    expect(queuedBuy?.data.symbolName).toBe('BULL.HK');
+    expect(queuedBuy?.data.symbolName).toBeNull();
 
     expect(queuedSell?.type).toBe('IMMEDIATE_SELL');
     expect(queuedSell?.data.seatVersion).toBe(11);
-    expect(queuedSell?.data.symbolName).toBe('BEAR.HK');
+    expect(queuedSell?.data.symbolName).toBeNull();
 
     expect(harness.delayedAdded).toHaveLength(1);
     expect(harness.delayedAdded[0]?.seatVersion).toBe(11);
@@ -188,7 +203,7 @@ describe('signalPipeline business flow', () => {
     expect(harness.releasedPositions).toEqual(['BULL.HK', 'BEAR.HK']);
   });
 
-  it('drops buy signal when quote is not ready but keeps sell signal path available', () => {
+  it('does not require quote before routing buy and sell signals', () => {
     const immediateBuy = createSignalDouble('BUYCALL', 'BULL.HK');
     const immediateSell = createSignalDouble('SELLCALL', 'BULL.HK');
 
@@ -200,12 +215,12 @@ describe('signalPipeline business flow', () => {
       }),
     });
 
-    expect(harness.releasedSignals).toHaveLength(1);
-    expect(harness.releasedSignals[0]?.action).toBe('BUYCALL');
+    expect(harness.releasedSignals).toHaveLength(0);
 
+    const queuedBuy = harness.buyTaskQueue.pop();
+    expect(queuedBuy?.data.action).toBe('BUYCALL');
     const queuedSell = harness.sellTaskQueue.pop();
     expect(queuedSell?.data.action).toBe('SELLCALL');
-    expect(harness.buyTaskQueue.isEmpty()).toBeTrue();
   });
 
   it('releases valid signals instead of enqueue when trading gate is disabled', () => {

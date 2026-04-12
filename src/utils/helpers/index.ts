@@ -105,14 +105,12 @@ export function isBuyAction(action: SignalType): boolean {
 export function initMonitorState(config: MonitorConfig): MonitorState {
   return {
     monitorSymbol: config.monitorSymbol,
-    monitorPrice: null,
     longPrice: null,
     shortPrice: null,
     signal: null,
     pendingDelayedSignals: [],
     monitorValues: null,
     lastMonitorSnapshot: null,
-    lastCandlestickCacheVersion: null,
     incrementalIndicatorRuntime: null,
   };
 }

@@ -13,11 +13,11 @@ import { createMonitorTaskProcessor } from '../../src/main/asyncProgram/monitorT
 
 import type { MultiMonitorTradingConfig } from '../../src/types/config.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
-import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
 import type {
   MonitorTaskDataMap,
   MonitorTaskStatus,
 } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { MonitorRuntimeContext } from '../../src/main/processMonitor/types.js';
 
 import {
   createMarketDataClientDouble,
@@ -174,7 +174,7 @@ describe('periodic auto-symbol full chain integration', () => {
     } as unknown as MonitorContext;
     const mainContext = {
       monitorTaskQueue,
-    } as unknown as MainProgramContext;
+    } as unknown as MonitorRuntimeContext;
 
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
@@ -352,7 +352,7 @@ describe('periodic auto-symbol full chain integration', () => {
     } as unknown as MonitorContext;
     const mainContext = {
       monitorTaskQueue,
-    } as unknown as MainProgramContext;
+    } as unknown as MonitorRuntimeContext;
 
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
@@ -505,7 +505,7 @@ describe('periodic auto-symbol full chain integration', () => {
     } as unknown as MonitorContext;
     const mainContext = {
       monitorTaskQueue,
-    } as unknown as MainProgramContext;
+    } as unknown as MonitorRuntimeContext;
 
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
@@ -658,7 +658,7 @@ describe('periodic auto-symbol full chain integration', () => {
     } as unknown as MonitorContext;
     const mainContext = {
       monitorTaskQueue,
-    } as unknown as MainProgramContext;
+    } as unknown as MonitorRuntimeContext;
 
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({

@@ -71,7 +71,7 @@ export type MonitorTaskStatus = 'processed' | 'skipped' | 'failed';
 /**
  * 监控任务处理上下文（处理器执行任务时的运行时依赖）。
  * 类型用途：处理器执行监控任务时所需的上下文，含 symbolRegistry、orderRecorder、riskChecker、名称缓存等；由 getMonitorContext(monitorSymbol) 获取。
- * 数据来源：由 mainProgram 的 getMonitorContext 按 monitorSymbol 从 monitorContexts 等组装返回。
+ * 数据来源：由 timeDriverProgram 的 getMonitorContext 按 monitorSymbol 从 monitorContexts 等组装返回。
  * 使用范围：仅 monitorTaskProcessor 内部使用。
  */
 export type MonitorTaskContext = Pick<
@@ -138,7 +138,7 @@ export type MonitorTaskProcessorDeps = Readonly<{
  * MonitorTaskProcessor 行为契约。
  * 类型用途：监控任务处理器的公开接口（start/stop/stopAndDrain/restart），与 Processor 一致，供主程序/ lifecycle 调度。
  * 数据来源：主程序通过工厂创建并持有，任务由 processMonitor 经 monitorTaskQueue 入队。
- * 使用范围：mainProgram、lifecycle、processMonitor 等，仅内部使用。
+ * 使用范围：timeDriverProgram、lifecycle、processMonitor 等，仅内部使用。
  */
 export interface MonitorTaskProcessor {
   readonly start: () => void;

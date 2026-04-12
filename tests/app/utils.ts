@@ -12,7 +12,6 @@ import type { LastState, MonitorState } from '../../src/types/state.js';
 export function createMonitorState(monitorSymbol: string): MonitorState {
   return {
     monitorSymbol,
-    monitorPrice: null,
     longPrice: null,
     shortPrice: null,
     signal: null,
@@ -39,7 +38,6 @@ export function createMonitorState(monitorSymbol: string): MonitorState {
       macd: { macd: 0, dif: 0, dea: 0 },
       adx: null,
     },
-    lastCandlestickCacheVersion: null,
     incrementalIndicatorRuntime: null,
   };
 }
@@ -95,6 +93,7 @@ function defaultDeps(steps: string[]): CleanupContext {
     subscribeSymbols: async () => {},
     unsubscribeSymbols: async () => {},
     onQuoteUpdated: () => () => {},
+    onCandlestickUpdated: () => () => {},
     subscribeCandlesticks: async () => [],
     getRealtimeCandlesticks: async () => [],
     getCandlestickSnapshot: () => null,
@@ -175,6 +174,12 @@ function defaultDeps(steps: string[]): CleanupContext {
     trader: {
       stopOrderMonitorRuntimeAndDrain: async () => {
         steps.push('stopOrderMonitorRuntimeAndDrain');
+      },
+    },
+    businessEventProgram: {
+      start: () => {},
+      stopAndDrain: async () => {
+        steps.push('businessEventProgram');
       },
     },
     postTradeConsistencyRuntime: {

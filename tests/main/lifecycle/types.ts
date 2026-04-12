@@ -15,3 +15,11 @@ export type ProtectiveOrderParams = Readonly<{
   readonly executedQuantity: number;
   readonly updatedAtMs: number;
 }>;
+
+/**
+ * 生命周期运行时顺序断言的方法名。
+ * 类型用途：约束 signalRuntimeDomain 测试中记录的 runtime 方法调用集合。
+ * 数据来源：由 tests/main/lifecycle/cacheDomains/signalRuntimeDomain.test.ts 内部测试桩记录。
+ * 使用范围：tests/main/lifecycle 下相关测试。
+ */
+export type OrderedMethod = 'stopAndDrain' | 'restart' | 'start' | 'clearPending';

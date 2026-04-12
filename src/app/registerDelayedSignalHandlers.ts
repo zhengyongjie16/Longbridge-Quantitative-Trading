@@ -10,6 +10,7 @@ import {
   describeSignalSeatValidationFailure,
   validateSignalSeat,
 } from '../services/autoSymbolManager/utils.js';
+import { ordinarySignalGuard } from '../main/ordinarySignalGuard/index.js';
 import { formatSymbolDisplay, isSellAction } from '../utils/display/index.js';
 import { isBuyAction } from '../utils/helpers/index.js';
 import type { RegisterDelayedSignalHandlersParams } from './types.js';
@@ -21,7 +22,16 @@ import type { RegisterDelayedSignalHandlersParams } from './types.js';
  * @returns 无返回值
  */
 export function registerDelayedSignalHandlers(params: RegisterDelayedSignalHandlersParams): void {
-  const { monitorContexts, lastState, buyTaskQueue, sellTaskQueue, logger, releaseSignal } = params;
+  const {
+    monitorContexts,
+    lastState,
+    buyTaskQueue,
+    sellTaskQueue,
+    logger,
+    releaseSignal,
+    doomsdayProtectionEnabled = false,
+    now = () => new Date(),
+  } = params;
 
   for (const [monitorSymbol, monitorContext] of monitorContexts) {
     monitorContext.delayedSignalVerifier.onVerified((signal, signalMonitorSymbol) => {
@@ -40,7 +50,13 @@ export function registerDelayedSignalHandlers(params: RegisterDelayedSignalHandl
         releaseSignal(signal);
       };
 
-      if (!lastState.isTradingEnabled) {
+      if (
+        !ordinarySignalGuard({
+          lastState,
+          now: now(),
+          doomsdayProtectionEnabled,
+        })
+      ) {
         discardSignal('[延迟验证通过] 生命周期门禁关闭，丢弃信号');
         return;
       }

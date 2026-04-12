@@ -428,7 +428,7 @@ export function createQuoteSubscriptionRuntimeDouble(
 /**
  * 创建 TradingGateEventRuntime 测试替身。
  *
- * 默认发布与订阅均为空实现，供 mainProgram 与 app wiring 测试注入。
+ * 默认发布与订阅均为空实现，供 timeDriverProgram 与 app wiring 测试注入。
  */
 export function createTradingGateEventRuntimeDouble(
   overrides: Partial<TradingGateEventRuntime> = {},
@@ -538,6 +538,8 @@ export function createMarketDataClientDouble(
   const candlestickVersions = new Map<string, number>();
   const baseOnQuoteUpdated: NonNullable<MarketDataClient['onQuoteUpdated']> = () => () => {};
 
+  const baseOnCandlestickUpdated: MarketDataClient['onCandlestickUpdated'] = () => () => {};
+
   function makeCandlestickKey(symbol: string, period: Period): string {
     return `${symbol}:${period}`;
   }
@@ -581,6 +583,7 @@ export function createMarketDataClientDouble(
     subscribeSymbols: async () => {},
     unsubscribeSymbols: async () => {},
     onQuoteUpdated: baseOnQuoteUpdated,
+    onCandlestickUpdated: baseOnCandlestickUpdated,
     subscribeCandlesticks: async (symbol, period, tradeSessions) =>
       seedCandlestickCacheFromOverride(symbol, period, tradeSessions),
     getRealtimeCandlesticks: async (symbol: string, period: Period, count: number) => {
@@ -604,6 +607,7 @@ export function createMarketDataClientDouble(
     subscribeSymbols: overrides.subscribeSymbols ?? base.subscribeSymbols,
     unsubscribeSymbols: overrides.unsubscribeSymbols ?? base.unsubscribeSymbols,
     onQuoteUpdated: overrides.onQuoteUpdated ?? baseOnQuoteUpdated,
+    onCandlestickUpdated: overrides.onCandlestickUpdated ?? baseOnCandlestickUpdated,
     subscribeCandlesticks: async (symbol, period, tradeSessions) =>
       seedCandlestickCacheFromOverride(symbol, period, tradeSessions),
     getRealtimeCandlesticks: overrides.getRealtimeCandlesticks ?? base.getRealtimeCandlesticks,
@@ -1003,14 +1007,12 @@ export function createIndicatorUsageProfileDouble(overrides?: {
 function createMonitorStateDouble(monitorSymbol: string = 'HSI.HK'): MonitorState {
   return {
     monitorSymbol,
-    monitorPrice: null,
     longPrice: null,
     shortPrice: null,
     signal: null,
     pendingDelayedSignals: [],
     monitorValues: null,
     lastMonitorSnapshot: null,
-    lastCandlestickCacheVersion: null,
     incrementalIndicatorRuntime: null,
   };
 }

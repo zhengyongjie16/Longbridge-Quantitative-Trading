@@ -6,10 +6,11 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { createSignalProcessor } from '../../src/core/signalProcessor/index.js';
-import { createMonitorContext } from '../../src/app/createMonitorContext.js';
-import { mainProgram } from '../../src/main/mainProgram/index.js';
-import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
+import { createMonitorContext } from '../../src/app/createMonitorContexts.js';
+import { timeDriverProgram } from '../../src/main/timeDriverProgram/index.js';
+import type { TimeDriverProgramContext } from '../../src/main/timeDriverProgram/types.js';
 import { processMonitor } from '../../src/main/processMonitor/index.js';
+import { createBusinessEventProgram } from '../../src/main/businessEventProgram/index.js';
 import { createBuyProcessor } from '../../src/main/asyncProgram/buyProcessor/index.js';
 import { createSellProcessor } from '../../src/main/asyncProgram/sellProcessor/index.js';
 import { createMonitorTaskQueue } from '../../src/main/asyncProgram/monitorTaskQueue/index.js';
@@ -39,6 +40,7 @@ import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { MultiMonitorTradingConfig, MonitorConfig } from '../../src/types/config.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/types/risk.js';
 import type {
+  CandlestickUpdatedEvent,
   CandlestickCacheSnapshot,
   OrderStateChangedEvent,
   QuoteUpdatedEvent,
@@ -68,8 +70,8 @@ import { createWarrantCandidateWithOverrides } from '../services/autoSymbolManag
 
 let autoSymbolCandidates: Array<ReturnType<typeof createWarrantCandidateWithOverrides> | null> = [];
 
-function createMainProgramEventDeps(): Pick<
-  MainProgramContext,
+function createTimeDriverProgramEventDeps(): Pick<
+  TimeDriverProgramContext,
   'tradingGateEventRuntime' | 'quoteSubscriptionRuntime'
 > {
   return {
@@ -150,7 +152,10 @@ function createTradingConfigForMonitor(monitorConfig: MonitorConfig): MultiMonit
   const base = createTradingConfig();
   return {
     monitors: [monitorConfig],
-    global: base.global,
+    global: {
+      ...base.global,
+      doomsdayProtection: false,
+    },
   };
 }
 
@@ -428,58 +433,49 @@ describe('full business simulation integration', () => {
     });
 
     const candles = createMockCandlesticks(120, 100, 0.2);
+    const candlestickSnapshot = createCandlestickSnapshot(
+      monitorConfig.monitorSymbol,
+      candles as unknown as ReadonlyArray<CandleData>,
+    );
+    if (candlestickSnapshot === null) {
+      throw new Error('missing candlestick snapshot for full business simulation');
+    }
+
+    const candlestickUpdatedEvents = createSingleListenerEventSource<CandlestickUpdatedEvent>();
+    const businessEventProgram = createBusinessEventProgram({
+      marketDataClient: {
+        ...createMarketDataClientDouble({
+          getQuotes: async () => {
+            throw new Error('businessEventProgram must not read realtime quotes');
+          },
+          getCandlestickSnapshot: (symbol) =>
+            symbol === monitorConfig.monitorSymbol ? candlestickSnapshot : null,
+        }),
+        onCandlestickUpdated: candlestickUpdatedEvents.subscribe,
+      },
+      monitorContexts,
+      lastState,
+      tradingConfig,
+      buyTaskQueue,
+      sellTaskQueue,
+      monitorTaskQueue,
+    });
 
     buyProcessor.start();
     sellProcessor.start();
+    businessEventProgram.start();
     try {
-      await mainProgram({
-        marketDataClient: createMarketDataClientDouble({
-          getQuotes: async (symbols: Iterable<string>) => {
-            const quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>();
-            for (const symbol of symbols) {
-              if (symbol === 'HSI.HK') {
-                quotes.set(symbol, createQuoteDouble(symbol, 20_000, 1));
-              } else if (symbol === 'BULL.HK') {
-                quotes.set(symbol, createQuoteDouble(symbol, 1.05, 100));
-              } else if (symbol === 'BEAR.HK') {
-                quotes.set(symbol, createQuoteDouble(symbol, 0.95, 100));
-              } else {
-                quotes.set(symbol, null);
-              }
-            }
-
-            return quotes;
-          },
-          getCandlestickSnapshot: (symbol) =>
-            symbol === monitorConfig.monitorSymbol
-              ? createCandlestickSnapshot(symbol, candles as unknown as ReadonlyArray<CandleData>)
-              : null,
-        }),
-        trader,
-        lastState,
-        marketMonitor: {
-          monitorPriceChanges: () => false,
-          monitorIndicatorChanges: () => false,
-        },
-        doomsdayProtection: createDoomsdayProtectionDouble(),
-        signalProcessor,
-        tradingConfig,
-        dailyLossTracker: createNoopDailyLossTracker(),
-        monitorContexts,
-        symbolRegistry,
-        indicatorCache,
-        buyTaskQueue,
-        sellTaskQueue,
-        monitorTaskQueue,
-        runtimeGateMode: 'skip',
-        ...createMainProgramEventDeps(),
-        dayLifecycleManager: createNoopDayLifecycleManager(),
+      candlestickUpdatedEvents.emit({
+        symbol: monitorConfig.monitorSymbol,
+        period: Period.Min_1,
+        snapshot: candlestickSnapshot,
       });
 
       await Bun.sleep(80);
 
       expect(submittedActions).toEqual(['SELLCALL']);
     } finally {
+      await businessEventProgram.stopAndDrain();
       delayedSignalVerifier.destroy();
       await Promise.all([buyProcessor.stopAndDrain(), sellProcessor.stopAndDrain()]);
     }
@@ -802,7 +798,7 @@ describe('full business simulation integration', () => {
       sellTaskQueue,
       monitorTaskQueue,
       runtimeGateMode: 'skip' as const,
-      ...createMainProgramEventDeps(),
+      ...createTimeDriverProgramEventDeps(),
       dayLifecycleManager: createNoopDayLifecycleManager(),
     };
 
@@ -877,7 +873,7 @@ describe('full business simulation integration', () => {
       lastState.cachedPositions = [oldPosition];
       lastState.positionCache.update([oldPosition]);
 
-      await processMonitor(
+      processMonitor(
         {
           context: sharedMainContext,
           monitorContext,
@@ -1190,6 +1186,10 @@ describe('full business simulation integration', () => {
       buyProcessor,
       sellProcessor,
       monitorTaskProcessor,
+      businessEventProgram: {
+        start: () => {},
+        stopAndDrain: async () => {},
+      },
       postTradeConsistencyRuntime: {
         abortWaiting: () => {},
         resetAbort: () => {},
@@ -1300,7 +1300,7 @@ describe('full business simulation integration', () => {
             : null,
       });
 
-      await mainProgram({
+      await timeDriverProgram({
         marketDataClient,
         trader,
         lastState,
@@ -1309,17 +1309,14 @@ describe('full business simulation integration', () => {
           monitorIndicatorChanges: () => false,
         },
         doomsdayProtection: createDoomsdayProtectionDouble(),
-        signalProcessor,
         tradingConfig,
-        dailyLossTracker: createNoopDailyLossTracker(),
         monitorContexts,
-        symbolRegistry,
         indicatorCache,
         buyTaskQueue,
         sellTaskQueue,
         monitorTaskQueue,
         runtimeGateMode: 'skip',
-        ...createMainProgramEventDeps(),
+        ...createTimeDriverProgramEventDeps(),
         dayLifecycleManager,
       });
 
@@ -1331,7 +1328,7 @@ describe('full business simulation integration', () => {
       expect(cancelAllCalls).toBe(1);
       expect(postTradeStopCount).toBe(1);
 
-      await mainProgram({
+      await timeDriverProgram({
         marketDataClient,
         trader,
         lastState,
@@ -1340,17 +1337,14 @@ describe('full business simulation integration', () => {
           monitorIndicatorChanges: () => false,
         },
         doomsdayProtection: createDoomsdayProtectionDouble(),
-        signalProcessor,
         tradingConfig,
-        dailyLossTracker: createNoopDailyLossTracker(),
         monitorContexts,
-        symbolRegistry,
         indicatorCache,
         buyTaskQueue,
         sellTaskQueue,
         monitorTaskQueue,
         runtimeGateMode: 'skip',
-        ...createMainProgramEventDeps(),
+        ...createTimeDriverProgramEventDeps(),
         dayLifecycleManager,
       });
 

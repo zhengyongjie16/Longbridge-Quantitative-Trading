@@ -100,6 +100,7 @@ describe('cleanup business flow', () => {
 
     expect(steps).toEqual([
       'abortWaiting',
+      'businessEventProgram',
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
       'switchWakeupRuntime',
@@ -126,6 +127,7 @@ describe('cleanup business flow', () => {
 
     expect(steps).toEqual([
       'abortWaiting',
+      'businessEventProgram',
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
       'switchWakeupRuntime',
@@ -161,6 +163,7 @@ describe('cleanup business flow', () => {
       expect(signalHarness.exitCodes).toEqual([0]);
       expect(signalHarness.steps).toEqual([
         'abortWaiting',
+        'businessEventProgram',
         'tradingRiskEventRuntime',
         'monitorQuoteEventRuntime',
         'switchWakeupRuntime',
@@ -224,6 +227,7 @@ describe('cleanup business flow', () => {
     expect(caught).toBeInstanceOf(AggregateError);
     expect(steps).toEqual([
       'abortWaiting',
+      'businessEventProgram',
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
       'switchWakeupRuntime',
@@ -268,6 +272,7 @@ describe('cleanup business flow', () => {
       expect(signalHarness.exitCodes).toEqual([1]);
       expect(signalHarness.steps).toEqual([
         'abortWaiting',
+        'businessEventProgram',
         'tradingRiskEventRuntime',
         'monitorQuoteEventRuntime',
         'switchWakeupRuntime',
@@ -352,12 +357,13 @@ describe('cleanup business flow', () => {
 
     expect(outcome).toBe('done');
     expect(steps[0]).toBe('abortWaiting');
-    expect(steps[1]).toBe('tradingRiskEventRuntime');
-    expect(steps[2]).toBe('monitorQuoteEventRuntime');
-    expect(steps[3]).toBe('switchWakeupRuntime');
-    expect(steps[4]).toBe('autoSearchWakeupRuntime');
-    expect(steps[5]).toBe('seatActivationDispatcher');
-    expect(steps[6]).toBe('monitorTask');
+    expect(steps[1]).toBe('businessEventProgram');
+    expect(steps[2]).toBe('tradingRiskEventRuntime');
+    expect(steps[3]).toBe('monitorQuoteEventRuntime');
+    expect(steps[4]).toBe('switchWakeupRuntime');
+    expect(steps[5]).toBe('autoSearchWakeupRuntime');
+    expect(steps[6]).toBe('seatActivationDispatcher');
+    expect(steps[7]).toBe('monitorTask');
     expect(steps[steps.indexOf('stopOrderMonitorRuntimeAndDrain') - 1]).toBe('sell');
     expect(steps).toContain('buy');
     expect(steps).toContain('postTradeConsistencyRuntime');

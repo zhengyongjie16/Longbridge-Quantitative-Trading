@@ -22,18 +22,16 @@ import type { GlobalStateDomainDeps } from './types.js';
 /**
  * 重置单个监控标的的运行状态，释放快照对象回对象池，防止跨日数据污染。
  *
- * @param monitorState 单个监控标的的运行时状态（lastMonitorSnapshot、monitorPrice 等）
+ * @param monitorState 单个监控标的的运行时状态（lastMonitorSnapshot、longPrice 等）
  */
 function resetMonitorStateForNewDay(monitorState: MonitorState): void {
   releaseSnapshotObjects(monitorState.lastMonitorSnapshot, monitorState.monitorValues);
-  monitorState.monitorPrice = null;
   monitorState.longPrice = null;
   monitorState.shortPrice = null;
   monitorState.signal = null;
   monitorState.pendingDelayedSignals = [];
   monitorState.monitorValues = null;
   monitorState.lastMonitorSnapshot = null;
-  monitorState.lastCandlestickCacheVersion = null;
   monitorState.incrementalIndicatorRuntime = null;
 }
 

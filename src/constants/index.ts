@@ -62,7 +62,7 @@ export const TRADING = {
   /** K线数量，获取的实时K线条数 */
   CANDLE_COUNT: 200,
 
-  /** 主循环执行间隔（毫秒），mainProgram 的执行频率 */
+  /** 主循环执行间隔（毫秒），timeDriverProgram 的执行频率 */
   INTERVAL_MS: 1000,
 
   /** 监控标的最大扫描范围（从 _1 扫描到 _100） */

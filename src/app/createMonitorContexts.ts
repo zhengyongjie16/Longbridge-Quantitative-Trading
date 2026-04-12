@@ -1,10 +1,10 @@
 /**
- * app 监控上下文批量装配模块
+ * app 监控上下文装配模块
  *
  * 职责：
- * - 为全部 monitor 配置创建风险检查器、策略、自动寻标管理器与 MonitorContext
+ * - 创建单个 monitor 的 MonitorContext
+ * - 批量装配全部 monitor 配置并写回 post-gate runtime 的 monitorContexts Map
  * - 固化 monitorStates 与 tradingConfig 的一一对应装配不变量
- * - 统一写回 post-gate runtime 持有的 monitorContexts Map
  */
 import { createDefaultTradingSignalStrategyFactory } from '../core/strategy/index.js';
 import { createPositionLimitChecker } from '../core/riskController/positionLimitChecker.js';
@@ -14,10 +14,64 @@ import { createUnrealizedLossMonitor } from '../core/riskController/unrealizedLo
 import { createWarrantRiskChecker } from '../core/riskController/warrantRiskChecker.js';
 import { createDelayedSignalVerifier } from '../main/asyncProgram/delayedSignalVerifier/index.js';
 import { createAutoSymbolManager } from '../services/autoSymbolManager/index.js';
-import { createMonitorContext } from './createMonitorContext.js';
-import type { CreateMonitorContextsParams } from './types.js';
+import { compileIndicatorUsageProfile } from '../services/indicators/profile/index.js';
+import type { MonitorContext } from '../types/state.js';
+import { resolveMonitorContextRuntimeSnapshot } from '../utils/utils.js';
+import type { CreateMonitorContextsParams, MonitorContextFactoryDeps } from './types.js';
 
 const DEFAULT_STRATEGY_FACTORY = createDefaultTradingSignalStrategyFactory();
+
+/**
+ * 创建监控标的运行时上下文，从注册表读取席位状态与版本号，从行情 Map 提取标的名称，
+ * 并预编译指标画像，避免主循环每 tick 重复解析。
+ *
+ * @param deps 工厂依赖（config、state、symbolRegistry、quotesMap、strategy、orderRecorder 等）
+ * @returns 该监控标的的 MonitorContext 实例
+ */
+export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorContext {
+  const {
+    config,
+    state,
+    symbolRegistry,
+    quotesMap,
+    strategy,
+    orderRecorder,
+    dailyLossTracker,
+    riskChecker,
+    unrealizedLossMonitor,
+    delayedSignalVerifier,
+    autoSymbolManager,
+  } = deps;
+  const runtimeSnapshot = resolveMonitorContextRuntimeSnapshot(
+    config.monitorSymbol,
+    symbolRegistry,
+    quotesMap,
+  );
+  const indicatorProfile = compileIndicatorUsageProfile({
+    signalConfig: config.signalConfig,
+    verificationConfig: config.verificationConfig,
+  });
+
+  return {
+    config,
+    state,
+    symbolRegistry,
+    seatState: runtimeSnapshot.seatState,
+    seatVersion: runtimeSnapshot.seatVersion,
+    autoSymbolManager,
+    strategy,
+    orderRecorder,
+    dailyLossTracker,
+    riskChecker,
+    unrealizedLossMonitor,
+    delayedSignalVerifier,
+    longSymbolName: runtimeSnapshot.longSymbolName,
+    shortSymbolName: runtimeSnapshot.shortSymbolName,
+    monitorSymbolName: runtimeSnapshot.monitorSymbolName,
+    normalizedMonitorSymbol: config.monitorSymbol,
+    indicatorProfile,
+  };
+}
 
 /**
  * 批量创建全部监控上下文。

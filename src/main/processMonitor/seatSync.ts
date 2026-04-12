@@ -2,7 +2,8 @@
  * 席位同步与队列清理模块
  *
  * 功能：
- * - 同步席位状态到监控上下文（席位状态、版本、标的代码、行情数据）
+ * - 同步席位状态到监控上下文（席位状态、版本、标的代码）
+ * - 在时间循环入口补充展示所需的行情数据与标的名称
  * - 当席位状态从 ACTIVE 变为非 ACTIVE 时，清理相关队列和延迟验证信号
  *
  * 清理触发条件：
@@ -13,99 +14,142 @@
  * - 席位进入 ACTIVATING 后由 SeatActivationDispatcher 基于 seat event 直接调度 SEAT_REFRESH
  */
 import { logger } from '../../utils/logger/index.js';
-import { resolveMonitorContextRuntimeSnapshot } from '../../utils/utils.js';
+import {
+  resolveMonitorContextRuntimeSnapshot,
+  resolveMonitorContextSeatSnapshot,
+} from '../../utils/utils.js';
 import { clearMonitorDirectionQueues } from './utils.js';
-import type { SeatSyncParams, SeatSyncResult } from './types.js';
+import type {
+  SeatSyncParams,
+  SeatSyncResult,
+  SignalSeatInfo,
+  SignalSeatSyncParams,
+} from './types.js';
 
 /**
- * 同步席位状态到监控上下文。
- * 从 symbolRegistry 读取最新席位状态并写入 monitorContext；
- * 当席位从 ACTIVE 变为非 ACTIVE 时清理对应方向的队列和牛熊证信息，防止过期信号被执行。
+ * 清理指定方向的延迟验证与各类任务队列，并同步清空牛熊证距离缓存。
+ * 这样可确保席位从 ACTIVE 退化后不会继续执行过期信号，避免状态漂移。
+ *
+ * @param params 清理所需的监控上下文、方向、队列与 release 回调
+ * @returns 无返回值
  */
-export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
-  const { monitorSymbol, monitorContext, mainContext, quotesMap, releaseSignal } = params;
-  const { riskChecker, delayedSignalVerifier, symbolRegistry } = monitorContext;
+function clearSignalDirectionRuntime(params: {
+  readonly monitorSymbol: string;
+  readonly monitorContext: SignalSeatSyncParams['monitorContext'];
+  readonly direction: 'LONG' | 'SHORT';
+  readonly mainContext: SignalSeatSyncParams['mainContext'];
+  readonly releaseSignal: SignalSeatSyncParams['releaseSignal'];
+}): void {
+  const { monitorSymbol, monitorContext, direction, mainContext, releaseSignal } = params;
+  const { riskChecker, delayedSignalVerifier } = monitorContext;
   const { buyTaskQueue, sellTaskQueue, monitorTaskQueue } = mainContext;
 
-  const previousSeatState = monitorContext.seatState;
-  const previousLongSeatState = previousSeatState.long;
-  const previousShortSeatState = previousSeatState.short;
+  if (direction === 'LONG') {
+    riskChecker.clearLongWarrantInfo();
+  } else {
+    riskChecker.clearShortWarrantInfo();
+  }
 
-  const runtimeSnapshot = resolveMonitorContextRuntimeSnapshot(
+  const result = clearMonitorDirectionQueues({
     monitorSymbol,
-    symbolRegistry,
-    quotesMap,
+    direction,
+    delayedSignalVerifier,
+    buyTaskQueue,
+    sellTaskQueue,
+    monitorTaskQueue,
+    releaseSignal,
+  });
+  const totalRemoved =
+    result.removedDelayed + result.removedBuy + result.removedSell + result.removedMonitorTasks;
+  if (totalRemoved > 0) {
+    logger.debug(
+      `[席位同步] ${monitorSymbol} ${direction} 清理待执行信号：延迟=${result.removedDelayed} 买入=${result.removedBuy} 卖出=${result.removedSell} 监控任务=${result.removedMonitorTasks}`,
+    );
+  }
+}
+
+/**
+ * 同步普通信号链路所需的席位身份。
+ * 只读取 symbolRegistry，不读取行情；行情展示继续由时间循环基于 SDK realtime 状态负责。
+ *
+ * @param params 同步所需的监控上下文、队列依赖与 release 回调
+ * @returns 普通信号入队所需的席位信息
+ */
+export function syncSignalSeatState(params: SignalSeatSyncParams): SignalSeatInfo {
+  const { monitorSymbol, monitorContext, mainContext, releaseSignal } = params;
+  const previousLongSeatState = monitorContext.seatState.long;
+  const previousShortSeatState = monitorContext.seatState.short;
+  const seatSnapshot = resolveMonitorContextSeatSnapshot(
+    monitorSymbol,
+    monitorContext.symbolRegistry,
   );
-  const longSeatState = runtimeSnapshot.seatState.long;
-  const shortSeatState = runtimeSnapshot.seatState.short;
-  const longSeatVersion = runtimeSnapshot.seatVersion.long;
-  const shortSeatVersion = runtimeSnapshot.seatVersion.short;
-  const longSeatActive = runtimeSnapshot.longSymbol !== null;
-  const shortSeatActive = runtimeSnapshot.shortSymbol !== null;
-  const longSymbol = runtimeSnapshot.longSymbol ?? '';
-  const shortSymbol = runtimeSnapshot.shortSymbol ?? '';
-  const longQuote = runtimeSnapshot.longQuote;
-  const shortQuote = runtimeSnapshot.shortQuote;
+  const longSeatState = seatSnapshot.seatState.long;
+  const shortSeatState = seatSnapshot.seatState.short;
 
-  monitorContext.seatState = runtimeSnapshot.seatState;
-  monitorContext.seatVersion = runtimeSnapshot.seatVersion;
-  monitorContext.longSymbolName = runtimeSnapshot.longSymbolName;
-  monitorContext.shortSymbolName = runtimeSnapshot.shortSymbolName;
-  monitorContext.monitorSymbolName = runtimeSnapshot.monitorSymbolName;
-
-  /**
-   * 清理指定方向的延迟验证与各类任务队列，并同步清空牛熊证距离缓存。
-   * 这样可确保席位从 ACTIVE 退化后不会继续执行过期信号，避免状态漂移。
-   *
-   * @param direction 席位方向（LONG/SHORT）
-   * @returns 无返回值
-   */
-  function clearDirectionQueues(direction: 'LONG' | 'SHORT'): void {
-    const result = clearMonitorDirectionQueues({
-      monitorSymbol,
-      direction,
-      delayedSignalVerifier,
-      buyTaskQueue,
-      sellTaskQueue,
-      monitorTaskQueue,
-      releaseSignal,
-    });
-    const totalRemoved =
-      result.removedDelayed + result.removedBuy + result.removedSell + result.removedMonitorTasks;
-    if (totalRemoved > 0) {
-      logger.debug(
-        `[自动换标] ${monitorSymbol} ${direction} 清理待执行信号：延迟=${result.removedDelayed} 买入=${result.removedBuy} 卖出=${result.removedSell} 监控任务=${result.removedMonitorTasks}`,
-      );
-    }
-  }
-
-  function clearWarrantInfoForDirection(direction: 'LONG' | 'SHORT'): void {
-    if (direction === 'LONG') {
-      riskChecker.clearLongWarrantInfo();
-    } else {
-      riskChecker.clearShortWarrantInfo();
-    }
-  }
+  monitorContext.seatState = seatSnapshot.seatState;
+  monitorContext.seatVersion = seatSnapshot.seatVersion;
 
   if (previousLongSeatState.status === 'ACTIVE' && longSeatState.status !== 'ACTIVE') {
-    clearWarrantInfoForDirection('LONG');
-    clearDirectionQueues('LONG');
+    clearSignalDirectionRuntime({
+      monitorSymbol,
+      monitorContext,
+      direction: 'LONG',
+      mainContext,
+      releaseSignal,
+    });
   }
 
   if (previousShortSeatState.status === 'ACTIVE' && shortSeatState.status !== 'ACTIVE') {
-    clearWarrantInfoForDirection('SHORT');
-    clearDirectionQueues('SHORT');
+    clearSignalDirectionRuntime({
+      monitorSymbol,
+      monitorContext,
+      direction: 'SHORT',
+      mainContext,
+      releaseSignal,
+    });
   }
 
   return {
     longSeatState,
     shortSeatState,
-    longSeatVersion,
-    shortSeatVersion,
-    longSeatActive,
-    shortSeatActive,
-    longSymbol,
-    shortSymbol,
+    longSeatVersion: seatSnapshot.seatVersion.long,
+    shortSeatVersion: seatSnapshot.seatVersion.short,
+    longSeatActive: seatSnapshot.longSymbol !== null,
+    shortSeatActive: seatSnapshot.shortSymbol !== null,
+    longSymbol: seatSnapshot.longSymbol ?? '',
+    shortSymbol: seatSnapshot.shortSymbol ?? '',
+  };
+}
+
+/**
+ * 同步席位状态到监控上下文。
+ * 从 symbolRegistry 读取最新席位状态并写入 monitorContext；
+ * 当席位从 ACTIVE 变为非 ACTIVE 时清理对应方向的队列和牛熊证信息；
+ * 随后使用时间循环已读取的 quotesMap 补充展示名称与风险展示行情。
+ */
+export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
+  const { monitorSymbol, monitorContext, mainContext, quotesMap, releaseSignal } = params;
+  const { symbolRegistry } = monitorContext;
+  const seatInfo = syncSignalSeatState({
+    monitorSymbol,
+    monitorContext,
+    mainContext,
+    releaseSignal,
+  });
+  const runtimeSnapshot = resolveMonitorContextRuntimeSnapshot(
+    monitorSymbol,
+    symbolRegistry,
+    quotesMap,
+  );
+  const longQuote = runtimeSnapshot.longQuote;
+  const shortQuote = runtimeSnapshot.shortQuote;
+
+  monitorContext.longSymbolName = runtimeSnapshot.longSymbolName;
+  monitorContext.shortSymbolName = runtimeSnapshot.shortSymbolName;
+  monitorContext.monitorSymbolName = runtimeSnapshot.monitorSymbolName;
+
+  return {
+    ...seatInfo,
     longQuote,
     shortQuote,
   };

@@ -8,7 +8,7 @@
  * 订阅机制：
  * - 创建客户端时不自动订阅，需显式调用 subscribeSymbols / subscribeCandlesticks
  * - Quote 当前价由 SDK realtime 状态提供，标准化 quote push 事件由应用层按订阅与缓存状态派发
- * - K 线数据采用「subscribe 初始 seed + setOnCandlestick push 更新」的应用层本地缓存
+ * - K 线数据采用「subscribe 初始 seed + setOnCandlestick push 更新」的应用层本地缓存，并在 push 后发布标准化更新事件
  * - getQuotes() 只读取 SDK realtimeQuote 状态，无 HTTP 请求
  * - getRealtimeCandlesticks() 从 SDK 内部缓存读取，无 HTTP 请求
  *
@@ -43,9 +43,11 @@ import type {
   MarketDataClient,
   MarketQuoteContext,
   TradingDaysResult,
+  CandlestickUpdatedEvent,
   QuoteUpdatedEvent,
 } from '../../types/services.js';
 import type {
+  CandlestickUpdatedListener,
   RetryConfig,
   MarketDataClientDeps,
   QuoteContextLike,
@@ -397,6 +399,9 @@ export async function createMarketDataClient(
   // 标准化行情更新监听器
   const quoteUpdatedListeners = new Set<(event: QuoteUpdatedEvent) => void>();
 
+  // 标准化 K 线更新监听器
+  const candlestickUpdatedListeners = new Set<CandlestickUpdatedListener>();
+
   // 已订阅 K 线跟踪（key: "symbol:period"）
   const subscribedCandlesticks = new Map<string, Period>();
   const candlestickCacheStore = createCandlestickCacheStore({
@@ -421,13 +426,28 @@ export async function createMarketDataClient(
       return;
     }
 
-    applyCandlestickPush({
+    const currentSnapshot = candlestickCacheStore.snapshots.get(key) ?? null;
+    const updatedSnapshot = applyCandlestickPush({
       store: candlestickCacheStore,
       symbol,
       period: pushData.period,
       candlestick: pushData.candlestick,
       isConfirmed: pushData.isConfirmed,
     });
+
+    if (updatedSnapshot === null || updatedSnapshot === currentSnapshot) {
+      return;
+    }
+
+    const standardizedEvent: CandlestickUpdatedEvent = {
+      symbol,
+      period: pushData.period,
+      snapshot: updatedSnapshot,
+    };
+
+    for (const listener of candlestickUpdatedListeners) {
+      listener(standardizedEvent);
+    }
   });
 
   ctx.setOnQuote((err, event) => {
@@ -705,18 +725,34 @@ export async function createMarketDataClient(
   }
 
   /**
+   * 订阅标准化 K 线更新事件。
+   *
+   * 监听器仅接收已经通过 quoteClient 标准化、且当前仍处于已订阅状态的 K 线更新。
+   * 返回的取消订阅函数只移除当前监听器，不影响底层 K 线订阅。
+   *
+   * @param listener K 线更新监听器
+   * @returns 取消订阅函数
+   */
+  function onCandlestickUpdated(listener: CandlestickUpdatedListener): () => void {
+    candlestickUpdatedListeners.add(listener);
+    return () => {
+      candlestickUpdatedListeners.delete(listener);
+    };
+  }
+
+  /**
    * 订阅指定标的的 K 线推送，并返回初始 K 线数据。
    *
    * @param symbol 标的代码
    * @param period K 线周期
-   * @param tradeSessions 交易时段，默认 All
+   * @param tradeSessions 交易时段，默认 Intraday
    * @returns 初始 K 线数组；已订阅过则返回空数组
    * 副作用：写入 subscribedCandlesticks、拉取并返回初始 K 线
    */
   async function subscribeCandlesticks(
     symbol: string,
     period: Period,
-    tradeSessions: TradeSessions = TradeSessions.All,
+    tradeSessions: TradeSessions = TradeSessions.Intraday,
   ): Promise<ReadonlyArray<Candlestick>> {
     const key = `${symbol}:${period}`;
     if (subscribedCandlesticks.has(key)) {
@@ -904,6 +940,7 @@ export async function createMarketDataClient(
     subscribeSymbols,
     unsubscribeSymbols,
     onQuoteUpdated,
+    onCandlestickUpdated,
     subscribeCandlesticks,
     getRealtimeCandlesticks,
     getCandlestickSnapshot: readLocalCandlestickSnapshot,

@@ -83,6 +83,23 @@ export type QuoteUpdatedEvent = {
 };
 
 /**
+ * 标准化 K 线更新事件。
+ * 类型用途：表示经过 quoteClient 标准化后的单标的 K 线更新事件，供事件驱动业务监听器消费。
+ * 数据来源：quoteClient 在处理 Longbridge K 线 push 并更新本地缓存后标准化得到。
+ * 使用范围：MarketDataClient.onCandlestickUpdated 与相关业务监听链路；全项目可引用。
+ */
+export type CandlestickUpdatedEvent = {
+  /** 标的代码 */
+  readonly symbol: string;
+
+  /** K 线周期 */
+  readonly period: Period;
+
+  /** 最新本地 K 线缓存快照 */
+  readonly snapshot: CandlestickCacheSnapshot;
+};
+
+/**
  * 轮证报价最小结构。
  * 类型用途：表达当前仓库直接消费的 warrantQuote 字段边界，仅保留 symbol/callPrice/category。
  * 数据来源：quoteClient 透传的 Longbridge warrantQuote 响应。
@@ -176,6 +193,16 @@ export interface MarketDataClient {
   onQuoteUpdated: (listener: (event: QuoteUpdatedEvent) => void) => () => void;
 
   /**
+   * 订阅标准化 K 线更新事件。
+   *
+   * 该事件由 quoteClient 基于 K 线 push 与本地缓存标准化后发出，是普通 K 线事件业务链路的必需能力。
+   *
+   * @param listener K 线更新监听器
+   * @returns 取消订阅函数
+   */
+  onCandlestickUpdated: (listener: (event: CandlestickUpdatedEvent) => void) => () => void;
+
+  /**
    * 订阅指定标的的 K 线推送
    *
    * 订阅后客户端会用返回值 seed 应用层本地 K 线缓存，并通过 push 事件持续更新。
@@ -183,7 +210,7 @@ export interface MarketDataClient {
    *
    * @param symbol 标的代码
    * @param period K 线周期
-   * @param tradeSessions 交易时段（默认 All）
+   * @param tradeSessions 交易时段（默认 Intraday）
    * @returns 初始 K 线数据
    */
   subscribeCandlesticks: (

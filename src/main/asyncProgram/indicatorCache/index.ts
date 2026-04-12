@@ -6,7 +6,7 @@
  * - push 时对 snapshot 深拷贝后入库，使缓存与主循环对象池解耦，主循环释放 kdj/macd 不影响缓存
  *
  * 执行流程：
- * - 主循环每秒 push(monitorSymbol, snapshot)；延迟验证器在验证时 getAt(monitorSymbol, targetTime, toleranceMs)
+ * - timeDriverProgram 每秒 push(monitorSymbol, snapshot, sampleTimestampMs)；延迟验证器在验证时 getAt(monitorSymbol, targetTime, toleranceMs)
  */
 import { INDICATOR_CACHE } from '../../../constants/index.js';
 import type { IndicatorSnapshot } from '../../../types/quote.js';
@@ -51,13 +51,13 @@ export const createIndicatorCache = (options: IndicatorCacheOptions = {}): Indic
      * 推送指标快照到指定标的的缓冲区
      * 对 snapshot 进行深拷贝后存储，确保数据独立于外部对象池
      */
-    push(monitorSymbol: string, snapshot: IndicatorSnapshot): void {
+    push(monitorSymbol: string, snapshot: IndicatorSnapshot, sampleTimestampMs: number): void {
       const buffer = getOrCreateBuffer(monitorSymbol);
 
       // 克隆快照，确保存储的数据独立于外部对象池管理
       // 这样即使主循环释放了 kdj/macd 对象，IndicatorCache 中的数据也不受影响
       const entry: IndicatorCacheEntry = {
-        timestamp: Date.now(),
+        timestamp: sampleTimestampMs,
         snapshot: cloneIndicatorSnapshot(snapshot),
       };
       pushToBuffer(buffer, entry);

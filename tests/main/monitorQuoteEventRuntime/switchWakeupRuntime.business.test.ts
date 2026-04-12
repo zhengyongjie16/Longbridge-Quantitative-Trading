@@ -152,7 +152,6 @@ describe('switchWakeupRuntime', () => {
       readonly now?: () => Date;
       readonly timerHarness?: ReturnType<typeof createTimerHarness>;
       readonly autoSymbolManager?: AutoSymbolManagerPort;
-      readonly monitorPrice?: number | null;
     } = {},
   ): Readonly<{
     runtime: ReturnType<typeof createSwitchWakeupRuntime>;
@@ -217,14 +216,12 @@ describe('switchWakeupRuntime', () => {
             symbolRegistry,
             state: {
               monitorSymbol: 'HSI.HK',
-              monitorPrice: params.monitorPrice ?? null,
               longPrice: null,
               shortPrice: null,
               signal: null,
               pendingDelayedSignals: [],
               monitorValues: null,
               lastMonitorSnapshot: null,
-              lastCandlestickCacheVersion: null,
               incrementalIndicatorRuntime: null,
             },
             ...(params.autoSymbolManager ? { autoSymbolManager: params.autoSymbolManager } : {}),
@@ -314,13 +311,11 @@ describe('switchWakeupRuntime', () => {
   it('re-drives the same pending switch on order, freshness, quote and retry-timer wakeups', async () => {
     const advanceCalls: Array<{
       direction: 'LONG' | 'SHORT';
-      monitorPrice: number | null;
-      positionSymbols: ReadonlyArray<string>;
+      positionQuantities: ReadonlyArray<number>;
     }> = [];
     const timerHarness = createTimerHarness(10_000);
     const runtimeHarness = createBaseHarness({
       timerHarness,
-      monitorPrice: 20_000,
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
         maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
@@ -332,9 +327,8 @@ describe('switchWakeupRuntime', () => {
         advancePendingSwitch: async (params) => {
           advanceCalls.push({
             direction: params.direction,
-            monitorPrice: params.monitorPrice,
-            positionSymbols: params.positions.map(
-              (position: { readonly symbol: string }) => position.symbol,
+            positionQuantities: params.positions.map(
+              (position: { readonly quantity: number }) => position.quantity,
             ),
           });
 
@@ -406,16 +400,18 @@ describe('switchWakeupRuntime', () => {
     }
 
     runtimeHarness.lastState.cachedPositions = [
+      createPositionDouble({ symbol: 'BULL.HK', quantity: 1, availableQuantity: 1 }),
+    ];
+
+    runtimeHarness.lastState.cachedPositions = [
       createPositionDouble({ symbol: 'BULL.HK', quantity: 200, availableQuantity: 200 }),
     ];
-    monitorContext.state.monitorPrice = 20_100;
     emitOrderStateChanged('BULL.HK');
     await waitTick();
 
     runtimeHarness.lastState.cachedPositions = [
       createPositionDouble({ symbol: 'BULL.HK', quantity: 300, availableQuantity: 300 }),
     ];
-    monitorContext.state.monitorPrice = 20_200;
     runtimeHarness.consistencyHarness.emitFreshReached();
     await waitTick();
 
@@ -426,14 +422,12 @@ describe('switchWakeupRuntime', () => {
     runtimeHarness.lastState.cachedPositions = [
       createPositionDouble({ symbol: 'BULL.HK', quantity: 400, availableQuantity: 400 }),
     ];
-    monitorContext.state.monitorPrice = 20_300;
     emitQuoteUpdated('BULL.HK', 1.23);
     await waitTick();
 
     runtimeHarness.lastState.cachedPositions = [
       createPositionDouble({ symbol: 'BULL.HK', quantity: 500, availableQuantity: 500 }),
     ];
-    monitorContext.state.monitorPrice = 20_400;
     timerHarness.setNow(10_100);
     timerHarness.fireDueTimers();
     await waitTick();
@@ -441,23 +435,19 @@ describe('switchWakeupRuntime', () => {
     expect(advanceCalls).toEqual([
       {
         direction: 'LONG',
-        monitorPrice: 20_100,
-        positionSymbols: ['BULL.HK'],
+        positionQuantities: [200],
       },
       {
         direction: 'LONG',
-        monitorPrice: 20_200,
-        positionSymbols: ['BULL.HK'],
+        positionQuantities: [300],
       },
       {
         direction: 'LONG',
-        monitorPrice: 20_300,
-        positionSymbols: ['BULL.HK'],
+        positionQuantities: [400],
       },
       {
         direction: 'LONG',
-        monitorPrice: 20_400,
-        positionSymbols: ['BULL.HK'],
+        positionQuantities: [500],
       },
     ]);
     expect(timerHarness.getPendingTimerCount()).toBe(0);
@@ -556,7 +546,7 @@ describe('switchWakeupRuntime', () => {
               driveResult: { kind: 'NOOP' },
             }),
             advancePendingSwitch: async (params) => {
-              longAdvanceCalls.push(`${params.direction}:${params.monitorPrice}`);
+              longAdvanceCalls.push(`${params.direction}:${params.positions.length}`);
               return {
                 advanced: true,
                 direction: params.direction,
@@ -583,7 +573,7 @@ describe('switchWakeupRuntime', () => {
               driveResult: { kind: 'NOOP' },
             }),
             advancePendingSwitch: async (params) => {
-              techAdvanceCalls.push(`${params.direction}:${params.monitorPrice}`);
+              techAdvanceCalls.push(`${params.direction}:${params.positions.length}`);
               return {
                 advanced: true,
                 direction: params.direction,
@@ -597,8 +587,6 @@ describe('switchWakeupRuntime', () => {
         }),
       ],
     ]);
-    monitorContexts.get('HSI.HK')!.state.monitorPrice = 20_111;
-    monitorContexts.get('TECH.HK')!.state.monitorPrice = 22_222;
 
     const runtimeHarness = createBaseHarness({
       monitorContexts,
@@ -632,11 +620,14 @@ describe('switchWakeupRuntime', () => {
       driveResult: createWaitResult([{ kind: 'FRESHNESS' }]),
     });
 
+    runtimeHarness.lastState.cachedPositions = [
+      createPositionDouble({ symbol: 'BULL.HK', quantity: 1, availableQuantity: 1 }),
+    ];
     runtimeHarness.consistencyHarness.emitFreshReached();
     await waitTick();
 
-    expect(longAdvanceCalls).toEqual(['LONG:20111']);
-    expect(techAdvanceCalls).toEqual(['LONG:22222']);
+    expect(longAdvanceCalls).toEqual(['LONG:1']);
+    expect(techAdvanceCalls).toEqual(['LONG:1']);
 
     await runtimeHarness.runtime.stopAndDrain();
   });
@@ -677,7 +668,6 @@ describe('switchWakeupRuntime', () => {
         resetAllState: () => {},
       },
     });
-    monitorContext.state.monitorPrice = 20_000;
     const runtime = createSwitchWakeupRuntime({
       marketDataClient: {
         onQuoteUpdated: (listener) => {
@@ -946,7 +936,7 @@ describe('switchWakeupRuntime', () => {
 
   it('collapses concurrent wakeups to the latest pending execution for the same route', async () => {
     const firstAdvance = createDeferred();
-    const observedMonitorPrices: number[] = [];
+    const observedPositionQuantities: ReadonlyArray<number>[] = [];
     let callCount = 0;
     const runtimeHarness = createBaseHarness({
       autoSymbolManager: {
@@ -959,7 +949,7 @@ describe('switchWakeupRuntime', () => {
         }),
         advancePendingSwitch: async (params) => {
           callCount += 1;
-          observedMonitorPrices.push(params.monitorPrice ?? -1);
+          observedPositionQuantities.push(params.positions.map((position) => position.quantity));
           if (callCount === 1) {
             await firstAdvance.promise;
             return {
@@ -986,7 +976,9 @@ describe('switchWakeupRuntime', () => {
       throw new Error('expected HSI.HK monitor context');
     }
 
-    monitorContext.state.monitorPrice = 20_000;
+    runtimeHarness.lastState.cachedPositions = [
+      createPositionDouble({ symbol: 'BULL.HK', quantity: 100, availableQuantity: 100 }),
+    ];
 
     runtimeHarness.runtime.start();
     runtimeHarness.runtime.handoffPendingSwitch({
@@ -998,10 +990,13 @@ describe('switchWakeupRuntime', () => {
 
     emitOrderStateChanged('BULL.HK');
     await waitTick();
+    runtimeHarness.lastState.cachedPositions = [
+      createPositionDouble({ symbol: 'BULL.HK', quantity: 200, availableQuantity: 200 }),
+    ];
 
-    monitorContext.state.monitorPrice = 20_100;
-    emitOrderStateChanged('BULL.HK');
-    monitorContext.state.monitorPrice = 20_200;
+    runtimeHarness.lastState.cachedPositions = [
+      createPositionDouble({ symbol: 'BULL.HK', quantity: 300, availableQuantity: 300 }),
+    ];
     emitOrderStateChanged('BULL.HK');
     await waitTick();
 
@@ -1009,7 +1004,7 @@ describe('switchWakeupRuntime', () => {
     await waitTick();
     await waitTick();
 
-    expect(observedMonitorPrices).toEqual([20_000, 20_200]);
+    expect(observedPositionQuantities).toEqual([[100], [300]]);
     await runtimeHarness.runtime.stopAndDrain();
   });
 });

@@ -2,9 +2,9 @@
  * indicatorPipeline 业务测试
  *
  * 功能：
- * - 验证缓存 version 复用与每秒 indicatorCache push 语义
  * - 验证缓存缺失时返回 null
- * - 验证 version 变化时能推进增量 runtime 并更新状态
+ * - 验证事件到达时能推进增量 runtime 并更新状态
+ * - 验证重复调用会基于已存在 runtime 继续推进，而不再依赖主循环缓存版本短路
  */
 import { describe, expect, it } from 'bun:test';
 import { Period } from 'longbridge';
@@ -13,11 +13,9 @@ import type { CandleData } from '../../../src/types/data.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { IndicatorPipelineParams } from '../../../src/main/processMonitor/types.js';
-import type { MonitorIndicatorChangesParams } from '../../../src/services/marketMonitor/types.js';
 import {
   createIndicatorUsageProfileDouble,
   createMonitorConfigDouble,
-  createQuoteDouble,
 } from '../../helpers/testDoubles.js';
 
 function createCandles(length: number, start: number, step: number): ReadonlyArray<CandleData> {
@@ -82,14 +80,12 @@ function createMonitorContext(overrides: Partial<MonitorContext> = {}): MonitorC
     config,
     state: {
       monitorSymbol: config.monitorSymbol,
-      monitorPrice: null,
       longPrice: null,
       shortPrice: null,
       signal: null,
       pendingDelayedSignals: [],
       monitorValues: null,
       lastMonitorSnapshot: null,
-      lastCandlestickCacheVersion: null,
       incrementalIndicatorRuntime: null,
     },
     monitorSymbolName: config.monitorSymbol,
@@ -112,99 +108,61 @@ async function loadRunIndicatorPipeline(): Promise<RunIndicatorPipelineFn> {
 describe('processMonitor indicatorPipeline business flow', () => {
   it('returns null when local candlestick cache is missing or not initialized', async () => {
     const runIndicatorPipeline = await loadRunIndicatorPipeline();
-    let cachePushCount = 0;
-    let monitorChangesCount = 0;
 
     const monitorContext = createMonitorContext();
     const result = await runIndicatorPipeline({
       monitorSymbol: 'HSI.HK',
       monitorContext,
-      monitorQuote: createQuoteDouble('HSI.HK', 20_000),
       mainContext: {
         marketDataClient: {
           getCandlestickSnapshot: () => null,
-        },
-        indicatorCache: {
-          push: () => {
-            cachePushCount += 1;
-          },
-          getAt: () => null,
-          clearAll: () => {},
-        },
-        marketMonitor: {
-          monitorIndicatorChanges: () => {
-            monitorChangesCount += 1;
-            return false;
-          },
         },
       } as never,
     });
 
     expect(result).toBeNull();
-    expect(cachePushCount).toBe(0);
-    expect(monitorChangesCount).toBe(0);
   });
 
-  it('reuses last snapshot when cache version is unchanged and still pushes indicatorCache', async () => {
+  it('advances from existing incremental runtime on repeated calls', async () => {
     const runIndicatorPipeline = await loadRunIndicatorPipeline();
-    const lastSnapshot = createSnapshot(111);
     const cacheSnapshot = createCacheSnapshot({
       candles: createCandles(60, 100, 0.2),
       version: 7,
     });
+    const previousSnapshot = createSnapshot(111);
 
     const monitorContext = createMonitorContext({
       state: {
         monitorSymbol: 'HSI.HK',
-        monitorPrice: null,
         longPrice: null,
         shortPrice: null,
         signal: null,
         pendingDelayedSignals: [],
         monitorValues: null,
-        lastMonitorSnapshot: lastSnapshot,
-        lastCandlestickCacheVersion: 7,
+        lastMonitorSnapshot: previousSnapshot,
         incrementalIndicatorRuntime: null,
       },
     });
 
-    const pushed: IndicatorSnapshot[] = [];
-    const monitorChanges: IndicatorSnapshot[] = [];
     const result = await runIndicatorPipeline({
       monitorSymbol: 'HSI.HK',
       monitorContext,
-      monitorQuote: createQuoteDouble('HSI.HK', 20_000),
       mainContext: {
         marketDataClient: {
           getCandlestickSnapshot: () => cacheSnapshot,
         },
-        indicatorCache: {
-          push: (_symbol: string, snapshot: IndicatorSnapshot) => {
-            pushed.push(snapshot);
-          },
-          getAt: () => null,
-          clearAll: () => {},
-        },
-        marketMonitor: {
-          monitorIndicatorChanges: (params: MonitorIndicatorChangesParams) => {
-            const monitorSnapshot = params.monitorSnapshot;
-            if (monitorSnapshot === null) {
-              throw new Error('expected indicator snapshot');
-            }
-
-            monitorChanges.push(monitorSnapshot);
-            return false;
-          },
-        },
       } as never,
     });
 
-    expect(result).toBe(lastSnapshot);
-    expect(pushed).toEqual([lastSnapshot]);
-    expect(monitorChanges).toEqual([lastSnapshot]);
+    expect(result).not.toBeNull();
+    if (result === null) {
+      throw new Error('expected indicator snapshot');
+    }
+
+    expect(result).not.toBe(previousSnapshot);
   });
 
-  it('rebuilds snapshot from incremental runtime when cache version changes', async () => {
+  it('rebuilds snapshot from candlestick cache and更新 state', async () => {
     const runIndicatorPipeline = await loadRunIndicatorPipeline();
     const cacheSnapshot = createCacheSnapshot({
       candles: createCandles(80, 120, 0.3),
@@ -212,28 +170,12 @@ describe('processMonitor indicatorPipeline business flow', () => {
     });
     const monitorContext = createMonitorContext();
 
-    const pushed: IndicatorSnapshot[] = [];
-    let monitorChangesCount = 0;
     const result = await runIndicatorPipeline({
       monitorSymbol: 'HSI.HK',
       monitorContext,
-      monitorQuote: createQuoteDouble('HSI.HK', 20_100),
       mainContext: {
         marketDataClient: {
           getCandlestickSnapshot: () => cacheSnapshot,
-        },
-        indicatorCache: {
-          push: (_symbol: string, snapshot: IndicatorSnapshot) => {
-            pushed.push(snapshot);
-          },
-          getAt: () => null,
-          clearAll: () => {},
-        },
-        marketMonitor: {
-          monitorIndicatorChanges: () => {
-            monitorChangesCount += 1;
-            return true;
-          },
         },
       } as never,
     });
@@ -243,11 +185,7 @@ describe('processMonitor indicatorPipeline business flow', () => {
       throw new Error('expected indicator snapshot');
     }
 
-    expect(pushed).toHaveLength(1);
-    expect(pushed[0]).toBe(result);
     expect(monitorContext.state.lastMonitorSnapshot).toBe(result);
-    expect(monitorContext.state.lastCandlestickCacheVersion).toBe(11);
     expect(monitorContext.state.incrementalIndicatorRuntime).not.toBeNull();
-    expect(monitorChangesCount).toBe(1);
   });
 });

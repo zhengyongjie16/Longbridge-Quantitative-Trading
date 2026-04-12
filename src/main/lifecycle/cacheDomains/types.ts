@@ -16,6 +16,7 @@ import type {
 import type { MonitorTaskQueue } from '../../asyncProgram/monitorTaskQueue/types.js';
 import type { IndicatorCache } from '../../asyncProgram/indicatorCache/types.js';
 import type { TradingRiskEventRuntime } from '../../tradingRiskEventRuntime/types.js';
+import type { BusinessEventProgram } from '../../businessEventProgram/types.js';
 import type {
   MonitorQuoteEventRuntime,
   SwitchWakeupRuntime,
@@ -55,6 +56,7 @@ export type SignalRuntimeDomainDeps = Readonly<{
   buyProcessor: Processor;
   sellProcessor: Processor;
   monitorTaskProcessor: MonitorTaskProcessor;
+  businessEventProgram: Pick<BusinessEventProgram, 'start' | 'stopAndDrain'>;
   tradingRiskEventRuntime: Pick<TradingRiskEventRuntime, 'start' | 'stopAndDrain'>;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
   switchWakeupRuntime: Pick<SwitchWakeupRuntime, 'start' | 'stopAndDrain'>;

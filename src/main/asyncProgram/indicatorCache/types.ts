@@ -48,16 +48,17 @@ export type IndicatorCacheOptions = {
 /**
  * 指标缓存行为契约。
  * 类型用途：供 DelayedSignalVerifier 等回溯历史指标（getAt），由主程序按监控标的创建并注入。
- * 数据来源：主程序创建，indicatorCache 模块实现；push 数据来自行情/指标流水线。
- * 使用范围：mainProgram、delayedSignalVerifier、lifecycle 等使用，仅内部使用。
+ * 数据来源：主程序创建，indicatorCache 模块实现；push 数据来自 timeDriverProgram 的 tick 采样。
+ * 使用范围：timeDriverProgram、delayedSignalVerifier、lifecycle 等使用，仅内部使用。
  */
 export interface IndicatorCache {
   /**
    * 推送新的指标快照
    * @param monitorSymbol 监控标的代码
    * @param snapshot 指标快照
+   * @param sampleTimestampMs 采样时间戳（毫秒）
    */
-  push: (monitorSymbol: string, snapshot: IndicatorSnapshot) => void;
+  push: (monitorSymbol: string, snapshot: IndicatorSnapshot, sampleTimestampMs: number) => void;
 
   /**
    * 获取最接近目标时间的缓存条目

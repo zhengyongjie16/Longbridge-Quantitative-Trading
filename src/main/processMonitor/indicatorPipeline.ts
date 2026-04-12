@@ -2,10 +2,9 @@
  * 指标处理流水线模块
  *
  * 功能：
- * - 每秒从应用层本地 K 线缓存读取快照
- * - 在缓存 version 未变化时复用上次快照
- * - 在缓存 version 变化时推进增量 runtime 并构建新快照
- * - 每拍都写入 indicatorCache，保持延迟验证时间轴连续
+ * - 从应用层本地 K 线缓存读取快照
+ * - 推进增量 runtime 并构建最新 snapshot
+ * - 更新 monitorState.latest snapshot
  */
 import {
   bootstrapIndicatorRuntime,
@@ -21,11 +20,11 @@ import { formatSymbolDisplay } from '../../utils/display/index.js';
 
 /**
  * 执行指标处理流水线。
- * 缓存 version 不变时复用上次快照，但仍按主循环采样时间写入 indicatorCache。
+ * 每次调用都基于当前权威 candlestick snapshot 推进增量 runtime。
  */
 export function runIndicatorPipeline(params: IndicatorPipelineParams): IndicatorSnapshot | null {
-  const { monitorSymbol, monitorContext, mainContext, monitorQuote } = params;
-  const { marketDataClient, indicatorCache, marketMonitor } = mainContext;
+  const { monitorSymbol, monitorContext, mainContext } = params;
+  const { marketDataClient } = mainContext;
   const { state, indicatorProfile } = monitorContext;
 
   const cacheSnapshot = marketDataClient.getCandlestickSnapshot(
@@ -37,26 +36,6 @@ export function runIndicatorPipeline(params: IndicatorPipelineParams): Indicator
       `未获取到监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} K线缓存快照`,
     );
     return null;
-  }
-
-  const klineTimestamp = cacheSnapshot.lastBarTimestamp;
-  if (
-    state.lastCandlestickCacheVersion !== null &&
-    cacheSnapshot.version === state.lastCandlestickCacheVersion &&
-    state.lastMonitorSnapshot !== null
-  ) {
-    // indicatorCache 继续按主循环采样时间每秒写入，供 delayed verification 按真实时间轴取样。
-    // 即使本秒 K 线缓存没有变化，也要 push 最近一次 snapshot，不能改成“仅事件时写入”。
-    indicatorCache.push(monitorSymbol, state.lastMonitorSnapshot);
-    marketMonitor.monitorIndicatorChanges({
-      monitorSnapshot: state.lastMonitorSnapshot,
-      monitorQuote,
-      monitorSymbol,
-      indicatorProfile,
-      klineTimestamp,
-      monitorState: state,
-    });
-    return state.lastMonitorSnapshot;
   }
 
   let runtime = state.incrementalIndicatorRuntime;
@@ -87,21 +66,11 @@ export function runIndicatorPipeline(params: IndicatorPipelineParams): Indicator
     return null;
   }
 
-  marketMonitor.monitorIndicatorChanges({
-    monitorSnapshot,
-    monitorQuote,
-    monitorSymbol,
-    indicatorProfile,
-    klineTimestamp,
-    monitorState: state,
-  });
-  indicatorCache.push(monitorSymbol, monitorSnapshot);
   if (state.lastMonitorSnapshot !== monitorSnapshot) {
     releaseSnapshotObjects(state.lastMonitorSnapshot, state.monitorValues);
   }
 
   state.incrementalIndicatorRuntime = runtime;
   state.lastMonitorSnapshot = monitorSnapshot;
-  state.lastCandlestickCacheVersion = cacheSnapshot.version;
   return monitorSnapshot;
 }

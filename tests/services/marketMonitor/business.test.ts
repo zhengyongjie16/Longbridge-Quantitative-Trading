@@ -22,14 +22,12 @@ import {
 function createMonitorState(monitorSymbol: string): MonitorState {
   return {
     monitorSymbol,
-    monitorPrice: null,
     longPrice: null,
     shortPrice: null,
     signal: null,
     pendingDelayedSignals: [],
     monitorValues: null,
     lastMonitorSnapshot: null,
-    lastCandlestickCacheVersion: null,
     incrementalIndicatorRuntime: null,
   };
 }

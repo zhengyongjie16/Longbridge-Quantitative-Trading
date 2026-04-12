@@ -4,29 +4,15 @@
  * 核心职责：
  * - 处理单个监控标的的完整交易循环
  * - 实时监控价格变化并调度风险/换标任务
- * - 获取 K 线数据，计算技术指标
- * - 生成交易信号并分发到对应队列
+ * - 不再负责普通 K 线指标推进或普通信号生成
  *
  * 执行流程：
- * - 提取行情数据 → 自动换标/席位同步 → 风险任务与价格展示更新
- * - 获取 K 线/计算指标 → 缓存指标快照 → 获取持仓
- * - 生成信号 → 分流信号到队列/验证器
- *
- * 信号处理规则：
- * - 开盘保护期间：跳过信号生成，仅保留行情/指标展示
- *
- * 信号分流规则（交易时段内）：
- * - 立即卖出信号 → SellTaskQueue
- * - 立即买入信号 → BuyTaskQueue
- * - 延迟验证信号 → DelayedSignalVerifier
+ * - 提取行情数据 → 自动换标任务调度 → 席位同步 → 风险展示刷新
  */
-import { MONITOR } from '../../constants/index.js';
-import { positionObjectPool, signalObjectPool } from '../../utils/objectPool/index.js';
+import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { scheduleAutoSymbolTasks } from './autoSymbolTasks.js';
-import { runIndicatorPipeline } from './indicatorPipeline.js';
 import { scheduleRiskTasks } from './riskTasks.js';
 import { syncSeatState } from './seatSync.js';
-import { runSignalPipeline } from './signalPipeline.js';
 
 import type { Quote } from '../../types/quote.js';
 import type { ProcessMonitorParams } from './types.js';
@@ -37,13 +23,13 @@ import type { ProcessMonitorParams } from './types.js';
  * @param context 处理上下文，包含所有必要的依赖和状态
  * @param quotesMap 预先批量获取的行情数据 Map（提升性能，避免每个监控标的单独获取行情）
  */
-export async function processMonitor(
+export function processMonitor(
   context: ProcessMonitorParams,
   quotesMap: ReadonlyMap<string, Quote | null>,
-): Promise<void> {
+): void {
   const { monitorContext, context: mainContext, runtimeFlags } = context;
   const { canTradeNow } = runtimeFlags;
-  const { config, state } = monitorContext;
+  const { config } = monitorContext;
 
   const MONITOR_SYMBOL = config.monitorSymbol;
   const autoSearchEnabled = config.autoSearchConfig.autoSearchEnabled;
@@ -52,15 +38,6 @@ export async function processMonitor(
   const monitorQuote = quotesMap.get(MONITOR_SYMBOL) ?? null;
 
   const monitorCurrentPrice = monitorQuote?.price ?? null;
-  const resolvedMonitorPrice = Number.isFinite(monitorCurrentPrice) ? monitorCurrentPrice : null;
-  const lastMonitorPrice = Number.isFinite(state.monitorPrice) ? state.monitorPrice : null;
-  const monitorPriceChanged =
-    resolvedMonitorPrice !== null &&
-    (lastMonitorPrice === null ||
-      Math.abs(resolvedMonitorPrice - lastMonitorPrice) > MONITOR.PRICE_CHANGE_THRESHOLD);
-  if (monitorPriceChanged) {
-    state.monitorPrice = resolvedMonitorPrice;
-  }
 
   const currentTimeMs = runtimeFlags.currentTime.getTime();
 
@@ -89,33 +66,5 @@ export async function processMonitor(
     mainContext,
     seatInfo,
     monitorCurrentPrice,
-  });
-
-  const monitorSnapshot = await Promise.resolve(
-    runIndicatorPipeline({
-      monitorSymbol: MONITOR_SYMBOL,
-      monitorContext,
-      mainContext,
-      monitorQuote,
-    }),
-  );
-
-  if (!monitorSnapshot) {
-    return;
-  }
-
-  runSignalPipeline({
-    monitorSymbol: MONITOR_SYMBOL,
-    monitorContext,
-    mainContext,
-    runtimeFlags,
-    seatInfo,
-    monitorSnapshot,
-    releaseSignal: (signal) => {
-      signalObjectPool.release(signal);
-    },
-    releasePosition: (position) => {
-      positionObjectPool.release(position);
-    },
   });
 }

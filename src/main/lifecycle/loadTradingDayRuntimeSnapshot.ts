@@ -19,7 +19,7 @@
  * - 程序启动时的首次初始化
  * - 开盘重建流程中由 globalStateDomain 调用
  */
-import { OrderSide } from 'longbridge';
+import { OrderSide, TradeSessions } from 'longbridge';
 import { PENDING_ORDER_STATUSES, TRADING } from '../../constants/index.js';
 import {
   getHKDateKey,
@@ -368,6 +368,7 @@ export function createLoadTradingDayRuntimeSnapshot(
       await marketDataClient.subscribeCandlesticks(
         monitorConfig.monitorSymbol,
         TRADING.CANDLE_PERIOD,
+        TradeSessions.Intraday,
       );
     }
 

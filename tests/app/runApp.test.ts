@@ -73,8 +73,8 @@ function createHarnessState(): MutableRunAppHarnessState {
     completeRebuildBaselineShouldThrow: false,
     registerDelayedCalls: 0,
     cleanupRegistered: 0,
-    mainProgramCalls: 0,
-    mainProgramRuntimeGateModes: [],
+    timeDriverProgramCalls: 0,
+    timeDriverProgramRuntimeGateModes: [],
     sleepDurations: [],
     validationResult: {
       valid: true,
@@ -341,6 +341,14 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
       harnessState.registerDelayedCalls += 1;
       harnessState.events.push('registerDelayedSignalHandlers');
     },
+    createBusinessEventProgram: () => ({
+      start: () => {
+        harnessState.events.push('businessEventProgram.start');
+      },
+      stopAndDrain: async () => {
+        harnessState.events.push('businessEventProgram.stopAndDrain');
+      },
+    }),
     createAsyncRuntime: () => {
       harnessState.events.push('createAsyncRuntime');
       return {
@@ -383,10 +391,10 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
         harnessState.events.push('registerExitHandlers');
       },
     }),
-    mainProgram: async (params) => {
-      harnessState.mainProgramCalls += 1;
-      harnessState.mainProgramRuntimeGateModes.push(params.runtimeGateMode);
-      harnessState.events.push('mainProgram');
+    timeDriverProgram: async (params) => {
+      harnessState.timeDriverProgramCalls += 1;
+      harnessState.timeDriverProgramRuntimeGateModes.push(params.runtimeGateMode);
+      harnessState.events.push('timeDriverProgram');
     },
     sleep: async (ms) => {
       harnessState.sleepDurations.push(ms);
@@ -443,6 +451,7 @@ describe('app runApp assembly', () => {
       'quoteSubscriptionRuntime.start',
       'seatActivationDispatcher.start',
       'autoSearchWakeupRuntime.start',
+      'businessEventProgram.start',
       'tradingRiskEventRuntime.start',
       'monitorQuoteEventRuntime.start',
       'switchWakeupRuntime.start',
@@ -450,14 +459,14 @@ describe('app runApp assembly', () => {
       'buyProcessor.start',
       'sellProcessor.start',
       'trader.startOrderMonitorRuntime',
-      'mainProgram',
+      'timeDriverProgram',
       'sleep:1000',
     ]);
     expect(harnessState.sleepDurations).toEqual([1000]);
     expect(harnessState.registerDelayedCalls).toBe(1);
     expect(harnessState.cleanupRegistered).toBe(1);
-    expect(harnessState.mainProgramCalls).toBe(1);
-    expect(harnessState.mainProgramRuntimeGateModes).toEqual(['strict']);
+    expect(harnessState.timeDriverProgramCalls).toBe(1);
+    expect(harnessState.timeDriverProgramRuntimeGateModes).toEqual(['strict']);
   });
 
   it('keeps lifecycle alive when startup snapshot switches to pending open rebuild', async () => {
@@ -483,7 +492,7 @@ describe('app runApp assembly', () => {
       'createLifecycleRuntime',
       'registerDelayedSignalHandlers',
       'registerExitHandlers',
-      'mainProgram',
+      'timeDriverProgram',
       `sleep:${harnessState.sleepDurations[0]}`,
     ]);
     expect(harnessState.sleepDurations).toHaveLength(1);
@@ -491,8 +500,8 @@ describe('app runApp assembly', () => {
     expect(harnessState.sleepDurations[0]).toBeLessThanOrEqual(1000);
     expect(harnessState.registerDelayedCalls).toBe(1);
     expect(harnessState.cleanupRegistered).toBe(1);
-    expect(harnessState.mainProgramCalls).toBe(1);
-    expect(harnessState.mainProgramRuntimeGateModes).toEqual(['strict']);
+    expect(harnessState.timeDriverProgramCalls).toBe(1);
+    expect(harnessState.timeDriverProgramRuntimeGateModes).toEqual(['strict']);
   });
 
   it('keeps lifecycle alive in pending-open-rebuild path under skip runtime gate mode', async () => {
@@ -509,7 +518,7 @@ describe('app runApp assembly', () => {
 
     expect(caught).toBe(STOP_AFTER_FIRST_LOOP);
     expect(harnessState.rebuildCalls).toHaveLength(0);
-    expect(harnessState.mainProgramRuntimeGateModes).toEqual(['skip']);
+    expect(harnessState.timeDriverProgramRuntimeGateModes).toEqual(['skip']);
     expect(harnessState.events).toEqual([
       'loadStartupSnapshot',
       'createMonitorContexts',
@@ -519,7 +528,7 @@ describe('app runApp assembly', () => {
       'createLifecycleRuntime',
       'registerDelayedSignalHandlers',
       'registerExitHandlers',
-      'mainProgram',
+      'timeDriverProgram',
       'sleep:1000',
     ]);
   });
@@ -548,7 +557,7 @@ describe('app runApp assembly', () => {
       'registerExitHandlers',
       'rebuildTradingDayState',
     ]);
-    expect(harnessState.mainProgramCalls).toBe(0);
+    expect(harnessState.timeDriverProgramCalls).toBe(0);
   });
 
   it('does not start order monitor runtime when completeRebuildBaseline fails', async () => {
@@ -577,7 +586,7 @@ describe('app runApp assembly', () => {
       'postTradeConsistencyRuntime.start',
       'postTradeConsistencyRuntime.completeRebuildBaseline',
     ]);
-    expect(harnessState.mainProgramCalls).toBe(0);
+    expect(harnessState.timeDriverProgramCalls).toBe(0);
   });
 
   it('does not abort startup in pending-open-rebuild path when runtime symbol validation reports failure', async () => {
@@ -607,10 +616,10 @@ describe('app runApp assembly', () => {
       'createLifecycleRuntime',
       'registerDelayedSignalHandlers',
       'registerExitHandlers',
-      'mainProgram',
+      'timeDriverProgram',
       'sleep:1000',
     ]);
-    expect(harnessState.mainProgramCalls).toBe(1);
+    expect(harnessState.timeDriverProgramCalls).toBe(1);
     expect(harnessState.cleanupRegistered).toBe(1);
   });
 
@@ -634,11 +643,11 @@ describe('app runApp assembly', () => {
       message: '运行时标的验证失败，启动已中止',
     });
     expect(harnessState.events).toEqual(['loadStartupSnapshot']);
-    expect(harnessState.mainProgramCalls).toBe(0);
+    expect(harnessState.timeDriverProgramCalls).toBe(0);
     expect(harnessState.cleanupRegistered).toBe(0);
   });
 
-  it('sleeps only for the remaining interval after a short mainProgram run', async () => {
+  it('sleeps only for the remaining interval after a short timeDriverProgram run', async () => {
     const originalDateNow = Date.now;
     let nowCallIndex = 0;
     Date.now = () => {
@@ -661,7 +670,7 @@ describe('app runApp assembly', () => {
     expect(harnessState.events.at(-1)).toBe('sleep:750');
   });
 
-  it('starts the next tick immediately when a mainProgram run exceeds the interval', async () => {
+  it('starts the next tick immediately when a timeDriverProgram run exceeds the interval', async () => {
     const originalDateNow = Date.now;
     let nowCallIndex = 0;
     Date.now = () => {

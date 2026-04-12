@@ -4,7 +4,6 @@
  * 功能：
  * - 接收策略生成的交易信号（立即信号和延迟验证信号）
  * - 进行席位状态校验（席位就绪、版本匹配、标的匹配）
- * - 丰富信号数据（添加标的名称、价格、最小买卖单位）
  * - 根据信号类型分流到对应的任务队列
  *
  * 信号分流规则：
@@ -20,17 +19,17 @@
 import { logger } from '../../utils/logger/index.js';
 import { isBuyAction } from '../../utils/helpers/index.js';
 import { VALID_SIGNAL_ACTIONS } from '../../constants/index.js';
+import { ordinarySignalGuard } from '../ordinarySignalGuard/index.js';
 import { isSeatActive } from '../../utils/seat/guards.js';
 import { describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
 import { formatSignalLog, getPositions } from './utils.js';
-import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
 import type { SignalPipelineParams } from './types.js';
 import { formatSymbolDisplay, isSellAction } from '../../utils/display/index.js';
 
 /**
  * 执行信号处理流水线。
- * 调用策略生成平仓信号后，对每个信号进行席位校验（状态、版本、标的匹配）和数据丰富，
+ * 调用策略生成平仓信号后，对每个信号进行席位校验（状态、版本、标的匹配），
  * 再按信号类型分流：立即信号入买卖队列，延迟信号交由 delayedSignalVerifier 管理。
  * 非交易时段或门禁关闭时记录日志并释放信号对象。
  */
@@ -45,10 +44,9 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
     releaseSignal,
     releasePosition,
   } = params;
-  const { canTradeNow, openProtectionActive, isTradingEnabled } = runtimeFlags;
-  const canEnqueue = isTradingEnabled && canTradeNow;
+  const { currentTime, canTradeNow, openProtectionActive, isTradingEnabled } = runtimeFlags;
   const { strategy, orderRecorder, delayedSignalVerifier, indicatorProfile } = monitorContext;
-  const { lastState, buyTaskQueue, sellTaskQueue } = mainContext;
+  const { lastState, buyTaskQueue, sellTaskQueue, tradingConfig } = mainContext;
   const {
     longSeatState,
     shortSeatState,
@@ -56,8 +54,6 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
     shortSeatVersion,
     longSymbol,
     shortSymbol,
-    longQuote,
-    shortQuote,
   } = seatInfo;
   const { longPosition, shortPosition } = getPositions(
     lastState.positionCache,
@@ -69,6 +65,12 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       return;
     }
 
+    const canEnqueue = ordinarySignalGuard({
+      lastState,
+      now: currentTime,
+      doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
+    });
+
     const { immediateSignals, delayedSignals } = strategy.generateSignals(
       monitorSnapshot,
       longSymbol,
@@ -77,37 +79,10 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       indicatorProfile,
     );
 
-    /**
-     * 丰富信号：名称、价格、lotSize。
-     * 买卖信号的 price/lotSize 均不在此处写入，由买卖处理器在执行时按「执行时行情」写入，保证委托价与当前价一致。
-     */
-    function enrichSignal(signal: Signal): void {
-      const sigSymbol = signal.symbol;
-      if (sigSymbol === longSymbol && longQuote) {
-        if (signal.symbolName === null && longQuote.name !== null) {
-          signal.symbolName = longQuote.name;
-        }
-
-        return;
-      }
-
-      if (
-        sigSymbol === shortSymbol &&
-        shortQuote &&
-        signal.symbolName === null &&
-        shortQuote.name !== null
-      ) {
-        signal.symbolName = shortQuote.name;
-      }
-    }
-
     function resolveSeatForSignal(signal: Signal): Readonly<{
       seatSymbol: string;
       seatVersion: number;
-      quote: Quote | null;
-      isBuySignal: boolean;
     }> | null {
-      const isBuySignal = isBuyAction(signal.action);
       const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
       const seatState = isLongSignal ? longSeatState : shortSeatState;
       if (!isSeatActive(seatState)) {
@@ -116,14 +91,13 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
 
       const seatSymbol = seatState.symbol;
       const seatVersion = isLongSignal ? longSeatVersion : shortSeatVersion;
-      const quote = isLongSignal ? longQuote : shortQuote;
-      return { seatSymbol, seatVersion, quote, isBuySignal };
+      return { seatSymbol, seatVersion };
     }
 
     /**
-     * 校验信号合法性并完成数据丰富。
-     * 依次检查信号字段完整性、action 合法性、席位就绪状态、标的匹配及行情就绪，
-     * 任一校验失败则释放信号对象并返回 false。通过后写入席位版本和标的名称。
+     * 校验信号合法性。
+     * 依次检查信号字段完整性、action 合法性、席位就绪状态与标的匹配；
+     * 任一校验失败则释放信号对象并返回 false。通过后写入席位版本。
      */
     function prepareSignal(signal: Signal): boolean {
       if (!signal.symbol) {
@@ -157,14 +131,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         return false;
       }
 
-      if (seatInfoForSignal.isBuySignal && !seatInfoForSignal.quote) {
-        logger.debug(`[跳过信号] 行情未就绪: ${formatSignalLog(signal)}`);
-        releaseSignal(signal);
-        return false;
-      }
-
       signal.seatVersion = seatInfoForSignal.seatVersion;
-      enrichSignal(signal);
       return true;
     }
 
@@ -190,7 +157,8 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
           });
         }
       } else {
-        const reason = isTradingEnabled ? '非交易时段，暂不执行' : '交易门禁关闭，暂不执行';
+        const reason =
+          isTradingEnabled && canTradeNow ? '普通信号门禁关闭，暂不执行' : '交易门禁关闭，暂不执行';
         logger.debug(`[立即信号] ${formatSignalLog(signal)}（${reason}）`);
         releaseSignal(signal);
       }
@@ -212,7 +180,10 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
           verificationIndicators,
         });
       } else {
-        const reason = isTradingEnabled ? '非交易时段，暂不添加验证' : '交易门禁关闭，暂不添加验证';
+        const reason =
+          isTradingEnabled && canTradeNow
+            ? '普通信号门禁关闭，暂不添加验证'
+            : '交易门禁关闭，暂不添加验证';
         logger.debug(`[延迟验证信号] ${formatSignalLog(signal)}（${reason}）`);
         releaseSignal(signal);
       }

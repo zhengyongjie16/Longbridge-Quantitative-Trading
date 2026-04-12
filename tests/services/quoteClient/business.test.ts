@@ -71,7 +71,11 @@ class TestNaiveDate {
   }
 }
 
-import { Market as RealMarket, Period as RealPeriod } from 'longbridge';
+import {
+  Market as RealMarket,
+  Period as RealPeriod,
+  TradeSessions as RealTradeSessions,
+} from 'longbridge';
 
 import {
   createPushCandlestickEvent,
@@ -328,6 +332,74 @@ describe('quoteClient business flow', () => {
     quoteMock.flushAllEvents();
 
     expect(received).toHaveLength(0);
+  });
+
+  it('publishes standardized candlestick updates for subscribed symbols and supports listener disposal', async () => {
+    quoteMock.seedCandlesticks('BULL.HK', RealPeriod.Min_1, [
+      makeCandlestick(100, '2026-02-16T01:00:00.000Z'),
+      makeCandlestick(101, '2026-02-16T01:01:00.000Z'),
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeCandlesticks('BULL.HK', RealPeriod.Min_1);
+
+    const received: Array<{
+      readonly symbol: string;
+      readonly period: number;
+      readonly version: number;
+      readonly lastBarConfirmed: boolean | null;
+      readonly latestClose: number;
+    }> = [];
+    const dispose = client.onCandlestickUpdated((event) => {
+      received.push({
+        symbol: event.symbol,
+        period: event.period,
+        version: event.snapshot.version,
+        lastBarConfirmed: event.snapshot.lastBarConfirmed,
+        latestClose: Number(event.snapshot.candles.at(-1)?.close?.toString() ?? Number.NaN),
+      });
+    });
+
+    quoteMock.emitCandlestick(
+      createPushCandlestickEvent({
+        symbol: 'BULL.HK',
+        close: 105,
+        timestampMs: Date.parse('2026-02-16T01:02:00.000Z'),
+        period: RealPeriod.Min_1,
+        isConfirmed: false,
+      }),
+    );
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({
+      symbol: 'BULL.HK',
+      period: RealPeriod.Min_1,
+      version: 2,
+      lastBarConfirmed: false,
+      latestClose: 105,
+    });
+
+    dispose();
+    quoteMock.emitCandlestick(
+      createPushCandlestickEvent({
+        symbol: 'BULL.HK',
+        close: 106,
+        timestampMs: Date.parse('2026-02-16T01:03:00.000Z'),
+        period: RealPeriod.Min_1,
+        isConfirmed: false,
+      }),
+    );
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(1);
+    expect(quoteMock.getCalls('subscribeCandlesticks')[0]?.args[2]).toBe(
+      RealTradeSessions.Intraday,
+    );
   });
 
   it('returns null for subscribed symbol when realtime quote is not warmed', async () => {

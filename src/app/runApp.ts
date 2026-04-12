@@ -7,8 +7,9 @@
  * - 在唯一装配入口中创建 monitor contexts、async runtime、lifecycle 与 cleanup
  */
 import { validateRuntimeSymbolsFromQuotesMap } from '../config/validator/index.js';
+import { createBusinessEventProgram } from '../main/businessEventProgram/index.js';
 import { createRebuildTradingDayState } from '../main/lifecycle/rebuildTradingDayState.js';
-import { mainProgram } from '../main/mainProgram/index.js';
+import { timeDriverProgram } from '../main/timeDriverProgram/index.js';
 import { applyStartupSnapshotFailureState } from '../main/lifecycle/startupFailureState.js';
 import { sleep } from '../main/utils.js';
 import { displayAccountAndPositions } from '../services/accountDisplay/index.js';
@@ -38,10 +39,11 @@ const DEFAULT_RUN_APP_DEPS: RunAppDeps = {
   createRebuildTradingDayState,
   displayAccountAndPositions,
   registerDelayedSignalHandlers,
+  createBusinessEventProgram,
   createAsyncRuntime,
   createLifecycleRuntime,
   createCleanup,
-  mainProgram,
+  timeDriverProgram,
   sleep,
   logger,
   formatError,
@@ -80,10 +82,11 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
     createRebuildTradingDayState: buildRebuildTradingDayState,
     displayAccountAndPositions: renderAccountAndPositions,
     registerDelayedSignalHandlers: bindDelayedSignalHandlers,
+    createBusinessEventProgram: buildBusinessEventProgram,
     createAsyncRuntime: buildAsyncRuntime,
     createLifecycleRuntime: buildLifecycleRuntime,
     createCleanup: buildCleanup,
-    mainProgram: runMainProgram,
+    timeDriverProgram: runTimeDriverProgram,
     sleep: waitForNextTick,
     logger: appLogger,
     formatError: formatAppError,
@@ -171,10 +174,20 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       preGateRuntime,
       postGateRuntime,
     });
+    const businessEventProgram = buildBusinessEventProgram({
+      marketDataClient: preGateRuntime.marketDataClient,
+      monitorContexts: postGateRuntime.monitorContexts,
+      lastState: postGateRuntime.lastState,
+      tradingConfig: preGateRuntime.tradingConfig,
+      buyTaskQueue: postGateRuntime.buyTaskQueue,
+      sellTaskQueue: postGateRuntime.sellTaskQueue,
+      monitorTaskQueue: postGateRuntime.monitorTaskQueue,
+    });
     const dayLifecycleManager = buildLifecycleRuntime({
       preGateRuntime,
       postGateRuntime,
       asyncRuntime,
+      businessEventProgram,
       rebuildTradingDayState,
     });
 
@@ -187,6 +200,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       releaseSignal: (signal) => {
         signalObjectPool.release(signal);
       },
+      doomsdayProtectionEnabled: preGateRuntime.tradingConfig.global.doomsdayProtection,
     });
 
     const cleanup = buildCleanup({
@@ -194,6 +208,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       sellProcessor: asyncRuntime.sellProcessor,
       monitorTaskProcessor: asyncRuntime.monitorTaskProcessor,
       trader: postGateRuntime.trader,
+      businessEventProgram,
       tradingRiskEventRuntime: postGateRuntime.tradingRiskEventRuntime,
       monitorQuoteEventRuntime: postGateRuntime.monitorQuoteEventRuntime,
       switchWakeupRuntime: postGateRuntime.switchWakeupRuntime,
@@ -222,6 +237,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       postGateRuntime.quoteSubscriptionRuntime.start();
       postGateRuntime.seatActivationDispatcher.start();
       postGateRuntime.autoSearchWakeupRuntime.start();
+      businessEventProgram.start();
       postGateRuntime.tradingRiskEventRuntime.start();
       postGateRuntime.monitorQuoteEventRuntime.start();
       postGateRuntime.switchWakeupRuntime.start();
@@ -235,17 +251,14 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
     for (;;) {
       const loopStartTimeMs = Date.now();
       try {
-        await runMainProgram({
+        await runTimeDriverProgram({
           marketDataClient: preGateRuntime.marketDataClient,
           trader: postGateRuntime.trader,
           lastState: postGateRuntime.lastState,
           marketMonitor: postGateRuntime.marketMonitor,
           doomsdayProtection: postGateRuntime.doomsdayProtection,
-          signalProcessor: postGateRuntime.signalProcessor,
           tradingConfig: preGateRuntime.tradingConfig,
-          dailyLossTracker: postGateRuntime.dailyLossTracker,
           monitorContexts: postGateRuntime.monitorContexts,
-          symbolRegistry: preGateRuntime.symbolRegistry,
           indicatorCache: postGateRuntime.indicatorCache,
           buyTaskQueue: postGateRuntime.buyTaskQueue,
           sellTaskQueue: postGateRuntime.sellTaskQueue,

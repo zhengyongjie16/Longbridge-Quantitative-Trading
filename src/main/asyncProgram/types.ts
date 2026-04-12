@@ -5,7 +5,7 @@ import type { Task, TaskQueue } from './tradeTaskQueue/types.js';
  * 处理器通用接口（行为契约）。
  * 类型用途：供主程序/启动流程统一调度买卖处理器与监控任务处理器（start/stop/stopAndDrain/restart）。
  * 数据来源：由 BuyProcessor、SellProcessor、MonitorTaskProcessor 等实现并注入。
- * 使用范围：mainProgram、lifecycle 等持有并调用，仅内部使用。
+ * 使用范围：timeDriverProgram、lifecycle 等持有并调用，仅内部使用。
  */
 export interface Processor {
   /** 启动处理器，开始消费任务队列 */

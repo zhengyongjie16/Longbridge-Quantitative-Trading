@@ -2,40 +2,36 @@
  * multi-monitor-concurrency 集成测试
  *
  * 功能：
- * - 验证多监控并发端到端场景与业务期望。
+ * - 验证 timeDriverProgram 在单个 monitor 处理失败时仍继续处理其他 monitor。
  */
 import { afterEach, describe, expect, it, mock } from 'bun:test';
-import type { MainProgramModule } from './types.js';
+import type { TimeDriverProgramModule } from './types.js';
 
 const processCalls: string[] = [];
 
-async function loadMainProgram(): Promise<MainProgramModule> {
+async function loadTimeDriverProgram(): Promise<TimeDriverProgramModule> {
   // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 同步注册
   mock.module('../../src/main/processMonitor/index.js', () => ({
-    processMonitor: async ({
+    processMonitor: ({
       monitorContext,
     }: {
       monitorContext: { config: { monitorSymbol: string } };
-    }) => {
+    }): void => {
       const symbol = monitorContext.config.monitorSymbol;
       processCalls.push(symbol);
       if (symbol === 'HSI-A.HK') {
         throw new Error('simulated monitor failure');
       }
-
-      await Bun.sleep(10);
     },
   }));
 
-  const mainProgramModulePath =
-    '../../src/main/mainProgram/index.js?mocked-multi-monitor-concurrency';
-  const loadedModuleUnknown: unknown = await import(mainProgramModulePath);
-  return loadedModuleUnknown as MainProgramModule;
+  const timeDriverProgramModulePath =
+    '../../src/main/timeDriverProgram/index.js?mocked-multi-monitor-concurrency';
+  const loadedModuleUnknown: unknown = await import(timeDriverProgramModulePath);
+  return loadedModuleUnknown as TimeDriverProgramModule;
 }
 
-import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
 import type { LastState } from '../../src/types/state.js';
-import type { SymbolRegistry } from '../../src/types/seat.js';
 import type { Quote } from '../../src/types/quote.js';
 import type { MultiMonitorTradingConfig } from '../../src/types/config.js';
 
@@ -67,45 +63,7 @@ function createLastState(): LastState {
   };
 }
 
-function createSymbolRegistry(
-  configs: ReadonlyArray<{ monitorSymbol: string; longSymbol: string; shortSymbol: string }>,
-): SymbolRegistry {
-  const map = new Map<string, { long: string; short: string }>();
-  for (const cfg of configs) {
-    map.set(cfg.monitorSymbol, { long: cfg.longSymbol, short: cfg.shortSymbol });
-  }
-
-  return {
-    getSeatState: (monitorSymbol, direction) => {
-      const row = map.get(monitorSymbol);
-      const symbol = direction === 'LONG' ? (row?.long ?? null) : (row?.short ?? null);
-      return {
-        symbol,
-        status: symbol ? 'ACTIVE' : 'EMPTY',
-        lastSwitchAt: null,
-        lastSearchAt: null,
-        lastSeatActivatedAt: null,
-        searchFailCountToday: 0,
-        frozenTradingDayKey: null,
-      };
-    },
-    getSeatVersion: () => 1,
-    resolveSeatBySymbol: () => null,
-    updateSeatState: () => ({
-      symbol: null,
-      status: 'EMPTY',
-      lastSwitchAt: null,
-      lastSearchAt: null,
-      lastSeatActivatedAt: null,
-      searchFailCountToday: 0,
-      frozenTradingDayKey: null,
-    }),
-    bumpSeatVersion: () => 1,
-    onSeatStateChanged: () => () => {},
-  };
-}
-
-describe('multi-monitor-concurrency integration', () => {
+describe('multi-monitor isolation integration', () => {
   afterEach(() => {
     if (typeof mock.restore === 'function') {
       mock.restore();
@@ -144,12 +102,9 @@ describe('multi-monitor-concurrency integration', () => {
         sellOrderTimeout: { enabled: true, timeoutSeconds: 180 },
       },
     };
-
-    const symbolRegistry = createSymbolRegistry(tradingConfig.monitors);
-
-    const loadedMainProgram = await loadMainProgram();
-    const mainProgram = loadedMainProgram.mainProgram;
-    await mainProgram({
+    const loadedMainProgram = await loadTimeDriverProgram();
+    const timeDriverProgram = loadedMainProgram.timeDriverProgram;
+    await timeDriverProgram({
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
         getQuotes: async (symbols: Iterable<string>) => {
@@ -170,6 +125,7 @@ describe('multi-monitor-concurrency integration', () => {
         subscribeSymbols: async () => {},
         unsubscribeSymbols: async () => {},
         onQuoteUpdated: () => () => {},
+        onCandlestickUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
@@ -187,28 +143,11 @@ describe('multi-monitor-concurrency integration', () => {
         executeClearance: async () => ({ executed: false, signalCount: 0 }),
         cancelPendingBuyOrders: async () => ({ executed: false, cancelRequestAcceptedCount: 0 }),
       },
-      signalProcessor: {
-        processSellSignals: (
-          params: Parameters<MainProgramContext['signalProcessor']['processSellSignals']>[0],
-        ) => params.signals,
-        applyRiskChecks: async (
-          signals: Parameters<MainProgramContext['signalProcessor']['applyRiskChecks']>[0],
-        ) => signals,
-        resetRiskCheckCooldown: () => {},
-      } as MainProgramContext['signalProcessor'],
       tradingConfig,
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
       monitorContexts: new Map([
         [configA.monitorSymbol, createMonitorContextDouble({ config: configA })],
         [configB.monitorSymbol, createMonitorContextDouble({ config: configB })],
       ]),
-      symbolRegistry,
       indicatorCache: {
         push: () => {},
         getAt: () => null,

@@ -1,9 +1,7 @@
 /**
  * delayedSignalVerifier 业务测试
  *
- * 功能：
- * - 验证延迟验证通过/拒绝场景与指标边界及业务期望。
- */
+ * 功能�? * - 验证延迟验证通过/拒绝场景与指标边界及业务期望�? */
 import { describe, expect, it } from 'bun:test';
 import { createIndicatorCache } from '../../../../src/main/asyncProgram/indicatorCache/index.js';
 import { createDelayedSignalVerifier } from '../../../../src/main/asyncProgram/delayedSignalVerifier/index.js';
@@ -60,15 +58,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(11));
+      indicatorCache.push('HSI.HK', createSnapshotK(11), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(12));
+      indicatorCache.push('HSI.HK', createSnapshotK(12), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(13));
+      indicatorCache.push('HSI.HK', createSnapshotK(13), Date.now());
     });
 
     let verified = 0;
@@ -105,15 +103,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(9));
+      indicatorCache.push('HSI.HK', createSnapshotK(9), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(8));
+      indicatorCache.push('HSI.HK', createSnapshotK(8), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(7));
+      indicatorCache.push('HSI.HK', createSnapshotK(7), Date.now());
     });
 
     let verified = 0;
@@ -148,15 +146,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(19));
+      indicatorCache.push('HSI.HK', createSnapshotK(19), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(18));
+      indicatorCache.push('HSI.HK', createSnapshotK(18), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(17));
+      indicatorCache.push('HSI.HK', createSnapshotK(17), Date.now());
     });
 
     let verified = 0;
@@ -191,15 +189,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(41));
+      indicatorCache.push('HSI.HK', createSnapshotK(41), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(42));
+      indicatorCache.push('HSI.HK', createSnapshotK(42), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(43));
+      indicatorCache.push('HSI.HK', createSnapshotK(43), Date.now());
     });
 
     let verified = 0;
@@ -234,11 +232,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(11));
+      indicatorCache.push('HSI.HK', createSnapshotK(11), Date.now());
     });
 
     withMockedNowSync(baseTime + 4_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(12));
+      indicatorCache.push('HSI.HK', createSnapshotK(12), Date.now());
     });
 
     let verifiedCount = 0;
@@ -274,15 +272,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 4_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(11));
+      indicatorCache.push('HSI.HK', createSnapshotK(11), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000 + 4_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(12));
+      indicatorCache.push('HSI.HK', createSnapshotK(12), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000 + 4_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(13));
+      indicatorCache.push('HSI.HK', createSnapshotK(13), Date.now());
     });
 
     let passed = 0;
@@ -318,15 +316,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(28));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(28), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(27));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(27), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(26));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(26), Date.now());
     });
 
     let verified = 0;
@@ -361,15 +359,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(25));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(25), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(24));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(24), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(23));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(23), Date.now());
     });
 
     let verified = 0;
@@ -404,15 +402,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(22));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(22), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(21));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(21), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(20));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(20), Date.now());
     });
 
     let verified = 0;
@@ -447,15 +445,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(18));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(18), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(17));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(17), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(16));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(16), Date.now());
     });
 
     let verified = 0;
@@ -491,15 +489,15 @@ describe('delayedSignalVerifier business flow', () => {
 
     // T0+5s ADX 上升而非下降
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(28));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(28), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(31));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(31), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(26));
+      indicatorCache.push('HSI.HK', createSnapshotAdx(26), Date.now());
     });
 
     let verified = 0;

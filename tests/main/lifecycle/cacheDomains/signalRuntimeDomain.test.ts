@@ -20,12 +20,11 @@ import type {
   TaskQueue,
 } from '../../../../src/main/asyncProgram/tradeTaskQueue/types.js';
 import type { Signal } from '../../../../src/types/signal.js';
+import type { OrderedMethod } from '../types.js';
 import {
   createDelayedSignalVerifierDouble,
   createMonitorContextDouble,
 } from '../../../helpers/testDoubles.js';
-
-type OrderedMethod = 'stopAndDrain' | 'restart' | 'start' | 'clearPending';
 
 function createSignalDouble(): Signal {
   return {
@@ -191,6 +190,14 @@ describe('createSignalRuntimeDomain', () => {
       buyProcessor,
       sellProcessor,
       monitorTaskProcessor,
+      businessEventProgram: {
+        start: () => {
+          globalCalls.push('businessEventProgram.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('businessEventProgram.stopAndDrain');
+        },
+      },
       tradingRiskEventRuntime: {
         start: () => {
           tradingRiskEventRuntime.start();
@@ -268,6 +275,7 @@ describe('createSignalRuntimeDomain', () => {
 
     expect(globalCalls).toEqual([
       'postTradeConsistencyRuntime.abortWaiting',
+      'businessEventProgram.stopAndDrain',
       'tradingRiskEventRuntime.stopAndDrain',
       'monitorQuoteEventRuntime.stopAndDrain',
       'switchWakeupRuntime.stopAndDrain',
@@ -319,6 +327,14 @@ describe('createSignalRuntimeDomain', () => {
       buyProcessor,
       sellProcessor,
       monitorTaskProcessor,
+      businessEventProgram: {
+        start: () => {
+          globalCalls.push('businessEventProgram.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('businessEventProgram.stopAndDrain');
+        },
+      },
       tradingRiskEventRuntime: {
         start: () => {
           tradingRiskEventRuntime.start();
@@ -426,6 +442,7 @@ describe('createSignalRuntimeDomain', () => {
       'quoteSubscriptionRuntime.start',
       'seatActivationDispatcher.start',
       'autoSearchWakeupRuntime.start',
+      'businessEventProgram.start',
       'tradingRiskEventRuntime.start',
       'monitorQuoteEventRuntime.start',
       'switchWakeupRuntime.start',

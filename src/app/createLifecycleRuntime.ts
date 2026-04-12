@@ -40,7 +40,13 @@ function createLifecycleCacheDomains(
   params: LifecycleRuntimeFactoryDeps,
   factories: LifecycleRuntimeFactories = DEFAULT_LIFECYCLE_RUNTIME_FACTORIES,
 ): ReadonlyArray<CacheDomain> {
-  const { preGateRuntime, postGateRuntime, asyncRuntime, rebuildTradingDayState } = params;
+  const {
+    preGateRuntime,
+    postGateRuntime,
+    asyncRuntime,
+    businessEventProgram,
+    rebuildTradingDayState,
+  } = params;
   const { tradingConfig, symbolRegistry, warrantListCache, marketDataClient } = preGateRuntime;
   const {
     monitorContexts,
@@ -80,6 +86,7 @@ function createLifecycleCacheDomains(
       buyProcessor,
       sellProcessor,
       monitorTaskProcessor,
+      businessEventProgram,
       tradingRiskEventRuntime,
       monitorQuoteEventRuntime,
       switchWakeupRuntime,

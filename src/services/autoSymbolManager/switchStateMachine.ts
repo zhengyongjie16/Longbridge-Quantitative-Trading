@@ -26,6 +26,7 @@ import type {
   PeriodicSwitchPendingState,
   StartSwitchFlowParams,
   StartSwitchOnDistanceParams,
+  SwitchProcessParams,
   SwitchOnIntervalParams,
   SwitchState,
   SwitchStateMachine,
@@ -566,13 +567,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     }
 
     const pendingOrdersForOldSymbol = await trader.getPendingOrders([startedState.oldSymbol]);
-    const driveContext =
-      distanceContext ??
-      ({
-        direction,
-        monitorPrice: null,
-        positions: [],
-      } satisfies StartSwitchOnDistanceParams);
+    const driveContext = distanceContext ?? { direction, positions: [] };
     return await processSwitchState(driveContext, startedState, pendingOrdersForOldSymbol);
   }
 
@@ -581,7 +576,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
    * 每次调用都返回显式 drive 结果，声明下一次只能由哪些事件继续推进。
    */
   async function processSwitchState(
-    params: StartSwitchOnDistanceParams,
+    params: SwitchProcessParams,
     state: SwitchState,
     pendingOrders: ReadonlyArray<PendingOrder>,
   ): Promise<SwitchDriveResult> {
@@ -1215,7 +1210,6 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
    */
   async function advancePendingSwitch({
     direction,
-    monitorPrice,
     positions,
   }: AdvancePendingSwitchParams): Promise<AdvancePendingSwitchResult> {
     if (!autoSearchConfig.autoSearchEnabled || !hasPendingSwitch(direction)) {
@@ -1239,7 +1233,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
     const pendingOrdersForOldSymbol = await trader.getPendingOrders([pendingSwitch.oldSymbol]);
     const driveResult = await processSwitchState(
-      { direction, monitorPrice, positions },
+      { direction, positions },
       pendingSwitch,
       pendingOrdersForOldSymbol,
     );

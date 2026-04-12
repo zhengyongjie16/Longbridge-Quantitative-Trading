@@ -74,16 +74,23 @@ export type StartSwitchOnDistanceResult =
 
 /**
  * 距回收价 pending switch 推进结果。
- * 类型用途：显式表达本轮是否执行了推进，以及推进后得到的下一步唤醒需求。
+ * 类型用途：显式表达本轮是否真正执行了推进；未推进时只能返回 NOOP，已推进时携带状态机单步结果。
  * 数据来源：由 autoSymbolManager.advancePendingSwitch 返回。
  * 使用范围：types、app、main、services 与相关测试使用。
  */
-export type AdvancePendingSwitchResult = Readonly<{
-  advanced: boolean;
-  direction: 'LONG' | 'SHORT';
-  stillPending: boolean;
-  driveResult: SwitchDriveResult;
-}>;
+export type AdvancePendingSwitchResult =
+  | Readonly<{
+      advanced: false;
+      direction: 'LONG' | 'SHORT';
+      stillPending: false;
+      driveResult: Extract<SwitchDriveResult, { kind: 'NOOP' }>;
+    }>
+  | Readonly<{
+      advanced: true;
+      direction: 'LONG' | 'SHORT';
+      stillPending: boolean;
+      driveResult: SwitchDriveResult;
+    }>;
 
 /**
  * 自动换标管理器行为契约。
@@ -110,7 +117,6 @@ export interface AutoSymbolManagerPort {
   }) => Promise<StartSwitchOnDistanceResult>;
   advancePendingSwitch: (params: {
     readonly direction: 'LONG' | 'SHORT';
-    readonly monitorPrice: number | null;
     readonly positions: ReadonlyArray<Position>;
   }) => Promise<AdvancePendingSwitchResult>;
   hasPendingSwitch: (direction: 'LONG' | 'SHORT') => boolean;

@@ -14,9 +14,9 @@ import {
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 
 import type { Signal } from '../../../src/types/signal.js';
-import type { MainProgramContext } from '../../../src/main/mainProgram/types.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { MonitorRuntimeContext } from '../../../src/main/processMonitor/types.js';
 
 import {
   createQuoteDouble,
@@ -147,7 +147,7 @@ describe('seatSync business flow', () => {
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
-    } as unknown as MainProgramContext;
+    } as unknown as MonitorRuntimeContext;
 
     syncSeatState({
       monitorSymbol,
@@ -246,7 +246,7 @@ describe('seatSync business flow', () => {
       buyTaskQueue: createBuyTaskQueue(),
       sellTaskQueue: createSellTaskQueue(),
       monitorTaskQueue,
-    } as unknown as MainProgramContext;
+    } as unknown as MonitorRuntimeContext;
 
     const quotesMap = new Map<string, ReturnType<typeof createQuoteDouble>>([
       ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1.2)],

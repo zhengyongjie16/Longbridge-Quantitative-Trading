@@ -109,9 +109,19 @@ export type StartSwitchOnDistanceParams = {
  */
 export type AdvancePendingSwitchParams = {
   readonly direction: 'LONG' | 'SHORT';
-  readonly monitorPrice: number | null;
   readonly positions: ReadonlyArray<Position>;
 };
+
+/**
+ * 换标状态机推进入参。
+ * 类型用途：收口 processSwitchState 真正消费的最小上下文，避免把距离换标首帧输入错误传播到后续推进链。
+ * 数据来源：由 startSwitchFlow 与 advancePendingSwitch 在状态机推进前组装。
+ * 使用范围：仅 autoSymbolManager 的 switchStateMachine 内部使用。
+ */
+export type SwitchProcessParams = Readonly<{
+  readonly direction: 'LONG' | 'SHORT';
+  readonly positions: ReadonlyArray<Position>;
+}>;
 
 /**
  * 周期换标触发检查入参。

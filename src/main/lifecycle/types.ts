@@ -61,7 +61,7 @@ export interface CacheDomain {
  * 交易日生命周期管理器接口。
  * 类型用途：对外暴露 tick 方法，供主循环每秒驱动；内部根据 dayKey 与状态执行午夜清理与开盘重建。
  * 数据来源：由 createDayLifecycleManager(DayLifecycleManagerDeps) 返回。
- * 使用范围：仅主程序 mainProgram 调用。
+ * 使用范围：仅时间驱动主程序 timeDriverProgram 调用。
  */
 export interface DayLifecycleManager {
   readonly tick: (now: Date, runtime: LifecycleRuntimeFlags) => Promise<void>;

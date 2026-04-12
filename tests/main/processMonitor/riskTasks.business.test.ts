@@ -9,10 +9,12 @@ import { describe, expect, it } from 'bun:test';
 import { scheduleRiskTasks } from '../../../src/main/processMonitor/riskTasks.js';
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 
-import type { MainProgramContext } from '../../../src/main/mainProgram/types.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { Quote } from '../../../src/types/quote.js';
-import type { SeatSyncResult } from '../../../src/main/processMonitor/types.js';
+import type {
+  MonitorRuntimeContext,
+  SeatSyncResult,
+} from '../../../src/main/processMonitor/types.js';
 import type { PriceDisplayInfo } from '../../../src/services/marketMonitor/types.js';
 import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
@@ -161,7 +163,7 @@ describe('riskTasks business scheduling', () => {
         },
       },
       monitorTaskQueue,
-    } as unknown as MainProgramContext;
+    } as unknown as MonitorRuntimeContext;
 
     scheduleRiskTasks({
       monitorContext,
@@ -229,7 +231,7 @@ describe('riskTasks business scheduling', () => {
         monitorPriceChanges: () => false,
       },
       monitorTaskQueue,
-    } as unknown as MainProgramContext;
+    } as unknown as MonitorRuntimeContext;
 
     scheduleRiskTasks({
       monitorContext,

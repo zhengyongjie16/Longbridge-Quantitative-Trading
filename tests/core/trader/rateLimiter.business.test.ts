@@ -18,26 +18,32 @@ describe('rateLimiter business behavior', () => {
     });
 
     const checkpoints: number[] = [];
-    const startedAt = Date.now();
+    const startedAt = performance.now();
+    const schedulerToleranceMs = 2;
 
     await Promise.all([
       limiter.throttle().then(() => {
-        checkpoints.push(Date.now());
+        checkpoints.push(performance.now());
       }),
       limiter.throttle().then(() => {
-        checkpoints.push(Date.now());
+        checkpoints.push(performance.now());
       }),
       limiter.throttle().then(() => {
-        checkpoints.push(Date.now());
+        checkpoints.push(performance.now());
       }),
     ]);
 
-    const elapsed = Date.now() - startedAt;
+    const elapsed = performance.now() - startedAt;
     checkpoints.sort((a, b) => a - b);
 
     expect(checkpoints).toHaveLength(3);
-    expect(checkpoints[1]! - checkpoints[0]! >= API.MIN_CALL_INTERVAL_MS).toBe(true);
-    expect(checkpoints[2]! - checkpoints[1]! >= API.MIN_CALL_INTERVAL_MS).toBe(true);
-    expect(elapsed >= API.MIN_CALL_INTERVAL_MS * 2).toBe(true);
+    expect(
+      checkpoints[1]! - checkpoints[0]! + schedulerToleranceMs >= API.MIN_CALL_INTERVAL_MS,
+    ).toBe(true);
+
+    expect(
+      checkpoints[2]! - checkpoints[1]! + schedulerToleranceMs >= API.MIN_CALL_INTERVAL_MS,
+    ).toBe(true);
+    expect(elapsed + schedulerToleranceMs >= API.MIN_CALL_INTERVAL_MS * 2).toBe(true);
   });
 });

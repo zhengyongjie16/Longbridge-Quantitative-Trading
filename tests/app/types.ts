@@ -45,8 +45,8 @@ export type MutableRunAppHarnessState = {
   completeRebuildBaselineShouldThrow: boolean;
   registerDelayedCalls: number;
   cleanupRegistered: number;
-  mainProgramCalls: number;
-  mainProgramRuntimeGateModes: Array<'strict' | 'skip'>;
+  timeDriverProgramCalls: number;
+  timeDriverProgramRuntimeGateModes: Array<'strict' | 'skip'>;
   sleepDurations: number[];
   validationResult: MutableRunAppValidationResult;
 };

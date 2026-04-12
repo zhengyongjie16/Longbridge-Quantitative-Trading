@@ -8,7 +8,11 @@ import type {
   SubType,
   TradeSessions,
 } from 'longbridge';
-import type { CandlestickCacheSnapshot, MarketWarrantQuote } from '../../types/services.js';
+import type {
+  CandlestickCacheSnapshot,
+  CandlestickUpdatedEvent,
+  MarketWarrantQuote,
+} from '../../types/services.js';
 
 /**
  * withRetry 重试配置。
@@ -136,6 +140,14 @@ export type ApplyCandlestickPushParams = {
   readonly candlestick: unknown;
   readonly isConfirmed: boolean;
 };
+
+/**
+ * K 线更新监听器。
+ * 类型用途：收口 quoteClient 对外发布的标准化 K 线更新事件监听签名。
+ * 数据来源：quoteClient 在 K 线 push 后发布的 CandlestickUpdatedEvent。
+ * 使用范围：quoteClient 模块内部事件派发使用。
+ */
+export type CandlestickUpdatedListener = (event: CandlestickUpdatedEvent) => void;
 
 /**
  * 标准化 K 线字段值。

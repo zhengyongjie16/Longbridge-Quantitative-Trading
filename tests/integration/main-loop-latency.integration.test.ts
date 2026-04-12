@@ -3,9 +3,9 @@
  *
  * 功能：
  * - 启动阶段：模拟订阅相关 API 每次调用固定延迟 200ms
- * - 主循环阶段：模拟真实逻辑，仅从本地缓存读取行情和 K 线（无 API 延迟）
- * - 构造 5 个监控标的并执行真实 mainProgram -> processMonitor -> indicatorPipeline 链路
- * - 校验每轮仅计算配置所需指标（本用例为 KDJ/MACD）并统计循环耗时
+ * - 主循环阶段：模拟真实逻辑，仅从本地缓存读取行情（无 API 延迟）
+ * - 构造 5 个监控标的并执行真实 timeDriverProgram -> processMonitor 链路
+ * - 校验时间驱动不推进普通 K 线指标，仅在已有 snapshot 时采样 indicatorCache，并统计循环耗时
  */
 import { describe, expect, it } from 'bun:test';
 import type { Candlestick, Period, TradeSessions } from 'longbridge';
@@ -16,8 +16,8 @@ import type {
   MultiMonitorSeatEntry,
 } from './types.js';
 import { TRADING } from '../../src/constants/index.js';
-import { mainProgram } from '../../src/main/mainProgram/index.js';
-import { createMonitorContext } from '../../src/app/createMonitorContext.js';
+import { timeDriverProgram } from '../../src/main/timeDriverProgram/index.js';
+import { createMonitorContext } from '../../src/app/createMonitorContexts.js';
 import { createHangSengMultiIndicatorStrategy } from '../../src/core/strategy/index.js';
 import {
   createBuyTaskQueue,
@@ -43,7 +43,7 @@ import type { MonitorConfig, MultiMonitorTradingConfig } from '../../src/types/c
 import type { MonitorContext, MonitorState, LastState } from '../../src/types/state.js';
 import type { Quote } from '../../src/types/quote.js';
 import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
-import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
+import type { TimeDriverProgramContext } from '../../src/main/timeDriverProgram/types.js';
 import type { CandlestickCacheSnapshot, MarketDataClient } from '../../src/types/services.js';
 import type {
   AutoSymbolManagerPort,
@@ -504,6 +504,7 @@ describe('main loop latency full-chain integration', () => {
           }
         }),
       onQuoteUpdated: () => () => {},
+      onCandlestickUpdated: () => () => {},
       subscribeCandlesticks: async (
         symbol: string,
         period: Period,
@@ -560,7 +561,7 @@ describe('main loop latency full-chain integration', () => {
         }),
     };
 
-    const sharedContext: MainProgramContext = {
+    const sharedContext: TimeDriverProgramContext = {
       marketDataClient,
       trader: createTraderDouble(),
       lastState,
@@ -569,15 +570,8 @@ describe('main loop latency full-chain integration', () => {
         monitorIndicatorChanges: () => false,
       },
       doomsdayProtection: createDoomsdayProtectionDouble(),
-      signalProcessor: {
-        processSellSignals: (params) => params.signals,
-        applyRiskChecks: async (signals) => signals,
-        resetRiskCheckCooldown: () => {},
-      },
       tradingConfig,
-      dailyLossTracker: createNoopDailyLossTracker(),
       monitorContexts,
-      symbolRegistry,
       indicatorCache,
       buyTaskQueue,
       sellTaskQueue,
@@ -607,7 +601,7 @@ describe('main loop latency full-chain integration', () => {
       applyMockRealtimePush(iteration);
 
       const loopStartedAt = performance.now();
-      await mainProgram(sharedContext);
+      await timeDriverProgram(sharedContext);
       const loopLatencyMs = performance.now() - loopStartedAt;
 
       const iterationEvents = apiCallEvents.filter(
@@ -626,13 +620,8 @@ describe('main loop latency full-chain integration', () => {
         const monitorState = monitorStates.get(monitorConfig.monitorSymbol);
         expect(monitorState).not.toBeUndefined();
         const snapshot = monitorState?.lastMonitorSnapshot;
-        expect(snapshot).not.toBeNull();
-        expect(snapshot?.kdj).not.toBeNull();
-        expect(snapshot?.macd).not.toBeNull();
-        expect(snapshot?.mfi).toBeNull();
-        expect(snapshot?.rsi).toBeNull();
-        expect(snapshot?.ema).toBeNull();
-        expect(snapshot?.psy).toBeNull();
+        expect(snapshot).toBeNull();
+        expect(indicatorCache.getAt(monitorConfig.monitorSymbol, Date.now(), 10_000)).toBeNull();
       }
     }
 

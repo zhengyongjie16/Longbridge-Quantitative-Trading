@@ -9,9 +9,9 @@ import { describe, expect, it } from 'bun:test';
 import { scheduleAutoSymbolTasks } from '../../../src/main/processMonitor/autoSymbolTasks.js';
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 
-import type { MainProgramContext } from '../../../src/main/mainProgram/types.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { MonitorRuntimeContext } from '../../../src/main/processMonitor/types.js';
 
 import {
   createMonitorConfigDouble,
@@ -47,7 +47,7 @@ describe('autoSymbolTasks business scheduling', () => {
 
     const mainContext = {
       monitorTaskQueue,
-    } as unknown as MainProgramContext;
+    } as unknown as MonitorRuntimeContext;
 
     scheduleAutoSymbolTasks({
       monitorSymbol: 'HSI.HK',
@@ -93,7 +93,7 @@ describe('autoSymbolTasks business scheduling', () => {
 
     const mainContext = {
       monitorTaskQueue,
-    } as unknown as MainProgramContext;
+    } as unknown as MonitorRuntimeContext;
 
     scheduleAutoSymbolTasks({
       monitorSymbol: 'HSI.HK',
@@ -128,7 +128,7 @@ describe('autoSymbolTasks business scheduling', () => {
       } as unknown as MonitorContext,
       mainContext: {
         monitorTaskQueue,
-      } as unknown as MainProgramContext,
+      } as unknown as MonitorRuntimeContext,
       autoSearchEnabled: false,
       currentTimeMs: Date.now(),
       canTradeNow: true,

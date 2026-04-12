@@ -1,4 +1,4 @@
-import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
+import type { TimeDriverProgramContext } from '../../src/main/timeDriverProgram/types.js';
 import type { SeatState } from '../../src/types/seat.js';
 
 /**
@@ -31,7 +31,7 @@ export type ApiCallEvent = Readonly<{
 /**
  * 主循环延迟测试的单轮指标。
  * 类型用途：记录每轮主循环耗时、API 调用数量与 API 总耗时。
- * 数据来源：由 main-loop-latency.integration.test.ts 在每轮 mainProgram 执行后汇总。
+ * 数据来源：由 main-loop-latency.integration.test.ts 在每轮 timeDriverProgram 执行后汇总。
  * 使用范围：tests/integration 下相关集成测试。
  */
 export type IterationMetric = Readonly<{
@@ -55,11 +55,11 @@ export type MultiMonitorSeatEntry = {
 };
 
 /**
- * mainProgram 动态加载后的最小函数签名。
- * 类型用途：描述动态 import 返回的 mainProgram 可调用契约。
- * 数据来源：由 src/main/mainProgram/index.ts 导出。
- * 使用范围：tests/integration 下需要动态导入 mainProgram 的测试。
+ * timeDriverProgram 动态加载后的最小函数签名。
+ * 类型用途：描述动态 import 返回的 timeDriverProgram 可调用契约。
+ * 数据来源：由 src/main/timeDriverProgram/index.ts 导出。
+ * 使用范围：tests/integration 下需要动态导入 timeDriverProgram 的测试。
  */
-export interface MainProgramModule {
-  readonly mainProgram: (context: MainProgramContext) => Promise<void>;
+export interface TimeDriverProgramModule {
+  readonly timeDriverProgram: (context: TimeDriverProgramContext) => Promise<void>;
 }

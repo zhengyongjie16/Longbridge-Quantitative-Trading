@@ -414,7 +414,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
    * 1. freshness 前 gate / baseline / current-route 校验
    * 2. waitForFresh
    * 3. freshness 后再次校验 gate / baseline / current-route
-   * 4. 重新读取当前权威 monitorPrice / positions
+   * 4. 重新读取当前权威 positions
    * 5. 调用 advancePendingSwitch 推进一步，并重建显式 wakeups
    *
    * @param routeKey 路由键
@@ -463,15 +463,15 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
         const result =
           await authoritativeRoute.monitorContext.autoSymbolManager.advancePendingSwitch({
             direction: authoritativeRoute.direction,
-            monitorPrice: authoritativeRoute.monitorContext.state.monitorPrice,
             positions: deps.lastState.cachedPositions,
           });
 
-        if (
-          !result.stillPending ||
-          result.driveResult.kind === 'COMPLETED' ||
-          result.driveResult.kind === 'FAILED'
-        ) {
+        if (!result.advanced) {
+          deleteRoute(routeKey);
+          return;
+        }
+
+        if (!result.stillPending) {
           deleteRoute(routeKey);
           return;
         }

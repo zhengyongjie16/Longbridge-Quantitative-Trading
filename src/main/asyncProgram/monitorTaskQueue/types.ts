@@ -32,7 +32,7 @@ type MonitorTaskInputByDataMap<
  * 监控任务（队列元素）。
  * 类型用途：监控任务队列中的单项，携带 id、type、dedupeKey、monitorSymbol、data、createdAt；由 Processor 消费。
  * 数据来源：由 scheduleLatest 写入（id、createdAt 由队列生成），MonitorTaskProcessor 出队消费。
- * 使用范围：仅 monitorTaskQueue、monitorTaskProcessor、mainProgram 等内部使用。
+ * 使用范围：仅 monitorTaskQueue、monitorTaskProcessor、timeDriverProgram 等内部使用。
  */
 export type MonitorTask<
   TDataMap extends MonitorTaskDataMapBase,
@@ -54,7 +54,7 @@ export type MonitorTaskInput<
  * 监控任务队列行为契约。
  * 类型用途：基于去重键的最新任务调度（scheduleLatest 替换同 key 旧任务），pop/isEmpty/removeTasks/clearAll/onTaskAdded；供 MonitorTaskProcessor 消费。
  * 数据来源：主程序创建，processMonitor 等调用 scheduleLatest，MonitorTaskProcessor 消费 pop。
- * 使用范围：mainProgram、monitorTaskProcessor、processMonitor 等，仅内部使用。
+ * 使用范围：timeDriverProgram、monitorTaskProcessor、processMonitor 等，仅内部使用。
  */
 export interface MonitorTaskQueue<TDataMap extends MonitorTaskDataMapBase> {
   readonly scheduleLatest: <TType extends keyof TDataMap>(

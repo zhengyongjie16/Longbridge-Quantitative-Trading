@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { createMonitorContext } from '../../src/app/createMonitorContext.js';
+import { createMonitorContext } from '../../src/app/createMonitorContexts.js';
 import type { MonitorState } from '../../src/types/state.js';
 import {
   createAutoSymbolManagerDouble,
@@ -24,14 +24,12 @@ import {
 function createMonitorState(monitorSymbol: string): MonitorState {
   return {
     monitorSymbol,
-    monitorPrice: null,
     longPrice: null,
     shortPrice: null,
     signal: null,
     pendingDelayedSignals: [],
     monitorValues: null,
     lastMonitorSnapshot: null,
-    lastCandlestickCacheVersion: null,
     incrementalIndicatorRuntime: null,
   };
 }

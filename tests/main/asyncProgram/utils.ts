@@ -128,14 +128,12 @@ export function createMonitorContext(overrides: Partial<MonitorContext> = {}): M
     {
       state: {
         monitorSymbol: 'HSI.HK',
-        monitorPrice: 20_000,
         longPrice: 1.1,
         shortPrice: 0.9,
         signal: null,
         pendingDelayedSignals: [],
         monitorValues: null,
         lastMonitorSnapshot: null,
-        lastCandlestickCacheVersion: null,
         incrementalIndicatorRuntime: null,
       },
       monitorSymbolName: 'HSI.HK',
@@ -171,14 +169,12 @@ export function createMonitorTaskContext(overrides: Partial<MonitorContext> = {}
     {
       state: {
         monitorSymbol: 'HSI.HK',
-        monitorPrice: null,
         longPrice: null,
         shortPrice: null,
         signal: null,
         pendingDelayedSignals: [],
         monitorValues: null,
         lastMonitorSnapshot: null,
-        lastCandlestickCacheVersion: null,
         incrementalIndicatorRuntime: null,
       },
       monitorSymbolName: 'HSI',

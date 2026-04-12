@@ -37,6 +37,7 @@ export function createCleanup(context: CleanupContext): CleanupController {
     sellProcessor,
     monitorTaskProcessor,
     trader,
+    businessEventProgram,
     tradingRiskEventRuntime,
     monitorQuoteEventRuntime,
     switchWakeupRuntime,
@@ -70,6 +71,10 @@ export function createCleanup(context: CleanupContext): CleanupController {
 
     await runStep('终止 Freshness 等待', () => {
       postTradeConsistencyRuntime.abortWaiting();
+    });
+
+    await runStep('停止 BusinessEventProgram', async () => {
+      await businessEventProgram.stopAndDrain();
     });
 
     await runStep('停止 TradingRiskEventRuntime', async () => {

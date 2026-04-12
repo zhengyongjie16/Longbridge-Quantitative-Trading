@@ -13,7 +13,7 @@ import type { TradingSignalStrategy } from '../core/strategy/types.js';
 
 /**
  * 单个监控标的的运行时状态。
- * 类型用途：承载单监控标的的当前价格、信号、待延迟验证信号、指标快照等，在主循环中持续更新，作为 MonitorContext.state、LastState.monitorStates 的值类型。
+ * 类型用途：承载单监控标的的信号、待延迟验证信号、指标快照等，在主循环中持续更新，作为 MonitorContext.state、LastState.monitorStates 的值类型。
  * 数据来源：主循环/processMonitor 根据行情与策略输出更新。
  * 使用范围：LastState、MonitorContext、主循环、pipeline 等；全项目可引用。
  */
@@ -23,12 +23,9 @@ export type MonitorState = {
 
   /**
    * 运行中持续更新的状态字段（性能考虑保持可变）
-   * - monitorPrice/longPrice/shortPrice/signal/pendingDelayedSignals/monitorValues/lastMonitorSnapshot
-   * - lastCandlestickCacheVersion/incrementalIndicatorRuntime
+   * - longPrice/shortPrice/signal/pendingDelayedSignals/monitorValues/lastMonitorSnapshot
+   * - incrementalIndicatorRuntime
    */
-  /** 监控标的当前价格 */
-  monitorPrice: number | null;
-
   /** 做多标的当前价格 */
   longPrice: number | null;
 
@@ -46,9 +43,6 @@ export type MonitorState = {
 
   /** 最新指标快照 */
   lastMonitorSnapshot: IndicatorSnapshot | null;
-
-  /** 最新已消费的 K 线缓存版本（用于 pipeline 主短路） */
-  lastCandlestickCacheVersion: number | null;
 
   /** 增量指标运行态（bootstrap 后在运行期持续推进） */
   incrementalIndicatorRuntime: IndicatorIncrementalRuntime | null;

@@ -56,6 +56,10 @@ import type {
   SwitchWakeupRuntime,
   SwitchWakeupHandoffParams,
 } from '../main/monitorQuoteEventRuntime/types.js';
+import type {
+  BusinessEventProgram,
+  BusinessEventProgramDeps,
+} from '../main/businessEventProgram/types.js';
 import type { QuoteSubscriptionRuntime } from '../main/quoteSubscriptionRuntime/types.js';
 import type { SeatActivationDispatcher } from '../main/seatActivationDispatcher/types.js';
 import type { TradingGateEventRuntime } from '../main/tradingGateEventRuntime/types.js';
@@ -79,7 +83,7 @@ import type {
   SeatDomainDeps,
   SignalRuntimeDomainDeps,
 } from '../main/lifecycle/cacheDomains/types.js';
-import type { MainProgramContext } from '../main/mainProgram/types.js';
+import type { TimeDriverProgramContext } from '../main/timeDriverProgram/types.js';
 import type { DisplayAccountAndPositionsParams } from '../services/accountDisplay/types.js';
 
 /**
@@ -262,6 +266,7 @@ export type CleanupContext = Readonly<{
   sellProcessor: Processor;
   monitorTaskProcessor: MonitorTaskProcessor;
   trader: Pick<Trader, 'stopOrderMonitorRuntimeAndDrain'>;
+  businessEventProgram: BusinessEventProgram;
   tradingRiskEventRuntime: TradingRiskEventRuntime;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
   switchWakeupRuntime: SwitchWakeupRuntime;
@@ -340,6 +345,8 @@ export type RegisterDelayedSignalHandlersParams = Readonly<{
   sellTaskQueue: TaskQueue<SellTaskType>;
   logger: Pick<Logger, 'debug' | 'warn'>;
   releaseSignal: (signal: Signal) => void;
+  doomsdayProtectionEnabled?: boolean;
+  now?: () => Date;
 }>;
 
 /**
@@ -535,6 +542,7 @@ export type LifecycleRuntimeFactoryDeps = Readonly<{
   preGateRuntime: PreGateRuntime;
   postGateRuntime: PostGateRuntime;
   asyncRuntime: AsyncRuntime;
+  businessEventProgram: BusinessEventProgram;
   rebuildTradingDayState: (params: RebuildTradingDayStateParams) => Promise<void>;
 }>;
 
@@ -560,13 +568,14 @@ export type RunAppDeps = Readonly<{
   ) => (params: RebuildTradingDayStateParams) => Promise<void>;
   displayAccountAndPositions: (params: DisplayAccountAndPositionsParams) => Promise<void>;
   registerDelayedSignalHandlers: (params: RegisterDelayedSignalHandlersParams) => void;
+  createBusinessEventProgram: (params: BusinessEventProgramDeps) => BusinessEventProgram;
   createAsyncRuntime: (params: AsyncRuntimeFactoryDeps) => AsyncRuntime;
   createLifecycleRuntime: (
     params: LifecycleRuntimeFactoryDeps,
     factories?: LifecycleRuntimeFactories,
   ) => DayLifecycleManager;
   createCleanup: (context: CleanupContext) => CleanupController;
-  mainProgram: (context: MainProgramContext) => Promise<void>;
+  timeDriverProgram: (context: TimeDriverProgramContext) => Promise<void>;
   sleep: (ms: number) => Promise<void>;
   logger: Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>;
   formatError: (error: unknown) => string;

@@ -801,7 +801,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     nowMs += 1_000;
     const advanceResult = await machine.advancePendingSwitch({
       direction: 'LONG',
-      monitorPrice: 20_000,
       positions: [],
     });
     expect(advanceResult).toMatchObject({
@@ -2034,7 +2033,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
 
     const advanceResult = await machine.advancePendingSwitch({
       direction: 'LONG',
-      monitorPrice: 20_000,
       positions: [],
     });
 
@@ -2184,7 +2182,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     nowMs += 1_000;
     const advanceResult = await machine.advancePendingSwitch({
       direction: 'LONG',
-      monitorPrice: 20_000,
       positions: [],
     });
     expect(advanceResult).toMatchObject({

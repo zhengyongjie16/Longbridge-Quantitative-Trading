@@ -5,28 +5,19 @@
  * - 买单与卖单终态结算的幂等、副作用与关联单语义
  * - 缺少归属上下文时拒绝结算，避免错误记账
  */
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test';
 import { OrderSide, OrderStatus, OrderType } from 'longbridge';
 import {
+  createDailyLossTrackerDouble,
   createOrderRecorderDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
 } from '../../../helpers/testDoubles.js';
-import type { TradeRecord } from '../../../../src/types/trader.js';
 import type { OrderRecord, OrderStateChangedEvent } from '../../../../src/types/services.js';
 import type { OrderHoldRegistry } from '../../../../src/core/trader/types.js';
 import type {
   OrderMonitorRuntimeStore,
   OrderMonitorTrackedOrder,
 } from '../../../../src/core/trader/orderMonitor/types.js';
-
-const recordedTrades: TradeRecord[] = [];
-
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入目标模块前同步注册
-mock.module('../../../../src/core/trader/tradeLogger.js', () => ({
-  recordTrade: (tradeRecord: TradeRecord) => {
-    recordedTrades.push(tradeRecord);
-  },
-}));
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises -- 避免测试输出噪音
 mock.module('../../../../src/utils/logger/index.js', () => ({
@@ -70,10 +61,6 @@ function createOrderHoldRegistry(): OrderHoldRegistry {
 }
 
 describe('settlementFlow business flow', () => {
-  beforeEach(() => {
-    recordedTrades.length = 0;
-  });
-
   it('settles FILLED buy order once and records a post-trade refresh need plus order state event without closeSync runtime state', () => {
     const runtime = createRuntime();
     let localBuyCalls = 0;
@@ -90,13 +77,7 @@ describe('settlementFlow business flow', () => {
           localBuyCalls += 1;
         },
       }),
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
+      dailyLossTracker: createDailyLossTrackerDouble(),
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       postTradeConsistencyRuntime: {
         recordSettlementRefreshNeed: (need) => {
@@ -136,7 +117,6 @@ describe('settlementFlow business flow', () => {
     expect(settledResult.handled).toBe(true);
     expect(duplicateResult.handled).toBe(false);
     expect(localBuyCalls).toBe(1);
-    expect(recordedTrades).toHaveLength(1);
     expect(refreshNeeds).toEqual([
       {
         refreshAccount: true,
@@ -165,6 +145,7 @@ describe('settlementFlow business flow', () => {
 
   it('settles partially-filled canceled sell with quantity fallback and records a post-trade refresh need', () => {
     const runtime = createRuntime();
+    const orderStateEvents: OrderStateChangedEvent[] = [];
     const buyOrders: ReadonlyArray<OrderRecord> = [
       {
         orderId: 'BUY-A',
@@ -217,20 +198,16 @@ describe('settlementFlow business flow', () => {
           localSellRelatedIds.push(relatedBuyOrderIds ?? null);
         },
       }),
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
+      dailyLossTracker: createDailyLossTrackerDouble(),
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       postTradeConsistencyRuntime: {
         recordSettlementRefreshNeed: (need) => {
           refreshNeeds.push(need);
         },
       },
-      emitOrderStateChanged: () => {},
+      emitOrderStateChanged: (event) => {
+        orderStateEvents.push(event);
+      },
     });
 
     const settledResult = settlementFlow.settleOrder({
@@ -248,12 +225,27 @@ describe('settlementFlow business flow', () => {
 
     expect(settledResult.handled).toBe(true);
     expect(settledResult.relatedBuyOrderIds).toBeNull();
-    expect(recordedTrades).toHaveLength(1);
     expect(localSellRelatedIds).toEqual([null]);
     expect(refreshNeeds).toEqual([
       {
         refreshAccount: true,
         refreshPositions: true,
+      },
+    ]);
+
+    expect(orderStateEvents).toEqual([
+      {
+        orderId: 'SELL-PARTIAL-FALLBACK',
+        symbol: 'BULL.HK',
+        side: 'SELL',
+        source: 'WS',
+        status: 'CANCELED',
+        monitorSymbol: 'HSI.HK',
+        isLongSymbol: true,
+        isProtectiveLiquidation: false,
+        executedPrice: 1.05,
+        executedQuantity: 100,
+        executedTimeMs: Date.parse('2026-02-25T03:11:00.000Z'),
       },
     ]);
   });
@@ -307,13 +299,7 @@ describe('settlementFlow business flow', () => {
           });
         },
       }),
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
+      dailyLossTracker: createDailyLossTrackerDouble(),
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       postTradeConsistencyRuntime: {
         recordSettlementRefreshNeed: () => {},
@@ -355,13 +341,7 @@ describe('settlementFlow business flow', () => {
       runtime,
       orderHoldRegistry: createOrderHoldRegistry(),
       orderRecorder: createOrderRecorderDouble(),
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
+      dailyLossTracker: createDailyLossTrackerDouble(),
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       postTradeConsistencyRuntime: {
         recordSettlementRefreshNeed: () => {},
@@ -386,6 +366,7 @@ describe('settlementFlow business flow', () => {
 
   it('records original liquidation symbol when protective sell settlement updates episode progress', () => {
     const runtime = createRuntime();
+    const orderStateEvents: OrderStateChangedEvent[] = [];
     const recordedProgressPayloads: Array<{
       monitorSymbol: string;
       direction: 'LONG' | 'SHORT';
@@ -398,13 +379,7 @@ describe('settlementFlow business flow', () => {
       orderRecorder: createOrderRecorderDouble({
         markSellFilled: () => null,
       }),
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
+      dailyLossTracker: createDailyLossTrackerDouble(),
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble({
         recordProtectiveFillProgress: (params) => {
           recordedProgressPayloads.push(params);
@@ -413,7 +388,9 @@ describe('settlementFlow business flow', () => {
       postTradeConsistencyRuntime: {
         recordSettlementRefreshNeed: () => {},
       },
-      emitOrderStateChanged: () => {},
+      emitOrderStateChanged: (event) => {
+        orderStateEvents.push(event);
+      },
     });
 
     const result = settlementFlow.settleOrder({
@@ -436,6 +413,22 @@ describe('settlementFlow business flow', () => {
         monitorSymbol: 'HSI.HK',
         direction: 'LONG',
         symbol: 'BULL.OLD.HK',
+        executedTimeMs: Date.parse('2026-02-25T03:11:00.000Z'),
+      },
+    ]);
+
+    expect(orderStateEvents).toEqual([
+      {
+        orderId: 'PL-SETTLEMENT-001',
+        symbol: 'BULL.OLD.HK',
+        side: 'SELL',
+        source: 'WS',
+        status: 'FILLED',
+        monitorSymbol: 'HSI.HK',
+        isLongSymbol: true,
+        isProtectiveLiquidation: true,
+        executedPrice: 1.03,
+        executedQuantity: 100,
         executedTimeMs: Date.parse('2026-02-25T03:11:00.000Z'),
       },
     ]);
@@ -500,13 +493,7 @@ describe('settlementFlow business flow', () => {
           submittedAt: Date.parse('2026-02-25T03:00:00.000Z'),
         }),
       }),
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
+      dailyLossTracker: createDailyLossTrackerDouble(),
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       postTradeConsistencyRuntime: {
         recordSettlementRefreshNeed: () => {},

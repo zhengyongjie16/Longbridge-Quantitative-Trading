@@ -188,6 +188,10 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
         wait: async () => ({ isTradingDay: true, isHalfDay: false }),
       },
     },
+    businessEventProgram: {
+      start: () => {},
+      stopAndDrain: async () => {},
+    },
     postGateRuntime: {
       liquidationCooldownTracker: {
         recordLiquidationTrigger: () => ({

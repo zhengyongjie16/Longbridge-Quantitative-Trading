@@ -1,8 +1,8 @@
 /**
- * main-program-strict 集成测试
+ * time-driver-program-strict 集成测试
  *
  * 功能：
- * - 验证主程序严格模式端到端场景与业务期望。
+ * - 验证 timeDriverProgram 严格模式端到端场景与业务期望。
  */
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
@@ -12,16 +12,15 @@ import {
   createPositionCacheDouble,
   createQuoteSubscriptionRuntimeDouble,
   createQuoteDouble,
-  createSymbolRegistryDouble,
   createTradingGateEventRuntimeDouble,
   createTraderDouble,
 } from '../helpers/testDoubles.js';
 
-import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
+import type { TimeDriverProgramContext } from '../../src/main/timeDriverProgram/types.js';
 import type * as TimeModule from '../../src/utils/time/index.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { Quote } from '../../src/types/quote.js';
-import type { MainProgramModule } from './types.js';
+import type { TimeDriverProgramModule } from './types.js';
 
 const processMonitorCalls: Array<{
   readonly monitorSymbol: string;
@@ -80,14 +79,14 @@ function isWithinAfternoonOpenProtectionFallback(now: Date, minutes: number): bo
   return minuteOfDay >= start && minuteOfDay < start + minutes;
 }
 
-async function loadMainProgram(): Promise<MainProgramModule> {
-  const actualTimeModulePath = '../../src/utils/time/index.js?actual-main-program-strict';
+async function loadTimeDriverProgram(): Promise<TimeDriverProgramModule> {
+  const actualTimeModulePath = '../../src/utils/time/index.js?actual-time-driver-program-strict';
   const actualTimeModuleUnknown: unknown = await import(actualTimeModulePath);
   const actualTimeModule = actualTimeModuleUnknown as typeof TimeModule;
 
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 mainProgram 前同步注册
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 timeDriverProgram 前同步注册
   mock.module('../../src/main/processMonitor/index.js', () => ({
-    processMonitor: async ({
+    processMonitor: ({
       monitorContext,
       runtimeFlags,
     }: {
@@ -96,7 +95,7 @@ async function loadMainProgram(): Promise<MainProgramModule> {
         readonly openProtectionActive: boolean;
         readonly canTradeNow: boolean;
       };
-    }) => {
+    }): void => {
       processMonitorCalls.push({
         monitorSymbol: monitorContext.config.monitorSymbol,
         openProtectionActive: runtimeFlags.openProtectionActive,
@@ -105,7 +104,7 @@ async function loadMainProgram(): Promise<MainProgramModule> {
     },
   }));
 
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 mainProgram 前同步注册
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 timeDriverProgram 前同步注册
   mock.module('../../src/utils/time/index.js', () => ({
     ...actualTimeModule,
     getHKDateKey: (now: Date) => tradingTimeOverrides.dayKey ?? getHKDateKeyFallback(now),
@@ -119,9 +118,10 @@ async function loadMainProgram(): Promise<MainProgramModule> {
       isWithinAfternoonOpenProtectionFallback(now, minutes),
   }));
 
-  const mainProgramModulePath = '../../src/main/mainProgram/index.js?mocked-main-program-strict';
-  const loadedModuleUnknown: unknown = await import(mainProgramModulePath);
-  return loadedModuleUnknown as MainProgramModule;
+  const timeDriverProgramModulePath =
+    '../../src/main/timeDriverProgram/index.js?mocked-time-driver-program-strict';
+  const loadedModuleUnknown: unknown = await import(timeDriverProgramModulePath);
+  return loadedModuleUnknown as TimeDriverProgramModule;
 }
 
 function createLastState(overrides: Partial<LastState> = {}): LastState {
@@ -152,6 +152,9 @@ function createMonitorContext(
   const config = createMonitorConfigDouble({ monitorSymbol });
   return {
     config,
+    state: {
+      lastMonitorSnapshot: null,
+    },
     monitorSymbolName: monitorSymbol,
     delayedSignalVerifier: {
       getPendingCount: () => pendingCount,
@@ -163,7 +166,7 @@ function createMonitorContext(
 }
 
 function createQueues(): Pick<
-  MainProgramContext,
+  TimeDriverProgramContext,
   'buyTaskQueue' | 'sellTaskQueue' | 'monitorTaskQueue' | 'indicatorCache'
 > {
   return {
@@ -199,7 +202,7 @@ function createQueues(): Pick<
   } as const;
 }
 
-describe('mainProgram strict-mode integration', () => {
+describe('timeDriverProgram strict-mode integration', () => {
   beforeEach(() => {
     processMonitorCalls.length = 0;
     tradingTimeOverrides.dayKey = null;
@@ -237,9 +240,9 @@ describe('mainProgram strict-mode integration', () => {
       dayKey: string | null;
     }> = [];
 
-    const loadedMainProgram = await loadMainProgram();
-    const { mainProgram } = loadedMainProgram;
-    await mainProgram({
+    const loadedTimeDriverProgram = await loadTimeDriverProgram();
+    const { timeDriverProgram } = loadedTimeDriverProgram;
+    await timeDriverProgram({
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
         getQuotes: async () => {
@@ -249,6 +252,7 @@ describe('mainProgram strict-mode integration', () => {
         subscribeSymbols: async () => {},
         unsubscribeSymbols: async () => {},
         onQuoteUpdated: () => () => {},
+        onCandlestickUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
@@ -262,11 +266,6 @@ describe('mainProgram strict-mode integration', () => {
         monitorIndicatorChanges: () => false,
       },
       doomsdayProtection: createDoomsdayProtectionDouble(),
-      signalProcessor: {
-        processSellSignals: (params) => params.signals,
-        applyRiskChecks: async (signals) => signals,
-        resetRiskCheckCooldown: () => {},
-      } as MainProgramContext['signalProcessor'],
       tradingConfig: createTradingConfig({
         monitors: [createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' })],
         global: {
@@ -274,15 +273,7 @@ describe('mainProgram strict-mode integration', () => {
           doomsdayProtection: false,
         },
       }),
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
       monitorContexts,
-      symbolRegistry: createSymbolRegistryDouble({ monitorSymbol: 'HSI.HK' }),
       ...createQueues(),
       runtimeGateMode: 'strict',
       tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
@@ -327,9 +318,9 @@ describe('mainProgram strict-mode integration', () => {
     let getQuotesCalls = 0;
     const callSequence: string[] = [];
 
-    const loadedMainProgram = await loadMainProgram();
-    const { mainProgram } = loadedMainProgram;
-    await mainProgram({
+    const loadedTimeDriverProgram = await loadTimeDriverProgram();
+    const { timeDriverProgram } = loadedTimeDriverProgram;
+    await timeDriverProgram({
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
         getQuotes: async () => {
@@ -344,6 +335,7 @@ describe('mainProgram strict-mode integration', () => {
           callSequence.push('unsubscribeSymbols');
         },
         onQuoteUpdated: () => () => {},
+        onCandlestickUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
@@ -368,11 +360,6 @@ describe('mainProgram strict-mode integration', () => {
           return { executed: true, signalCount: 2 };
         },
       }),
-      signalProcessor: {
-        processSellSignals: (params) => params.signals,
-        applyRiskChecks: async (signals) => signals,
-        resetRiskCheckCooldown: () => {},
-      } as MainProgramContext['signalProcessor'],
       tradingConfig: createTradingConfig({
         monitors: [createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' })],
         global: {
@@ -380,15 +367,7 @@ describe('mainProgram strict-mode integration', () => {
           doomsdayProtection: true,
         },
       }),
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
       monitorContexts,
-      symbolRegistry: createSymbolRegistryDouble({ monitorSymbol: 'HSI.HK' }),
       ...createQueues(),
       runtimeGateMode: 'strict',
       tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
@@ -438,9 +417,9 @@ describe('mainProgram strict-mode integration', () => {
     const unsubscribedBatches: string[][] = [];
     let getQuotesSymbols: string[] = [];
 
-    const loadedMainProgram = await loadMainProgram();
-    const { mainProgram } = loadedMainProgram;
-    await mainProgram({
+    const loadedTimeDriverProgram = await loadTimeDriverProgram();
+    const { timeDriverProgram } = loadedTimeDriverProgram;
+    await timeDriverProgram({
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
         getQuotes: async (symbols: Iterable<string>) => {
@@ -459,6 +438,7 @@ describe('mainProgram strict-mode integration', () => {
           unsubscribedBatches.push([...symbols]);
         },
         onQuoteUpdated: () => () => {},
+        onCandlestickUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
@@ -474,11 +454,6 @@ describe('mainProgram strict-mode integration', () => {
         monitorIndicatorChanges: () => false,
       },
       doomsdayProtection: createDoomsdayProtectionDouble(),
-      signalProcessor: {
-        processSellSignals: (params) => params.signals,
-        applyRiskChecks: async (signals) => signals,
-        resetRiskCheckCooldown: () => {},
-      } as MainProgramContext['signalProcessor'],
       tradingConfig: createTradingConfig({
         monitors: [monitorConfig],
         global: {
@@ -490,15 +465,7 @@ describe('mainProgram strict-mode integration', () => {
           },
         },
       }),
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
       monitorContexts,
-      symbolRegistry: createSymbolRegistryDouble({ monitorSymbol }),
       ...createQueues(),
       runtimeGateMode: 'strict',
       tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),

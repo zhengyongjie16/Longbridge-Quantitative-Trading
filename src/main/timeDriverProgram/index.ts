@@ -1,52 +1,69 @@
 /**
- * 主程序模块（每秒执行一次的核心循环）
+ * timeDriverProgram 模块
  *
  * 核心职责：
  * - 判断交易日和交易时段，控制程序运行状态
  * - 驱动交易日生命周期状态机（dayLifecycleManager.tick），统一维护 isTradingEnabled 与交易日快照
  * - 在交易门禁状态变化时发布 gate event，供非周期自动寻标 owner 消费
  * - 执行末日保护（买入截止窗口撤单和清仓接管窗口清仓）
- * - 批量获取行情数据，协调所有监控标的的并发处理
- * - 不再持有订单监控 runtime owner；成交后的一致性补刷与订单监控推进由事件驱动运行时独立负责
+ * - 驱动时间语义维护：周期换标 tick、风险展示刷新、席位同步与 indicatorCache 时间轴采样
  *
- * 执行流程：
- * 1. 交易日/时段判断 → 2. 调用 dayLifecycleManager.tick 驱动生命周期
- * → 3. 末日保护检查 → 4. 批量获取行情 → 5. 并发处理监控标的
+ * 明确不负责：
+ * - 读取 monitor candlestick 并推进普通指标
+ * - 普通 immediate / delayed signal 生成
  */
 import { logger } from '../../utils/logger/index.js';
 import { processMonitor } from '../processMonitor/index.js';
-import type { MainProgramContext } from './types.js';
-import { formatSymbolDisplay } from '../../utils/display/index.js';
+import type { MonitorRuntimeContext } from '../processMonitor/types.js';
+import type { TimeDriverProgramContext } from './types.js';
 import { formatError } from '../../utils/error/index.js';
+import { formatSymbolDisplay } from '../../utils/display/index.js';
 import {
   getHKDateKey,
   isInContinuousHKSession,
   isWithinAfternoonOpenProtection,
   isWithinMorningOpenProtection,
 } from '../../utils/time/index.js';
+import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProtection/utils.js';
+
+const takeoverStateByLastState = new WeakMap<TimeDriverProgramContext['lastState'], boolean>();
 
 /**
- * 主程序 - 每秒执行一次的核心循环
+ * 取消所有 monitor 的普通延迟验证信号。
  *
- * 职责：
- * 1. 判断交易日和交易时段，并驱动 dayLifecycleManager.tick 更新 lifecycleState / isTradingEnabled
- * 2. 在生命周期与门禁允许的前提下执行末日保护检查
- * 3. 批量获取行情数据
- * 4. 并发处理所有监控标的
- *
- * @param context 主程序上下文，包含所有必要的依赖
+ * @param monitorContexts 监控上下文集合
+ * @returns 取消的信号总数
  */
-export async function mainProgram({
+function cancelAllDelayedSignals(
+  monitorContexts: TimeDriverProgramContext['monitorContexts'],
+): number {
+  let totalCancelled = 0;
+  for (const [monitorSymbol, monitorContext] of monitorContexts) {
+    const pendingCount = monitorContext.delayedSignalVerifier.getPendingCount();
+    if (pendingCount <= 0) {
+      continue;
+    }
+
+    monitorContext.delayedSignalVerifier.cancelAllForSymbol(monitorSymbol);
+    totalCancelled += pendingCount;
+  }
+
+  return totalCancelled;
+}
+
+/**
+ * 时间驱动主程序。
+ *
+ * @param context 时间驱动上下文，包含所有必要依赖
+ */
+export async function timeDriverProgram({
   marketDataClient,
   trader,
   lastState,
   marketMonitor,
   doomsdayProtection,
-  signalProcessor,
   tradingConfig,
-  dailyLossTracker,
   monitorContexts,
-  symbolRegistry,
   indicatorCache,
   buyTaskQueue,
   sellTaskQueue,
@@ -55,13 +72,12 @@ export async function mainProgram({
   tradingGateEventRuntime,
   quoteSubscriptionRuntime,
   dayLifecycleManager,
-}: MainProgramContext): Promise<void> {
-  // 判断是否在交易时段（使用当前系统时间）
+}: TimeDriverProgramContext): Promise<void> {
   const currentTime = new Date();
   const isStrictMode = runtimeGateMode === 'strict';
   const previousCanTrade = lastState.canTrade;
+  const previousTakeoverActive = takeoverStateByLastState.get(lastState) ?? false;
 
-  // dailyLossTracker 日切重置由 lifecycle riskDomain.midnightClear 统一驱动，此处不再重复
   const currentDayKey = getHKDateKey(currentTime);
   let isTradingDayToday = lastState.cachedTradingDayInfo?.isTradingDay ?? true;
   let isHalfDayToday = lastState.cachedTradingDayInfo?.isHalfDay ?? false;
@@ -76,8 +92,7 @@ export async function mainProgram({
       };
 
       if (isTradingDayToday) {
-        const dayType = isHalfDayToday ? '半日交易日' : '交易日';
-        logger.info(`今天是${dayType}`);
+        logger.info(`今天是${isHalfDayToday ? '半日交易日' : '交易日'}`);
       } else {
         logger.info('今天不是交易日');
       }
@@ -102,19 +117,10 @@ export async function mainProgram({
 
     if (lastState.canTrade !== canTradeNow) {
       if (canTradeNow) {
-        const sessionType = isHalfDayToday ? '（半日交易）' : '';
-        logger.info(`进入连续交易时段${sessionType}，开始正常交易。`);
+        logger.info(`进入连续交易时段${isHalfDayToday ? '（半日交易）' : ''}，开始正常交易。`);
       } else if (isTradingDayToday) {
         logger.info('当前为竞价或非连续交易时段，暂停实时监控。');
-        let totalCancelled = 0;
-        for (const [monitorSymbol, monitorContext] of monitorContexts) {
-          const pendingCount = monitorContext.delayedSignalVerifier.getPendingCount();
-          if (pendingCount > 0) {
-            monitorContext.delayedSignalVerifier.cancelAllForSymbol(monitorSymbol);
-            totalCancelled += pendingCount;
-          }
-        }
-
+        const totalCancelled = cancelAllDelayedSignals(monitorContexts);
         if (totalCancelled > 0) {
           logger.info(`[交易时段结束] 已清理 ${totalCancelled} 个待验证信号`);
         }
@@ -140,10 +146,11 @@ export async function mainProgram({
         (!isHalfDayToday && afternoon.enabled && afternoon.minutes !== null);
       if (anyProtectionEnabled && lastState.openProtectionActive !== openProtectionActive) {
         if (openProtectionActive) {
-          const message = morningActive
-            ? `[开盘保护] 早盘开盘后 ${morning.minutes} 分钟内暂停信号生成`
-            : `[开盘保护] 午盘开盘后 ${afternoon.minutes ?? ''} 分钟内暂停信号生成`;
-          logger.info(message);
+          logger.info(
+            morningActive
+              ? `[开盘保护] 早盘开盘后 ${String(morning.minutes)} 分钟内暂停信号生成`
+              : `[开盘保护] 午盘开盘后 ${String(afternoon.minutes)} 分钟内暂停信号生成`,
+          );
         } else if (lastState.openProtectionActive !== null) {
           logger.info('[开盘保护] 保护期结束，恢复信号生成');
         }
@@ -178,6 +185,18 @@ export async function mainProgram({
     });
   }
 
+  const doomsdayTakeoverActive =
+    tradingConfig.global.doomsdayProtection &&
+    isWithinDoomsdayClearanceTakeoverWindow(currentTime, isHalfDayToday);
+  if (!previousTakeoverActive && doomsdayTakeoverActive) {
+    const totalCancelled = cancelAllDelayedSignals(monitorContexts);
+    if (totalCancelled > 0) {
+      logger.info(`[清仓接管] 已清理 ${totalCancelled} 个普通待验证信号`);
+    }
+  }
+
+  takeoverStateByLastState.set(lastState, doomsdayTakeoverActive);
+
   if (!lastState.isTradingEnabled) {
     return;
   }
@@ -186,15 +205,10 @@ export async function mainProgram({
     return;
   }
 
-  // 使用 lifecycle tick 后的最新持仓缓存
   const positions = lastState.cachedPositions;
-
-  // 稳态订阅集合由 QuoteSubscriptionRuntime 维护；主循环只读取已提交集合批量取行情。
   const quoteSymbols = new Set(lastState.allTradingSymbols);
 
-  // 末日保护检查（全局性，使用 QuoteSubscriptionRuntime 已提交的订阅集合）
   if (tradingConfig.global.doomsdayProtection) {
-    // 买入截止窗口：撤销所有未成交的买入订单
     const cancelResult = await doomsdayProtection.cancelPendingBuyOrders({
       currentTime,
       isHalfDay: isHalfDayToday,
@@ -208,7 +222,6 @@ export async function mainProgram({
       );
     }
 
-    // 清仓接管窗口：自动清仓所有持仓
     const clearanceResult = await doomsdayProtection.executeClearance({
       currentTime,
       isHalfDay: isHalfDayToday,
@@ -221,40 +234,26 @@ export async function mainProgram({
       onPositionsCommitted: () => quoteSubscriptionRuntime.reconcilePositionHoldFromCurrentTruth(),
     });
     if (clearanceResult.executed) {
-      // 末日保护已执行清仓，跳过本次循环的监控标的处理
       return;
     }
   }
 
   const quotesMap = await marketDataClient.getQuotes(quoteSymbols);
-  const mainContext: MainProgramContext = {
+  const runtimeContext: MonitorRuntimeContext = {
     marketDataClient,
-    trader,
     lastState,
     marketMonitor,
-    doomsdayProtection,
-    signalProcessor,
     tradingConfig,
-    dailyLossTracker,
-    monitorContexts,
-    symbolRegistry,
-    indicatorCache,
     buyTaskQueue,
     sellTaskQueue,
     monitorTaskQueue,
-    runtimeGateMode,
-    tradingGateEventRuntime,
-    quoteSubscriptionRuntime,
-    dayLifecycleManager,
   };
 
-  // 并发处理所有监控标的（使用预先获取的行情数据）
-  const monitorTasks: Promise<void>[] = [];
   for (const [monitorSymbol, monitorContext] of monitorContexts) {
-    monitorTasks.push(
+    try {
       processMonitor(
         {
-          context: mainContext,
+          context: runtimeContext,
           monitorContext,
           runtimeFlags: {
             currentTime,
@@ -265,14 +264,22 @@ export async function mainProgram({
           },
         },
         quotesMap,
-      ).catch((err: unknown) => {
-        logger.error(
-          `处理监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 失败`,
-          formatError(err),
-        );
-      }),
-    );
+      );
+    } catch (error) {
+      logger.error(
+        `处理监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 失败`,
+        formatError(error),
+      );
+    }
   }
 
-  await Promise.allSettled(monitorTasks);
+  const sampleTimestampMs = currentTime.getTime();
+  for (const [monitorSymbol, monitorContext] of monitorContexts) {
+    const capturedSnapshot = monitorContext.state.lastMonitorSnapshot;
+    if (capturedSnapshot === null) {
+      continue;
+    }
+
+    indicatorCache.push(monitorSymbol, capturedSnapshot, sampleTimestampMs);
+  }
 }

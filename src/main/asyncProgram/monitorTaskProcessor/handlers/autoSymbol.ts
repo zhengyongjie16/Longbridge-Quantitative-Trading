@@ -77,7 +77,11 @@ export function createAutoSymbolHandlers({
       return;
     }
 
-    if (!result.advanced || !result.stillPending || result.driveResult.kind !== 'WAIT') {
+    if (!result.advanced) {
+      return;
+    }
+
+    if (!result.stillPending || result.driveResult.kind !== 'WAIT') {
       return;
     }
 

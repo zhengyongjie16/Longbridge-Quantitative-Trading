@@ -237,9 +237,9 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
   function subscribeCandlesticks(
     symbol: string,
     period: Period,
-    _tradeSessions?: TradeSessions,
+    tradeSessions?: TradeSessions,
   ): Promise<ReadonlyArray<unknown>> {
-    return withCall('subscribeCandlesticks', [symbol, period], () => {
+    return withCall('subscribeCandlesticks', [symbol, period, tradeSessions], () => {
       const key = createCandleKey(symbol, period);
       subscribedCandlestickKeys.add(key);
       return candlesticksByKey.get(key) ?? [];

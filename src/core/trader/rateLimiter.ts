@@ -55,7 +55,7 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
     });
 
     try {
-      let now = Date.now();
+      let now = performance.now();
 
       // 1. 检查最小调用间隔（两次调用间隔不少于 API.MIN_CALL_INTERVAL_MS 毫秒）
       const lastCallTime = callTimestamps.at(-1);
@@ -66,7 +66,7 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
           await new Promise<void>((resolve) => {
             setTimeout(resolve, waitTime);
           });
-          now = Date.now(); // 更新当前时间
+          now = performance.now(); // 更新当前单调时间
         }
       }
 
@@ -90,12 +90,12 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
           setTimeout(resolve, waitTime);
         });
 
-        const nowAfterWait = Date.now();
+        const nowAfterWait = performance.now();
         callTimestamps = callTimestamps.filter((timestamp) => nowAfterWait - timestamp < windowMs);
       }
 
       // 4. 记录本次调用时间
-      callTimestamps.push(Date.now());
+      callTimestamps.push(performance.now());
     } finally {
       // 释放并发锁
       throttlePromise = null;
