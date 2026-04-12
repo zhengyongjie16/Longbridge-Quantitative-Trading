@@ -6,7 +6,7 @@
  * - 在失败时切换到 pendingOpenRebuild 恢复分支
  * - 保留空快照并继续后续装配
  */
-import type { LoadStartupSnapshotParams, StartupSnapshotResult } from './types.js';
+import type { LoadStartupSnapshotParams, StartupSnapshotResult } from '../types.js';
 
 /**
  * 执行启动快照加载，并在失败时切换为开盘重建恢复模式。

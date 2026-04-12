@@ -5,8 +5,8 @@
  * - 从环境变量解析运行模式
  * - 从独立门禁配置解析 startup/runtime gate 策略与来源
  */
-import type { GatePolicies, GatePolicySources } from './types.js';
-import type { GateMode, RunMode } from '../types/seat.js';
+import type { GatePolicies, GatePolicySources } from '../types.js';
+import type { GateMode, RunMode } from '../../types/seat.js';
 
 /**
  * 从环境变量解析运行模式。未设置或非 'dev' 时默认为 'prod'。

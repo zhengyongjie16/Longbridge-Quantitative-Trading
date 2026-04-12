@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { createMonitorContext } from '../../src/app/createMonitorContexts.js';
+import { createMonitorContext } from '../../src/app/context/createMonitorContexts.js';
 import type { MonitorState } from '../../src/types/state.js';
 import {
   createAutoSymbolManagerDouble,

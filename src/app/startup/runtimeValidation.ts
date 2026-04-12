@@ -12,9 +12,9 @@ import type {
   MutableRuntimeValidationCollector,
   RuntimeValidationCollector,
   RuntimeValidationCollectionParams,
-} from './types.js';
-import { shouldSkipRuntimeValidationSymbol } from '../utils/utils.js';
-import { resolveBoundSeatSymbol } from '../main/recovery/seatPreparation.js';
+} from '../types.js';
+import { shouldSkipRuntimeValidationSymbol } from '../../utils/utils.js';
+import { resolveBoundSeatSymbol } from '../../main/recovery/seatPreparation.js';
 
 /**
  * 解析指定监控标的的双向已绑定席位代码。

@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { createSignalProcessor } from '../../src/core/signalProcessor/index.js';
-import { createMonitorContext } from '../../src/app/createMonitorContexts.js';
+import { createMonitorContext } from '../../src/app/context/createMonitorContexts.js';
 import { timeDriverProgram } from '../../src/main/timeDriverProgram/index.js';
 import type { TimeDriverProgramContext } from '../../src/main/timeDriverProgram/types.js';
 import { processMonitor } from '../../src/main/processMonitor/index.js';

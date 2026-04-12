@@ -6,18 +6,18 @@
  * - 批量装配全部 monitor 配置并写回 post-gate runtime 的 monitorContexts Map
  * - 固化 monitorStates 与 tradingConfig 的一一对应装配不变量
  */
-import { createDefaultTradingSignalStrategyFactory } from '../core/strategy/index.js';
-import { createPositionLimitChecker } from '../core/riskController/positionLimitChecker.js';
-import { createRiskChecker } from '../core/riskController/index.js';
-import { createUnrealizedLossChecker } from '../core/riskController/unrealizedLossChecker.js';
-import { createUnrealizedLossMonitor } from '../core/riskController/unrealizedLossMonitor.js';
-import { createWarrantRiskChecker } from '../core/riskController/warrantRiskChecker.js';
-import { createDelayedSignalVerifier } from '../main/asyncProgram/delayedSignalVerifier/index.js';
-import { createAutoSymbolManager } from '../services/autoSymbolManager/index.js';
-import { compileIndicatorUsageProfile } from '../services/indicators/profile/index.js';
-import type { MonitorContext } from '../types/state.js';
-import { resolveMonitorContextRuntimeSnapshot } from '../utils/utils.js';
-import type { CreateMonitorContextsParams, MonitorContextFactoryDeps } from './types.js';
+import { createDefaultTradingSignalStrategyFactory } from '../../core/strategy/index.js';
+import { createPositionLimitChecker } from '../../core/riskController/positionLimitChecker.js';
+import { createRiskChecker } from '../../core/riskController/index.js';
+import { createUnrealizedLossChecker } from '../../core/riskController/unrealizedLossChecker.js';
+import { createUnrealizedLossMonitor } from '../../core/riskController/unrealizedLossMonitor.js';
+import { createWarrantRiskChecker } from '../../core/riskController/warrantRiskChecker.js';
+import { createDelayedSignalVerifier } from '../../main/asyncProgram/delayedSignalVerifier/index.js';
+import { createAutoSymbolManager } from '../../services/autoSymbolManager/index.js';
+import { compileIndicatorUsageProfile } from '../../services/indicators/profile/index.js';
+import type { MonitorContext } from '../../types/state.js';
+import { resolveMonitorContextRuntimeSnapshot } from '../../utils/utils.js';
+import type { CreateMonitorContextsParams, MonitorContextFactoryDeps } from '../types.js';
 
 const DEFAULT_STRATEGY_FACTORY = createDefaultTradingSignalStrategyFactory();
 

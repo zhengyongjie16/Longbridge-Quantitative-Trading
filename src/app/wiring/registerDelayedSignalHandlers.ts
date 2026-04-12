@@ -9,11 +9,11 @@
 import {
   describeSignalSeatValidationFailure,
   validateSignalSeat,
-} from '../services/autoSymbolManager/utils.js';
-import { ordinarySignalGuard } from '../main/ordinarySignalGuard/index.js';
-import { formatSymbolDisplay, isSellAction } from '../utils/display/index.js';
-import { isBuyAction } from '../utils/helpers/index.js';
-import type { RegisterDelayedSignalHandlersParams } from './types.js';
+} from '../../services/autoSymbolManager/utils.js';
+import { ordinarySignalGuard } from '../../main/ordinarySignalGuard/index.js';
+import { formatSymbolDisplay, isSellAction } from '../../utils/display/index.js';
+import { isBuyAction } from '../../utils/helpers/index.js';
+import type { RegisterDelayedSignalHandlersParams } from '../types.js';
 
 /**
  * 注册所有监控标的的延迟验证通过回调。

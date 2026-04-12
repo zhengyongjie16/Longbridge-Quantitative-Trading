@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { registerDelayedSignalHandlers } from '../../src/app/registerDelayedSignalHandlers.js';
+import { registerDelayedSignalHandlers } from '../../src/app/wiring/registerDelayedSignalHandlers.js';
 import { createSignalDouble, createSymbolRegistryDouble } from '../helpers/testDoubles.js';
 
 import type { Signal } from '../../src/types/signal.js';

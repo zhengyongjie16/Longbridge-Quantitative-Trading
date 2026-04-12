@@ -23,8 +23,12 @@ import {
   isWithinMorningOpenProtection,
 } from '../../utils/time/index.js';
 import { formatError } from '../../utils/error/index.js';
-import { createTradingDayInfoResolver } from '../rebuild.js';
-import { resolveGatePolicies, resolveGatePolicySources, resolveRunMode } from '../startupModes.js';
+import { createTradingDayInfoResolver } from '../lifecycle/rebuild.js';
+import {
+  resolveGatePolicies,
+  resolveGatePolicySources,
+  resolveRunMode,
+} from '../startup/startupModes.js';
 import type { AppEnvironmentParams, PreGateRuntime } from '../types.js';
 
 /**

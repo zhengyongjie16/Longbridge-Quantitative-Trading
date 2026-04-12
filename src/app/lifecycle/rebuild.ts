@@ -10,7 +10,7 @@ import type {
   RunTradingDayOpenRebuildParams,
   TradingDayInfoResolver,
   TradingDayInfoResolverDeps,
-} from './types.js';
+} from '../types.js';
 
 /**
  * 创建带按日缓存的交易日信息解析函数。

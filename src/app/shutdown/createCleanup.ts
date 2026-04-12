@@ -6,11 +6,11 @@
  * - 注册 SIGINT 和 SIGTERM 信号处理器
  * - 确保程序退出时正确释放所有资源
  */
-import { logger } from '../utils/logger/index.js';
-import { formatError } from '../utils/error/index.js';
-import { releaseSnapshotObjects } from '../utils/helpers/index.js';
-import type { MonitorState } from '../types/state.js';
-import type { CleanupContext, CleanupController, CleanupFailure } from './types.js';
+import { logger } from '../../utils/logger/index.js';
+import { formatError } from '../../utils/error/index.js';
+import { releaseSnapshotObjects } from '../../utils/helpers/index.js';
+import type { MonitorState } from '../../types/state.js';
+import type { CleanupContext, CleanupController, CleanupFailure } from '../types.js';
 
 /**
  * 释放所有监控标的的最后一个快照对象，并将最后快照指针清空，避免退出后残留对象池引用。

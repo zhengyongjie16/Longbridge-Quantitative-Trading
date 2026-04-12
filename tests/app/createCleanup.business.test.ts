@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'bun:test';
 import type { CleanupContext } from '../../src/app/types.js';
 
-import { createCleanup } from '../../src/app/createCleanup.js';
+import { createCleanup } from '../../src/app/shutdown/createCleanup.js';
 import {
   createDelayedSignalVerifierDouble,
   createMonitorContextDouble,

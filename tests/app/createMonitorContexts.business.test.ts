@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import type { MutableMonitorContextsPostGateRuntime, PreGateRuntime } from '../../src/app/types.js';
-import { createMonitorContexts } from '../../src/app/createMonitorContexts.js';
+import { createMonitorContexts } from '../../src/app/context/createMonitorContexts.js';
 import { parseSignalConfig } from '../../src/config/utils.js';
 import type { TradingSignalStrategyFactory } from '../../src/core/strategy/types.js';
 import { createWarrantListCache } from '../../src/services/autoSymbolFinder/utils.js';

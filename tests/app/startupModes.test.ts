@@ -10,7 +10,7 @@ import {
   resolveGatePolicies,
   resolveGatePolicySources,
   resolveRunMode,
-} from '../../src/app/startupModes.js';
+} from '../../src/app/startup/startupModes.js';
 
 describe('app startupModes', () => {
   it('resolves prod as the default run mode', () => {

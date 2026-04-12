@@ -7,7 +7,7 @@
  * - createLifecycleRuntime 将固定顺序的 cache domains 交给 dayLifecycleManager
  */
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { createLifecycleRuntime } from '../../src/app/createLifecycleRuntime.js';
+import { createLifecycleRuntime } from '../../src/app/lifecycle/createLifecycleRuntime.js';
 import type {
   LifecycleRuntimeFactories,
   LifecycleRuntimeFactoryDeps,

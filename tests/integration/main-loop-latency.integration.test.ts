@@ -17,7 +17,7 @@ import type {
 } from './types.js';
 import { TRADING } from '../../src/constants/index.js';
 import { timeDriverProgram } from '../../src/main/timeDriverProgram/index.js';
-import { createMonitorContext } from '../../src/app/createMonitorContexts.js';
+import { createMonitorContext } from '../../src/app/context/createMonitorContexts.js';
 import { createHangSengMultiIndicatorStrategy } from '../../src/core/strategy/index.js';
 import {
   createBuyTaskQueue,

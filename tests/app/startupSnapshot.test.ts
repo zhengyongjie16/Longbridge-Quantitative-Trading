@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderStatus, OrderType } from 'longbridge';
-import { loadStartupSnapshot } from '../../src/app/startupSnapshot.js';
+import { loadStartupSnapshot } from '../../src/app/startup/startupSnapshot.js';
 import { applyStartupSnapshotFailureState } from '../../src/main/lifecycle/startupFailureState.js';
 import type { Quote } from '../../src/types/quote.js';
 import type { LastState } from '../../src/types/state.js';

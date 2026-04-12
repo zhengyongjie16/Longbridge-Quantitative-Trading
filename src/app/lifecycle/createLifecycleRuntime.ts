@@ -6,18 +6,18 @@
  * - 创建 dayLifecycleManager
  * - 固化 open rebuild 统一入口与 signal runtime 恢复顺序
  */
-import { createDayLifecycleManager } from '../main/lifecycle/dayLifecycleManager.js';
-import { createGlobalStateDomain } from '../main/lifecycle/cacheDomains/globalStateDomain.js';
-import { createMarketDataDomain } from '../main/lifecycle/cacheDomains/marketDataDomain.js';
-import { createOrderDomain } from '../main/lifecycle/cacheDomains/orderDomain.js';
-import { createRiskDomain } from '../main/lifecycle/cacheDomains/riskDomain.js';
-import { createSeatDomain } from '../main/lifecycle/cacheDomains/seatDomain.js';
-import { createSignalRuntimeDomain } from '../main/lifecycle/cacheDomains/signalRuntimeDomain.js';
+import { createDayLifecycleManager } from '../../main/lifecycle/dayLifecycleManager.js';
+import { createGlobalStateDomain } from '../../main/lifecycle/cacheDomains/globalStateDomain.js';
+import { createMarketDataDomain } from '../../main/lifecycle/cacheDomains/marketDataDomain.js';
+import { createOrderDomain } from '../../main/lifecycle/cacheDomains/orderDomain.js';
+import { createRiskDomain } from '../../main/lifecycle/cacheDomains/riskDomain.js';
+import { createSeatDomain } from '../../main/lifecycle/cacheDomains/seatDomain.js';
+import { createSignalRuntimeDomain } from '../../main/lifecycle/cacheDomains/signalRuntimeDomain.js';
 import { executeTradingDayOpenRebuild } from './rebuild.js';
-import { logger } from '../utils/logger/index.js';
-import { signalObjectPool } from '../utils/objectPool/index.js';
-import type { CacheDomain, DayLifecycleManager } from '../main/lifecycle/types.js';
-import type { LifecycleRuntimeFactories, LifecycleRuntimeFactoryDeps } from './types.js';
+import { logger } from '../../utils/logger/index.js';
+import { signalObjectPool } from '../../utils/objectPool/index.js';
+import type { CacheDomain, DayLifecycleManager } from '../../main/lifecycle/types.js';
+import type { LifecycleRuntimeFactories, LifecycleRuntimeFactoryDeps } from '../types.js';
 
 const DEFAULT_LIFECYCLE_RUNTIME_FACTORIES: LifecycleRuntimeFactories = {
   createSignalRuntimeDomain,
