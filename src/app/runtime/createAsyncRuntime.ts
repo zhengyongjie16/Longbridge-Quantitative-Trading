@@ -8,7 +8,7 @@
 import { createBuyProcessor } from '../../main/asyncProgram/buyProcessor/index.js';
 import { createMonitorTaskProcessor } from '../../main/asyncProgram/monitorTaskProcessor/index.js';
 import { createSellProcessor } from '../../main/asyncProgram/sellProcessor/index.js';
-import { clearMonitorDirectionQueuesWithLog } from '../../main/processMonitor/queueCleanup.js';
+import { clearMonitorDirectionQueuesWithLog } from './queueCleanup.js';
 import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { AsyncRuntime, AsyncRuntimeFactoryDeps } from '../types.js';

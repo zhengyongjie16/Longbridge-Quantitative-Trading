@@ -1,12 +1,10 @@
 import type { LastState, MonitorContext } from '../../types/state.js';
-import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
-import type { Position } from '../../types/account.js';
+import type { Quote } from '../../types/quote.js';
 import type { SeatState } from '../../types/seat.js';
 import type { Signal } from '../../types/signal.js';
 import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { MarketDataClient } from '../../types/services.js';
 import type { MarketMonitor } from '../../services/marketMonitor/types.js';
-import type { Logger } from '../../utils/logger/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { BuyTaskType, SellTaskType, TaskQueue } from '../asyncProgram/tradeTaskQueue/types.js';
@@ -139,55 +137,4 @@ export type RiskTasksParams = Readonly<{
   mainContext: MonitorRuntimeContext;
   seatInfo: SeatSyncResult;
   monitorCurrentPrice: number | null;
-}>;
-
-/**
- * 指标流水线参数（执行指标计算与最新快照写入时的入参）。
- * 类型用途：封装指标流水线所需的监控标的、监控上下文与 K 线缓存读取端口。
- * 数据来源：由 businessEventProgram 按 K 线事件组装。
- * 使用范围：仅普通 K 线业务事件链路使用。
- */
-export type IndicatorPipelineParams = Readonly<{
-  monitorSymbol: string;
-  monitorContext: MonitorContext;
-  mainContext: Readonly<{
-    marketDataClient: Pick<MarketDataClient, 'getCandlestickSnapshot'>;
-  }>;
-}>;
-
-/**
- * 信号流水线参数（执行信号生成、延迟验证入队等时的入参）。
- * 类型用途：封装信号流水线所需的监控标的、上下文、席位信息、指标快照与释放回调。
- * 数据来源：由 businessEventProgram 从无行情席位同步结果、指标流水线输出等组装。
- * 使用范围：仅普通 K 线业务事件链路使用。
- */
-export type SignalPipelineParams = Readonly<{
-  monitorSymbol: string;
-  monitorContext: MonitorContext;
-  mainContext: Pick<
-    MonitorRuntimeContext,
-    'lastState' | 'tradingConfig' | 'buyTaskQueue' | 'sellTaskQueue'
-  >;
-  runtimeFlags: ProcessMonitorParams['runtimeFlags'];
-  seatInfo: SignalSeatInfo;
-  monitorSnapshot: IndicatorSnapshot;
-  releaseSignal: (signal: Signal) => void;
-  releasePosition: (position: Position) => void;
-}>;
-
-/**
- * 带日志的队列清理参数。
- * 类型用途：清理指定监控标的方向下的延迟/买卖/监控任务并输出日志。
- * 数据来源：由 app 顶层装配在创建 MonitorTaskProcessor 时传入。
- * 使用范围：仅 processMonitor/queueCleanup 使用。
- */
-export type ClearQueuesForDirectionWithLogParams = Readonly<{
-  monitorSymbol: string;
-  direction: 'LONG' | 'SHORT';
-  monitorContexts: ReadonlyMap<string, MonitorContext>;
-  buyTaskQueue: TaskQueue<BuyTaskType>;
-  sellTaskQueue: TaskQueue<SellTaskType>;
-  monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
-  releaseSignal: (signal: Signal) => void;
-  logger: Pick<Logger, 'debug'>;
 }>;

@@ -465,6 +465,23 @@ export type AsyncRuntimeFactoryDeps = Readonly<{
 }>;
 
 /**
+ * 带日志的队列清理参数。
+ * 类型用途：清理指定监控标的方向下的延迟/买卖/监控任务并输出日志。
+ * 数据来源：由 app 顶层装配在创建 MonitorTaskProcessor 时传入。
+ * 使用范围：仅 app/runtime/queueCleanup 使用。
+ */
+export type ClearQueuesForDirectionWithLogParams = Readonly<{
+  monitorSymbol: string;
+  direction: 'LONG' | 'SHORT';
+  monitorContexts: ReadonlyMap<string, MonitorContext>;
+  buyTaskQueue: TaskQueue<BuyTaskType>;
+  sellTaskQueue: TaskQueue<SellTaskType>;
+  monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
+  releaseSignal: (signal: Signal) => void;
+  logger: Pick<Logger, 'debug'>;
+}>;
+
+/**
  * 成交后一致性运行时状态快照。
  * 类型用途：向调用方暴露启动态、在途态、是否存在积压刷新以及 freshness 版本号。
  * 数据来源：由 PostTradeConsistencyRuntime.getStatus 返回。

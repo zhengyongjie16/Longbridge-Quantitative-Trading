@@ -60,8 +60,8 @@ export type PriceDisplayInfo = {
 
 /**
  * 指标监控参数。
- * 类型用途：封装 monitorIndicatorChanges 所需的指标快照、行情、指标画像与 K 线时间戳，避免超参数函数签名。
- * 数据来源：由指标流水线（indicatorPipeline）基于实时 K 线与行情组装传入。
+ * 类型用途：封装 monitorIndicatorChanges 所需的 latest snapshot、实时行情、指标画像与可选的 K 线时间戳，避免超参数函数签名。
+ * 数据来源：由 timeDriver 链路消费已有 snapshot 与实时行情后组装传入；当前时间循环展示链路默认不再主动读取 candlestick cache，因此 K 线时间戳通常为空。
  * 使用范围：marketMonitor.monitorIndicatorChanges 入参。
  */
 export type MonitorIndicatorChangesParams = Readonly<{

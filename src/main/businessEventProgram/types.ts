@@ -1,6 +1,9 @@
-import type { MonitorContext, LastState } from '../../types/state.js';
 import type { MultiMonitorTradingConfig } from '../../types/config.js';
+import type { IndicatorSnapshot } from '../../types/quote.js';
+import type { MonitorContext, LastState } from '../../types/state.js';
+import type { Signal } from '../../types/signal.js';
 import type { MarketDataClient } from '../../types/services.js';
+import type { SignalSeatInfo } from '../processMonitor/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { BuyTaskType, SellTaskType, TaskQueue } from '../asyncProgram/tradeTaskQueue/types.js';
@@ -44,4 +47,53 @@ export type BusinessEventProgramDeps = Readonly<{
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
+}>;
+
+/**
+ * K 线业务事件运行时门禁参数。
+ * 类型用途：表达普通 K 线事件链路执行信号流水线时需要的当前时刻与交易门禁快照。
+ * 数据来源：由 businessEventProgram 在事件处理时按 lastState 组装。
+ * 使用范围：仅 businessEventProgram 信号流水线使用。
+ */
+export type BusinessEventRuntimeFlags = Readonly<{
+  currentTime: Date;
+  isHalfDay: boolean;
+  canTradeNow: boolean;
+  openProtectionActive: boolean;
+
+  /** 交易门禁透传：false 时不入队，直接释放信号 */
+  isTradingEnabled: boolean;
+}>;
+
+/**
+ * 指标流水线参数（执行指标计算与最新快照写入时的入参）。
+ * 类型用途：封装指标流水线所需的监控标的、监控上下文与 K 线缓存读取端口。
+ * 数据来源：由 businessEventProgram 按 K 线事件组装。
+ * 使用范围：仅普通 K 线业务事件链路使用。
+ */
+export type IndicatorPipelineParams = Readonly<{
+  monitorSymbol: string;
+  monitorContext: MonitorContext;
+  mainContext: Readonly<{
+    marketDataClient: Pick<MarketDataClient, 'getCandlestickSnapshot'>;
+  }>;
+}>;
+
+/**
+ * 信号流水线参数（执行信号生成、延迟验证入队等时的入参）。
+ * 类型用途：封装信号流水线所需的监控标的、上下文、席位信息、指标快照与释放回调。
+ * 数据来源：由 businessEventProgram 从无行情席位同步结果、指标流水线输出等组装。
+ * 使用范围：仅普通 K 线业务事件链路使用。
+ */
+export type SignalPipelineParams = Readonly<{
+  monitorSymbol: string;
+  monitorContext: MonitorContext;
+  mainContext: Pick<
+    BusinessEventProgramDeps,
+    'lastState' | 'tradingConfig' | 'buyTaskQueue' | 'sellTaskQueue'
+  >;
+  runtimeFlags: BusinessEventRuntimeFlags;
+  seatInfo: SignalSeatInfo;
+  monitorSnapshot: IndicatorSnapshot;
+  releaseSignal: (signal: Signal) => void;
 }>;

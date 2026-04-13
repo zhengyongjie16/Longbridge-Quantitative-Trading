@@ -311,7 +311,7 @@ function copyDisplayMacd(
 function buildMonitorValuesFromDisplayPlan(params: {
   readonly compiledPlan: CompiledDisplayPlan;
   readonly monitorSnapshot: IndicatorSnapshot;
-  readonly currentPrice: number;
+  readonly currentPrice: number | null;
   readonly changePercent: number | null;
 }): MonitorValues {
   const { compiledPlan, monitorSnapshot, currentPrice, changePercent } = params;
@@ -347,7 +347,7 @@ function buildMonitorValuesFromDisplayPlan(params: {
 function getSnapshotDisplayValue(params: {
   readonly compiledItem: CompiledDisplayPlanItem;
   readonly snapshot: IndicatorSnapshot;
-  readonly currentPrice: number;
+  readonly currentPrice: number | null;
   readonly changePercent: number | null;
 }): number | null {
   const { compiledItem, snapshot, currentPrice, changePercent } = params;
@@ -590,7 +590,7 @@ function displayIndicators(params: {
   readonly monitorSnapshot: IndicatorSnapshot;
   readonly monitorQuote: Quote | null;
   readonly monitorSymbol: string;
-  readonly currentPrice: number;
+  readonly currentPrice: number | null;
   readonly changePercent: number | null;
   readonly compiledPlan: CompiledDisplayPlan;
   readonly klineTimestamp: number | null;
@@ -609,7 +609,12 @@ function displayIndicators(params: {
 
   for (const compiledItem of compiledPlan.items) {
     if (compiledItem.kind === 'price') {
-      indicators.push(Number.isFinite(currentPrice) ? `价格=${currentPrice.toFixed(3)}` : '价格=-');
+      if (currentPrice !== null && Number.isFinite(currentPrice)) {
+        indicators.push(`价格=${currentPrice.toFixed(3)}`);
+      } else {
+        indicators.push('价格=-');
+      }
+
       continue;
     }
 
@@ -754,7 +759,11 @@ export function createMarketMonitor(): MarketMonitor {
       }
 
       const compiledPlan = getCompiledDisplayPlan(indicatorProfile);
-      const currentPrice = monitorSnapshot.price;
+      const quotePrice = monitorQuote?.price ?? null;
+      const currentPrice =
+        typeof quotePrice === 'number' && Number.isFinite(quotePrice) && quotePrice > 0
+          ? quotePrice
+          : null;
 
       // 从行情数据中获取上日收盘价
       const prevClose = monitorQuote?.prevClose ?? null;
@@ -762,6 +771,7 @@ export function createMarketMonitor(): MarketMonitor {
       // 计算涨跌幅（基于上日收盘价）
       let changePercent: number | null = null;
       if (
+        currentPrice !== null &&
         Number.isFinite(currentPrice) &&
         currentPrice > 0 &&
         Number.isFinite(prevClose) &&
@@ -779,11 +789,20 @@ export function createMarketMonitor(): MarketMonitor {
           currentPrice,
           changePercent,
         });
+
+        const lastValue = getCachedDisplayValue(monitorState.monitorValues, compiledItem);
         if (currentValue === null) {
+          if (
+            (compiledItem.kind === 'price' || compiledItem.kind === 'changePercent') &&
+            lastValue !== null
+          ) {
+            hasIndicatorChanged = true;
+            break;
+          }
+
           continue;
         }
 
-        const lastValue = getCachedDisplayValue(monitorState.monitorValues, compiledItem);
         if (
           compiledItem.kind === 'price' &&
           lastValue === null &&

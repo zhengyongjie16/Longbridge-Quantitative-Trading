@@ -339,4 +339,89 @@ describe('marketMonitor business flow', () => {
     });
     expect(unchanged).toBe(false);
   });
+
+  it('treats realtime quote price as display price when snapshot price is unchanged', () => {
+    const monitor = createMarketMonitor();
+    const state = createMonitorState('HSI.HK');
+    const indicatorProfile = createIndicatorUsageProfileDouble({
+      displayPlan: ['price', 'changePercent', 'EMA:7'],
+    });
+    const klineTimestamp = 1_708_000_000_000;
+
+    monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot({ price: 20_000, ema: { 7: 19_980 } }),
+      monitorQuote: createQuoteDouble('HSI.HK', 20_000),
+      monitorSymbol: 'HSI.HK',
+      indicatorProfile,
+      klineTimestamp,
+      monitorState: state,
+    });
+
+    const changed = monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot({ price: 20_000, ema: { 7: 19_980 } }),
+      monitorQuote: createQuoteDouble('HSI.HK', 20_010),
+      monitorSymbol: 'HSI.HK',
+      indicatorProfile,
+      klineTimestamp,
+      monitorState: state,
+    });
+
+    expect(changed).toBe(true);
+    expect(state.monitorValues?.price).toBe(20_010);
+    expect(state.monitorValues?.ema?.[7]).toBe(19_980);
+  });
+
+  it('does not display monitor price when realtime quote is unavailable', () => {
+    const monitor = createMarketMonitor();
+    const state = createMonitorState('HSI.HK');
+    const indicatorProfile = createIndicatorUsageProfileDouble({
+      displayPlan: ['price', 'changePercent', 'EMA:7'],
+    });
+    const klineTimestamp = 1_708_000_000_000;
+
+    const changed = monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot({ price: 20_123, ema: { 7: 20_001 } }),
+      monitorQuote: null,
+      monitorSymbol: 'HSI.HK',
+      indicatorProfile,
+      klineTimestamp,
+      monitorState: state,
+    });
+
+    expect(changed).toBe(true);
+    expect(state.monitorValues?.price).toBeNull();
+    expect(state.monitorValues?.changePercent).toBeNull();
+    expect(state.monitorValues?.ema?.[7]).toBe(20_001);
+  });
+
+  it('treats quote loss as a display change and clears cached monitor price', () => {
+    const monitor = createMarketMonitor();
+    const state = createMonitorState('HSI.HK');
+    const indicatorProfile = createIndicatorUsageProfileDouble({
+      displayPlan: ['price', 'changePercent', 'EMA:7'],
+    });
+    const klineTimestamp = 1_708_000_000_000;
+
+    monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot({ price: 20_000, ema: { 7: 19_980 } }),
+      monitorQuote: createQuoteDouble('HSI.HK', 20_000),
+      monitorSymbol: 'HSI.HK',
+      indicatorProfile,
+      klineTimestamp,
+      monitorState: state,
+    });
+
+    const changed = monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot({ price: 20_000, ema: { 7: 19_980 } }),
+      monitorQuote: null,
+      monitorSymbol: 'HSI.HK',
+      indicatorProfile,
+      klineTimestamp,
+      monitorState: state,
+    });
+
+    expect(changed).toBe(true);
+    expect(state.monitorValues?.price).toBeNull();
+    expect(state.monitorValues?.changePercent).toBeNull();
+  });
 });

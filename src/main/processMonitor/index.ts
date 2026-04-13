@@ -4,10 +4,11 @@
  * 核心职责：
  * - 处理单个监控标的的完整交易循环
  * - 实时监控价格变化并调度风险/换标任务
+ * - 消费已有 latest snapshot，刷新监控标的展示
  * - 不再负责普通 K 线指标推进或普通信号生成
  *
  * 执行流程：
- * - 提取行情数据 → 自动换标任务调度 → 席位同步 → 风险展示刷新
+ * - 提取行情数据 → 自动换标任务调度 → 席位同步 → 风险展示刷新 → 监控标的展示刷新
  */
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { scheduleAutoSymbolTasks } from './autoSymbolTasks.js';
@@ -66,5 +67,19 @@ export function processMonitor(
     mainContext,
     seatInfo,
     monitorCurrentPrice,
+  });
+
+  const monitorSnapshot = monitorContext.state.lastMonitorSnapshot;
+  if (monitorSnapshot === null) {
+    return;
+  }
+
+  mainContext.marketMonitor.monitorIndicatorChanges({
+    monitorSnapshot,
+    monitorQuote,
+    monitorSymbol: MONITOR_SYMBOL,
+    indicatorProfile: monitorContext.indicatorProfile,
+    klineTimestamp: null,
+    monitorState: monitorContext.state,
   });
 }

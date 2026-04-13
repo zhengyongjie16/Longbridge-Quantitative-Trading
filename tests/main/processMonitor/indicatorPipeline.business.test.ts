@@ -12,7 +12,7 @@ import { Period } from 'longbridge';
 import type { CandleData } from '../../../src/types/data.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { MonitorContext } from '../../../src/types/state.js';
-import type { IndicatorPipelineParams } from '../../../src/main/processMonitor/types.js';
+import type { IndicatorPipelineParams } from '../../../src/main/businessEventProgram/types.js';
 import {
   createIndicatorUsageProfileDouble,
   createMonitorConfigDouble,
@@ -100,7 +100,7 @@ type RunIndicatorPipelineFn = (
 
 async function loadRunIndicatorPipeline(): Promise<RunIndicatorPipelineFn> {
   const modulePath =
-    '../../../src/main/processMonitor/indicatorPipeline.js?real-indicator-pipeline-v2';
+    '../../../src/main/businessEventProgram/indicatorPipeline.js?real-indicator-pipeline-v2';
   const module = await import(modulePath);
   return module.runIndicatorPipeline as RunIndicatorPipelineFn;
 }

@@ -11,15 +11,23 @@ import {
   createSellTaskQueue,
 } from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
+import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import type { ProcessMonitorParams } from '../../../src/main/processMonitor/types.js';
-import type { Quote } from '../../../src/types/quote.js';
-import type { MonitorContext } from '../../../src/types/state.js';
+import type { MonitorIndicatorChangesParams } from '../../../src/services/marketMonitor/types.js';
+import type { MarketDataClient } from '../../../src/types/services.js';
+import type { IndicatorSnapshot, Quote } from '../../../src/types/quote.js';
+import type { LastState, MonitorContext } from '../../../src/types/state.js';
 import {
+  createMarketDataClientDouble,
   createMonitorConfigDouble,
   createPositionCacheDouble,
   createQuoteDouble,
 } from '../../helpers/testDoubles.js';
-import { createMonitorContext as createMonitorContextFromAsync } from '../asyncProgram/utils.js';
+import { createTradingConfig } from '../../../mock/factories/configFactory.js';
+import {
+  createLastState,
+  createMonitorContext as createMonitorContextFromAsync,
+} from '../asyncProgram/utils.js';
 
 type ProcessMonitorFn = (
   context: ProcessMonitorParams,
@@ -30,6 +38,68 @@ async function loadProcessMonitor(): Promise<ProcessMonitorFn> {
   const modulePath = '../../../src/main/processMonitor/index.js?real-process-monitor';
   const module = await import(modulePath);
   return module.processMonitor as ProcessMonitorFn;
+}
+
+function createProcessMonitorParams(params: {
+  readonly monitorContext: MonitorContext;
+  readonly marketDataClient?: Partial<MarketDataClient>;
+  readonly monitorIndicatorChanges?: (params: MonitorIndicatorChangesParams) => boolean;
+}): Readonly<{
+  readonly params: ProcessMonitorParams;
+  readonly buyTaskQueue: ReturnType<typeof createBuyTaskQueue>;
+  readonly sellTaskQueue: ReturnType<typeof createSellTaskQueue>;
+  readonly monitorTaskQueue: ReturnType<typeof createMonitorTaskQueue<MonitorTaskDataMap>>;
+}> {
+  const buyTaskQueue = createBuyTaskQueue();
+  const sellTaskQueue = createSellTaskQueue();
+  const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
+  const marketDataClient = createMarketDataClientDouble(params.marketDataClient);
+  const lastState: LastState = createLastState({
+    positionCache: createPositionCacheDouble(),
+  });
+
+  return {
+    params: {
+      context: {
+        marketDataClient,
+        marketMonitor: {
+          monitorPriceChanges: () => false,
+          monitorIndicatorChanges: params.monitorIndicatorChanges ?? (() => false),
+        },
+        buyTaskQueue,
+        sellTaskQueue,
+        monitorTaskQueue,
+        lastState,
+        tradingConfig: createTradingConfig({ monitors: [params.monitorContext.config] }),
+      },
+      monitorContext: params.monitorContext,
+      runtimeFlags: {
+        currentTime: new Date('2026-02-16T01:00:00.000Z'),
+        isHalfDay: false,
+        canTradeNow: true,
+        openProtectionActive: false,
+        isTradingEnabled: true,
+      },
+    },
+    buyTaskQueue,
+    sellTaskQueue,
+    monitorTaskQueue,
+  };
+}
+
+function createIndicatorSnapshot(overrides: Partial<IndicatorSnapshot> = {}): IndicatorSnapshot {
+  return {
+    price: 20_000,
+    changePercent: 0,
+    ema: { 7: 19_980 },
+    rsi: { 6: 52 },
+    psy: { 13: 58 },
+    mfi: 45,
+    kdj: { k: 51, d: 49, j: 55 },
+    macd: { macd: 10, dif: 3, dea: 2 },
+    adx: null,
+    ...overrides,
+  };
 }
 
 function createMonitorContext(params: {
@@ -72,33 +142,9 @@ describe('processMonitor end-to-end orchestration', () => {
       autoSearchEnabled: false,
     });
 
-    const buyTaskQueue = createBuyTaskQueue();
-    const sellTaskQueue = createSellTaskQueue();
-    const monitorTaskQueue = createMonitorTaskQueue();
-
-    const params: ProcessMonitorParams = {
-      context: {
-        marketDataClient: {},
-        marketMonitor: {
-          monitorPriceChanges: () => false,
-          monitorIndicatorChanges: () => false,
-        },
-        buyTaskQueue,
-        sellTaskQueue,
-        monitorTaskQueue,
-        lastState: {
-          positionCache: createPositionCacheDouble(),
-        },
-      } as never,
+    const { params, buyTaskQueue, sellTaskQueue, monitorTaskQueue } = createProcessMonitorParams({
       monitorContext,
-      runtimeFlags: {
-        currentTime: new Date('2026-02-16T01:00:00.000Z'),
-        isHalfDay: false,
-        canTradeNow: true,
-        openProtectionActive: false,
-        isTradingEnabled: true,
-      },
-    };
+    });
 
     processMonitor(params, new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_010)]]));
 
@@ -114,36 +160,18 @@ describe('processMonitor end-to-end orchestration', () => {
       switchIntervalMinutes: 30,
     });
 
-    const buyTaskQueue = createBuyTaskQueue();
-    const sellTaskQueue = createSellTaskQueue();
-    const monitorTaskQueue = createMonitorTaskQueue();
-
-    const params: ProcessMonitorParams = {
-      context: {
-        marketDataClient: {},
-        marketMonitor: {
-          monitorPriceChanges: () => false,
-          monitorIndicatorChanges: () => false,
-        },
-        buyTaskQueue,
-        sellTaskQueue,
-        monitorTaskQueue,
-        lastState: {
-          positionCache: createPositionCacheDouble(),
-        },
-      } as never,
+    const { params, buyTaskQueue, sellTaskQueue, monitorTaskQueue } = createProcessMonitorParams({
       monitorContext,
-      runtimeFlags: {
-        currentTime: new Date('2026-02-16T01:00:01.000Z'),
-        isHalfDay: false,
-        canTradeNow: true,
-        openProtectionActive: false,
-        isTradingEnabled: true,
-      },
-    };
+    });
 
     processMonitor(
-      params,
+      {
+        ...params,
+        runtimeFlags: {
+          ...params.runtimeFlags,
+          currentTime: new Date('2026-02-16T01:00:01.000Z'),
+        },
+      },
       new Map([
         ['HSI.HK', createQuoteDouble('HSI.HK', 20_050)],
         ['BULL.HK', createQuoteDouble('BULL.HK', 1.1)],
@@ -153,6 +181,72 @@ describe('processMonitor end-to-end orchestration', () => {
 
     expect(monitorTaskQueue.pop()?.type).toBe('AUTO_SYMBOL_TICK');
     expect(monitorTaskQueue.pop()?.type).toBe('AUTO_SYMBOL_TICK');
+    expect(buyTaskQueue.isEmpty()).toBeTrue();
+    expect(sellTaskQueue.isEmpty()).toBeTrue();
+  });
+
+  it('consumes latest monitor snapshot for indicator display without enqueueing trade tasks', async () => {
+    const processMonitor = await loadProcessMonitor();
+    const monitorContext = createMonitorContext({
+      autoSearchEnabled: false,
+    });
+    monitorContext.state.lastMonitorSnapshot = createIndicatorSnapshot();
+
+    const received = {
+      indicatorParams: null as MonitorIndicatorChangesParams | null,
+    };
+    const { params, buyTaskQueue, sellTaskQueue } = createProcessMonitorParams({
+      monitorContext,
+      marketDataClient: {
+        getCandlestickSnapshot: () => {
+          throw new Error('processMonitor should not read candlestick cache for display');
+        },
+      },
+      monitorIndicatorChanges: (indicatorParams) => {
+        received.indicatorParams = indicatorParams;
+        return true;
+      },
+    });
+    const monitorQuote = createQuoteDouble('HSI.HK', 20_010);
+
+    processMonitor(params, new Map([['HSI.HK', monitorQuote]]));
+
+    if (received.indicatorParams === null) {
+      throw new Error('expected monitor indicator display params');
+    }
+
+    expect(received.indicatorParams.klineTimestamp).toBeNull();
+    expect(received.indicatorParams.monitorQuote).toEqual(monitorQuote);
+    expect(received.indicatorParams.monitorSnapshot).toEqual(
+      monitorContext.state.lastMonitorSnapshot,
+    );
+    expect(received.indicatorParams.indicatorProfile).toEqual(monitorContext.indicatorProfile);
+    expect(buyTaskQueue.isEmpty()).toBeTrue();
+    expect(sellTaskQueue.isEmpty()).toBeTrue();
+  });
+
+  it('does not trigger indicator display when latest monitor snapshot is unavailable', async () => {
+    const processMonitor = await loadProcessMonitor();
+    const monitorContext = createMonitorContext({
+      autoSearchEnabled: false,
+    });
+    let indicatorDisplayCalls = 0;
+    const { params, buyTaskQueue, sellTaskQueue } = createProcessMonitorParams({
+      monitorContext,
+      marketDataClient: {
+        getCandlestickSnapshot: () => {
+          throw new Error('should not read candlestick snapshot without latest monitor snapshot');
+        },
+      },
+      monitorIndicatorChanges: () => {
+        indicatorDisplayCalls += 1;
+        return false;
+      },
+    });
+
+    processMonitor(params, new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_010)]]));
+
+    expect(indicatorDisplayCalls).toBe(0);
     expect(buyTaskQueue.isEmpty()).toBeTrue();
     expect(sellTaskQueue.isEmpty()).toBeTrue();
   });

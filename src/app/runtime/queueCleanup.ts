@@ -1,13 +1,13 @@
 /**
- * 自动换标队列清理模块
+ * app runtime 队列清理模块
  *
  * 职责：
  * - 清理指定监控标的方向下的延迟/买卖/监控任务
  * - 统一输出队列清理统计日志
  */
 import { getQueueClearTotalRemoved } from '../../utils/utils.js';
-import { clearMonitorDirectionQueues } from './utils.js';
-import type { ClearQueuesForDirectionWithLogParams } from './types.js';
+import { clearMonitorDirectionQueues } from '../../main/processMonitor/utils.js';
+import type { ClearQueuesForDirectionWithLogParams } from '../types.js';
 
 /**
  * 清理指定监控标的方向下的所有待执行任务并按需输出统计日志。

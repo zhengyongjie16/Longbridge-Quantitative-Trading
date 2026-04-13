@@ -8,11 +8,11 @@
  * - 不负责生命周期 tick、末日保护、周期换标 tick 和 indicatorCache 时间轴采样
  */
 import { TRADING } from '../../constants/index.js';
-import { positionObjectPool, signalObjectPool } from '../../utils/objectPool/index.js';
+import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { formatError } from '../../utils/error/index.js';
-import { runIndicatorPipeline } from '../processMonitor/indicatorPipeline.js';
-import { runSignalPipeline } from '../processMonitor/signalPipeline.js';
+import { runIndicatorPipeline } from './indicatorPipeline.js';
+import { runSignalPipeline } from './signalPipeline.js';
 import { syncSignalSeatState } from '../processMonitor/seatSync.js';
 import type {
   BusinessEventProgram,
@@ -112,18 +112,6 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
           return;
         }
 
-        const candlestickSnapshot = marketDataClient.getCandlestickSnapshot(
-          monitorSymbol,
-          TRADING.CANDLE_PERIOD,
-        );
-        if (
-          candlestickSnapshot === null ||
-          !candlestickSnapshot.initialized ||
-          candlestickSnapshot.candles.length === 0
-        ) {
-          continue;
-        }
-
         const monitorSnapshot = runIndicatorPipeline({
           monitorSymbol,
           monitorContext,
@@ -161,9 +149,6 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
           monitorSnapshot,
           releaseSignal: (signal) => {
             signalObjectPool.release(signal);
-          },
-          releasePosition: (position) => {
-            positionObjectPool.release(position);
           },
         });
       }

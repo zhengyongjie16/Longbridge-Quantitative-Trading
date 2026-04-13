@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { runSignalPipeline } from '../../../src/main/processMonitor/signalPipeline.js';
+import { runSignalPipeline } from '../../../src/main/businessEventProgram/signalPipeline.js';
 import {
   createBuyTaskQueue,
   createSellTaskQueue,
@@ -24,8 +24,6 @@ import type {
 import {
   createIndicatorUsageProfileDouble,
   createOrderRecorderDouble,
-  createPositionCacheDouble,
-  createPositionDouble,
   createQuoteDouble,
   createSignalDouble,
 } from '../../helpers/testDoubles.js';
@@ -92,14 +90,12 @@ function createPipelineHarness(params: {
   sellTaskQueue: ReturnType<typeof createSellTaskQueue>;
   delayedAdded: Signal[];
   releasedSignals: Signal[];
-  releasedPositions: Array<string>;
 } {
   const buyTaskQueue = createBuyTaskQueue();
   const sellTaskQueue = createSellTaskQueue();
 
   const delayedAdded: Signal[] = [];
   const releasedSignals: Signal[] = [];
-  const releasedPositions: Array<string> = [];
 
   const monitorContext = {
     strategy: {
@@ -117,10 +113,6 @@ function createPipelineHarness(params: {
     },
   } as unknown as MonitorContext;
 
-  const positionCache = createPositionCacheDouble([
-    createPositionDouble({ symbol: 'BULL.HK', quantity: 200, availableQuantity: 200 }),
-    createPositionDouble({ symbol: 'BEAR.HK', quantity: 100, availableQuantity: 100 }),
-  ]);
   const tradingConfig = createTradingConfig();
 
   const mainContext = {
@@ -129,7 +121,6 @@ function createPipelineHarness(params: {
       canTrade: params.canTradeNow ?? true,
       openProtectionActive: params.openProtectionActive ?? false,
       isHalfDay: false,
-      positionCache,
     },
     tradingConfig: {
       ...tradingConfig,
@@ -158,9 +149,6 @@ function createPipelineHarness(params: {
     releaseSignal: (signal) => {
       releasedSignals.push(signal);
     },
-    releasePosition: (position) => {
-      releasedPositions.push(position.symbol);
-    },
   });
 
   return {
@@ -168,7 +156,6 @@ function createPipelineHarness(params: {
     sellTaskQueue,
     delayedAdded,
     releasedSignals,
-    releasedPositions,
   };
 }
 
@@ -200,7 +187,6 @@ describe('signalPipeline business flow', () => {
     expect(harness.delayedAdded).toHaveLength(1);
     expect(harness.delayedAdded[0]?.seatVersion).toBe(11);
     expect(harness.releasedSignals).toHaveLength(0);
-    expect(harness.releasedPositions).toEqual(['BULL.HK', 'BEAR.HK']);
   });
 
   it('does not require quote before routing buy and sell signals', () => {
@@ -249,6 +235,5 @@ describe('signalPipeline business flow', () => {
     expect(harness.buyTaskQueue.isEmpty()).toBeTrue();
     expect(harness.sellTaskQueue.isEmpty()).toBeTrue();
     expect(harness.releasedSignals).toHaveLength(0);
-    expect(harness.releasedPositions).toEqual(['BULL.HK', 'BEAR.HK']);
   });
 });
