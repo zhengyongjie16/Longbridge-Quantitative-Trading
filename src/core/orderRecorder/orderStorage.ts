@@ -173,9 +173,10 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   };
 
   /**
-   * 卖出后更新订单列表
+   * 卖出后更新订单列表。
    * - 卖出数量 >= 总数量：清空记录
-   * - 否则保留成交价 >= 卖出价的订单
+   * - 若传入 relatedBuyOrderIds：按关联买单精确扣减
+   * - 否则回退为低价优先整笔消除策略扣减
    *
    * @param symbol 标的代码
    * @param executedPrice 成交价格

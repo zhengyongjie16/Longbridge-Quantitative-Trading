@@ -300,9 +300,10 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   }
 
   /**
-   * 根据卖出订单更新本地买入记录
+   * 根据卖出订单更新本地买入记录。
    * - 卖出数量 >= 总数量：清空记录
-   * - 否则保留成交价 >= 卖出价的订单
+   * - 若提供 relatedBuyOrderIds：按关联买单精确扣减
+   * - 否则回退为低价优先整笔消除策略
    */
   function recordLocalSell(
     symbol: string,
@@ -454,7 +455,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     );
   }
 
-  /** 标记卖出订单完全成交 */
+  /** 更新待成交卖单元数据（数量与关联买单） */
   function updatePendingSell(
     orderId: string,
     params: {

@@ -175,7 +175,6 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
         nowMs: () => 0,
       },
       marketDataClient: createMarketDataClientDouble(),
-      runMode: 'prod',
       gatePolicies: {
         startupGate: 'strict',
         runtimeGate: 'strict',

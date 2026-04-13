@@ -4,7 +4,7 @@ import type {
   RuntimeSymbolValidationResult,
 } from '../config/types.js';
 import type { Position } from '../types/account.js';
-import type { GateMode, RunMode, SymbolRegistry } from '../types/seat.js';
+import type { GateMode, SymbolRegistry } from '../types/seat.js';
 import type { LastState, MonitorContext, MonitorState } from '../types/state.js';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../types/config.js';
 import type { Quote } from '../types/quote.js';
@@ -54,7 +54,6 @@ import type { AutoSearchWakeupRuntime } from '../main/autoSearchWakeupRuntime/ty
 import type {
   MonitorQuoteEventRuntime,
   SwitchWakeupRuntime,
-  SwitchWakeupHandoffParams,
 } from '../main/monitorQuoteEventRuntime/types.js';
 import type {
   BusinessEventProgram,
@@ -89,7 +88,7 @@ import type { DisplayAccountAndPositionsParams } from '../services/accountDispla
 /**
  * 启动门禁策略。
  * 类型用途：表达 startup gate 与 runtime gate 的组合策略。
- * 数据来源：由 app 组装层根据 RUN_MODE 解析生成。
+ * 数据来源：由 app 组装层根据 STARTUP_GATE_MODE / RUNTIME_GATE_MODE（缺省时回退默认）解析生成。
  * 使用范围：仅 app 启动装配链路使用。
  */
 export type GatePolicies = Readonly<{
@@ -105,6 +104,12 @@ export type GatePolicies = Readonly<{
  */
 export type GatePolicySource = 'default' | 'explicit';
 
+/**
+ * 启动门禁策略来源集合。
+ * 类型用途：同时表达 startup gate 与 runtime gate 的来源（default/explicit）。
+ * 数据来源：由 app 组装层解析启动参数与环境变量后组合生成。
+ * 使用范围：仅 app 启动装配链路使用。
+ */
 export type GatePolicySources = Readonly<{
   startupGateSource: GatePolicySource;
   runtimeGateSource: GatePolicySource;
@@ -375,7 +380,6 @@ export type PreGateRuntime = Readonly<{
   warrantListCache: WarrantListCache;
   warrantListCacheConfig: WarrantListCacheConfig;
   marketDataClient: MarketDataClient;
-  runMode: RunMode;
   gatePolicies: GatePolicies;
   startupTradingDayInfo: TradingDayInfo;
   startupGate: StartupGate;
@@ -448,16 +452,6 @@ export type AsyncRuntime = Readonly<{
   buyProcessor: Processor;
   sellProcessor: Processor;
 }>;
-
-/**
- * 自动换标 wakeup handoff 端口。
- * 类型用途：向 monitorTaskProcessor 暴露 pending switch 接管能力，避免 async 层直接依赖完整 runtime 实现。
- * 数据来源：由 SwitchWakeupRuntime 实现并在 app 顶层注入。
- * 使用范围：仅 async runtime 与相关测试使用。
- */
-export interface SwitchWakeupRuntimePort {
-  readonly handoffPendingSwitch: (params: SwitchWakeupHandoffParams) => void;
-}
 
 /**
  * 异步运行时工厂依赖。

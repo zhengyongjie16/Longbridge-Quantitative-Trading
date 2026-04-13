@@ -96,6 +96,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
    *
    * @param params 提交参数
    * @returns 订单 ID，失败返回 null
+   * @throws 当远端下单成功但本地追踪登记失败时抛错，避免静默丢失订单状态
    */
   async function submitOrder(params: SubmitOrderParams): Promise<string | null> {
     const {

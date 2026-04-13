@@ -1,4 +1,4 @@
-import { OrderSide, OrderStatus, type Decimal } from 'longbridge';
+import { OrderStatus, type Decimal } from 'longbridge';
 import type { GlobalConfig } from '../../../types/config.js';
 import type { OrderClosedReason } from '../../../types/trader.js';
 import type { OrderMonitorConfig, TrackedOrder } from '../types.js';
@@ -19,24 +19,6 @@ import type {
 import { isRecord } from '../../../utils/helpers/index.js';
 import { toDecimal } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
-
-/**
- * 根据订单方向和席位方向解析信号动作。
- *
- * @param side 订单方向
- * @param isLongSymbol 是否为做多标的
- * @returns 对应的信号动作
- */
-export function resolveSignalAction(
-  side: OrderSide,
-  isLongSymbol: boolean,
-): 'BUYCALL' | 'BUYPUT' | 'SELLCALL' | 'SELLPUT' {
-  if (side === OrderSide.Buy) {
-    return isLongSymbol ? 'BUYCALL' : 'BUYPUT';
-  }
-
-  return isLongSymbol ? 'SELLCALL' : 'SELLPUT';
-}
 
 /**
  * 构建订单监控配置（秒转毫秒）。
@@ -61,26 +43,36 @@ export function buildOrderMonitorConfig(globalConfig: GlobalConfig): OrderMonito
 }
 
 /**
+ * 将时间字段解析为毫秒时间戳。
+ *
+ * @param value 时间字段
+ * @returns 毫秒时间戳，无法解析时返回 null
+ */
+function resolveTimeMs(value: unknown): number | null {
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  return null;
+}
+
+/**
  * 解析 updatedAt 为毫秒时间戳。
  *
  * @param updatedAt 更新时间字段
  * @returns 毫秒时间戳，无法解析时返回 null
  */
 export function resolveUpdatedAtMs(updatedAt: unknown): number | null {
-  if (updatedAt instanceof Date) {
-    return updatedAt.getTime();
-  }
-
-  if (typeof updatedAt === 'number') {
-    return updatedAt;
-  }
-
-  if (typeof updatedAt === 'string' && updatedAt.trim()) {
-    const parsed = Date.parse(updatedAt);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }
-
-  return null;
+  return resolveTimeMs(updatedAt);
 }
 
 /**
@@ -90,27 +82,14 @@ export function resolveUpdatedAtMs(updatedAt: unknown): number | null {
  * @returns 毫秒时间戳，无法解析时返回 null
  */
 export function resolveSubmittedAtMs(submittedAt: unknown): number | null {
-  if (submittedAt instanceof Date) {
-    return submittedAt.getTime();
-  }
-
-  if (typeof submittedAt === 'number') {
-    return submittedAt;
-  }
-
-  if (typeof submittedAt === 'string' && submittedAt.trim()) {
-    const parsed = Date.parse(submittedAt);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }
-
-  return null;
+  return resolveTimeMs(submittedAt);
 }
 
 /**
  * 判断订单状态是否已关闭。
  *
  * @param status 订单状态
- * @returns true 表示成交/撤销/拒绝
+ * @returns true 表示订单处于关闭态（成交/撤销/拒绝/过期/部分撤单）
  */
 export function isClosedStatus(status: OrderStatus): boolean {
   return (

@@ -111,7 +111,6 @@ function createRuntime(monitors: ReadonlyArray<MonitorConfig>): {
       nowMs: () => Date.now(),
     },
     marketDataClient,
-    runMode: 'prod',
     gatePolicies: {
       startupGate: 'strict',
       runtimeGate: 'strict',

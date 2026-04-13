@@ -24,11 +24,7 @@ import {
 } from '../../utils/time/index.js';
 import { formatError } from '../../utils/error/index.js';
 import { createTradingDayInfoResolver } from '../lifecycle/rebuild.js';
-import {
-  resolveGatePolicies,
-  resolveGatePolicySources,
-  resolveRunMode,
-} from '../startup/startupModes.js';
+import { resolveGatePolicies, resolveGatePolicySources } from '../startup/startupModes.js';
 import type { AppEnvironmentParams, PreGateRuntime } from '../types.js';
 
 /**
@@ -58,7 +54,6 @@ export async function createPreGateRuntime(params: AppEnvironmentParams): Promis
     },
   });
   const marketDataClient = await createMarketDataClient({ config });
-  const runMode = resolveRunMode(env);
   const gatePolicies = resolveGatePolicies(env);
   const gatePolicySources = resolveGatePolicySources(env);
   const resolveTradingDayInfo = createTradingDayInfoResolver({
@@ -91,7 +86,6 @@ export async function createPreGateRuntime(params: AppEnvironmentParams): Promis
     warrantListCache,
     warrantListCacheConfig,
     marketDataClient,
-    runMode,
     gatePolicies,
     startupTradingDayInfo,
     startupGate,

@@ -34,7 +34,7 @@ import { createSeatActivationDispatcher } from '../../src/main/seatActivationDis
 import { createTradingGateEventRuntime } from '../../src/main/tradingGateEventRuntime/index.js';
 import { createSignal } from '../../mock/factories/signalFactory.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
-import { Period, type Candlestick } from 'longbridge';
+import { Period } from 'longbridge';
 import type { CandleData } from '../../src/types/data.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { MultiMonitorTradingConfig, MonitorConfig } from '../../src/types/config.js';
@@ -94,11 +94,6 @@ function createCandles(length: number, start: number, step: number): CandleData[
   }
 
   return candles;
-}
-
-function createMockCandlesticks(length: number, start: number, step: number): Candlestick[] {
-  const candles = createCandles(length, start, step);
-  return candles as unknown as Candlestick[];
 }
 
 function createCandlestickSnapshot(
@@ -432,11 +427,8 @@ describe('full business simulation integration', () => {
       getCanProcessTask: () => lastState.isTradingEnabled,
     });
 
-    const candles = createMockCandlesticks(120, 100, 0.2);
-    const candlestickSnapshot = createCandlestickSnapshot(
-      monitorConfig.monitorSymbol,
-      candles as unknown as ReadonlyArray<CandleData>,
-    );
+    const candles = createCandles(120, 100, 0.2);
+    const candlestickSnapshot = createCandlestickSnapshot(monitorConfig.monitorSymbol, candles);
     if (candlestickSnapshot === null) {
       throw new Error('missing candlestick snapshot for full business simulation');
     }

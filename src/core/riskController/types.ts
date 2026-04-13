@@ -140,18 +140,14 @@ export type UnrealizedLossCheckerDeps = {
 
 /**
  * 风险检查器依赖。
- * 类型用途：用于创建 RiskChecker 门面时的依赖注入。
- * 数据来源：如适用。
+ * 类型用途：用于创建 RiskChecker 门面时的依赖注入；阈值配置由各子检查器依赖持有。
+ * 数据来源：启动装配层创建的牛熊证、持仓限制与浮亏子检查器。
  * 使用范围：见调用方（如 riskDomain/启动层）。
  */
 export type RiskCheckerDeps = {
   readonly warrantRiskChecker: WarrantRiskChecker;
   readonly positionLimitChecker: PositionLimitChecker;
   readonly unrealizedLossChecker: UnrealizedLossChecker;
-  readonly options?: {
-    readonly maxPositionNotional?: number | null;
-    readonly maxUnrealizedLossPerSymbol?: number | null;
-  };
 };
 
 // ==================== 当日亏损追踪 ====================

@@ -1,7 +1,9 @@
 /**
- * 默认行为：仅调用 console.log，无返回值。
+ * shush cow ASCII 输出模块。
  *
- * @returns 无返回值
+ * 职责：
+ * - 维护静态 ASCII 图案
+ * - 在输出前做横向等比放大，提升终端显示比例
  */
 const SHUSH_COW_ART = String.raw`
       :-:------------------------------------------------:----
@@ -76,6 +78,11 @@ function widenAsciiLine(line: string): string {
   return out;
 }
 
+/**
+ * 输出横向放大后的 shush cow ASCII 图案。
+ *
+ * @returns 无返回值
+ */
 export function getShushCow(): void {
   const widened = SHUSH_COW_ART.split('\n').map(widenAsciiLine).join('\n');
   console.log(widened);

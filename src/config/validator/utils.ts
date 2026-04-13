@@ -21,7 +21,7 @@ const AUTO_SEARCH_DISTANCE_UNIT_HINT =
  * @param symbol 当前配置的标的代码
  * @returns 格式化错误提示
  */
-export function formatSymbolFormatError(prefix: string, envKey: string, symbol: string): string {
+function formatSymbolFormatError(prefix: string, envKey: string, symbol: string): string {
   return `${prefix}: ${envKey} 必须使用 ticker.region 格式（如 68711.HK），当前值: ${symbol}`;
 }
 
@@ -47,7 +47,7 @@ export function formatLiquidationCooldownConfig(config: LiquidationCooldownConfi
  * @param context 标的校验上下文
  * @returns 更新后的错误与缺失字段集合
  */
-export function validateRequiredSymbol({
+function validateRequiredSymbol({
   prefix,
   symbol,
   envKey,
@@ -106,7 +106,7 @@ export function recordTradingSymbolUsage(
  * @param params 校验参数
  * @returns 错误文案或 null
  */
-export function validateDegradedRangeRelationship(params: {
+function validateDegradedRangeRelationship(params: {
   readonly prefix: string;
   readonly index: number;
   readonly direction: 'LONG' | 'SHORT';

@@ -102,10 +102,6 @@ export function createMonitorContexts(params: CreateMonitorContextsParams): void
       unrealizedLossChecker: createUnrealizedLossChecker({
         maxUnrealizedLossPerSymbol: monitorConfig.maxUnrealizedLossPerSymbol,
       }),
-      options: {
-        maxPositionNotional: monitorConfig.maxPositionNotional,
-        maxUnrealizedLossPerSymbol: monitorConfig.maxUnrealizedLossPerSymbol,
-      },
     });
     const autoSymbolManager = createAutoSymbolManager({
       monitorConfig,

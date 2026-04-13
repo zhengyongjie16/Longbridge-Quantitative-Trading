@@ -9,6 +9,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import type { Candlestick, Period, TradeSessions } from 'longbridge';
+import { createCandlestick } from '../../mock/factories/quoteFactory.js';
 import type {
   ApiCallEvent,
   DelayedApiMethod,
@@ -32,6 +33,7 @@ import {
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createPositionCacheDouble,
+  createQuoteContextDouble,
   createQuoteSubscriptionRuntimeDouble,
   createRiskCheckerDouble,
   createTradingGateEventRuntimeDouble,
@@ -281,6 +283,27 @@ function createCandles(length: number, start: number, step: number): CandleData[
   return candles;
 }
 
+function resolveCandleClose(close: CandleData['close']): number {
+  const value = typeof close === 'number' ? close : Number(close);
+  if (!Number.isFinite(value)) {
+    throw new TypeError(`invalid candle close for mock candlestick: ${String(close)}`);
+  }
+
+  return value;
+}
+
+function createMockCandlestickFromCandleData(candle: CandleData): Candlestick {
+  const close = resolveCandleClose(candle.close);
+  if (typeof candle.timestamp === 'number') {
+    return createCandlestick({
+      close,
+      timestampMs: candle.timestamp,
+    });
+  }
+
+  return createCandlestick({ close });
+}
+
 function createAllTradingSymbols(monitorConfigs: ReadonlyArray<MonitorConfig>): Set<string> {
   const symbols = new Set<string>();
   for (const monitorConfig of monitorConfigs) {
@@ -472,7 +495,8 @@ describe('main loop latency full-chain integration', () => {
     }
 
     const marketDataClient: MarketDataClient = {
-      getQuoteContext: async () => withApiDelay('getQuoteContext', async () => ({}) as never),
+      getQuoteContext: async () =>
+        withApiDelay('getQuoteContext', async () => createQuoteContextDouble()),
       getQuotes: async (symbols) => {
         const result = new Map<string, Quote | null>();
         for (const symbol of symbols) {
@@ -525,7 +549,7 @@ describe('main loop latency full-chain integration', () => {
           const candles = createCandles(TRADING.CANDLE_COUNT, base, 0.15);
           candleCache.set(key, candles);
           candleCacheVersions.set(key, (candleCacheVersions.get(key) ?? 0) + 1);
-          return candles as unknown as Candlestick[];
+          return candles.map(createMockCandlestickFromCandleData);
         }),
       getRealtimeCandlesticks: async (symbol: string, period: Period, count: number) => {
         const key = makeCandleKey(symbol, period);
@@ -535,7 +559,7 @@ describe('main loop latency full-chain integration', () => {
         }
 
         const startIndex = Math.max(candles.length - count, 0);
-        return candles.slice(startIndex) as unknown as Candlestick[];
+        return candles.slice(startIndex).map(createMockCandlestickFromCandleData);
       },
       getCandlestickSnapshot: (symbol: string, period: Period) => {
         const key = makeCandleKey(symbol, period);

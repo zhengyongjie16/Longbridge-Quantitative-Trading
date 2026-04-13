@@ -3,7 +3,12 @@ import type { MonitorTaskQueue, MonitorTask } from '../monitorTaskQueue/types.js
 import type { LastState, MonitorContext } from '../../../types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { SeatState } from '../../../types/seat.js';
-import type { RawOrderFromAPI, Trader, MarketDataClient } from '../../../types/services.js';
+import type {
+  PostTradeConsistencyFreshnessPort,
+  RawOrderFromAPI,
+  Trader,
+  MarketDataClient,
+} from '../../../types/services.js';
 import type { QuoteSubscriptionRuntime } from '../../quoteSubscriptionRuntime/types.js';
 
 /**
@@ -149,11 +154,11 @@ export interface MonitorTaskProcessor {
 
 /**
  * 监控上下文与席位就绪结果。
- * 类型用途：evaluateMonitorContextAndSeatReadiness 的返回值，供 liquidationDistance 与 autoSymbol handler 使用。
- * 数据来源：由 evaluateMonitorContextAndSeatReadiness 在校验与解析后构造。
- * 使用范围：仅 monitorTaskProcessor 各 handler 内部使用。
+ * 类型用途：evaluateMonitorContextAndSeatReadiness 的返回值，供自动换标等 handler 复用。
+ * 数据来源：由 evaluateMonitorContextAndSeatReadiness 在校验席位快照后构造。
+ * 使用范围：仅 monitorTaskProcessor 模块内部使用。
  */
-export type MonitorContextAndSeatReadiness = Readonly<{
+export type MonitorContextSeatReadinessResult = Readonly<{
   context: MonitorTaskContext;
   seatReadiness: Readonly<{
     longSeat: SeatState;
@@ -163,4 +168,18 @@ export type MonitorContextAndSeatReadiness = Readonly<{
     longSymbol: string;
     shortSymbol: string;
   }>;
+}>;
+
+/**
+ * 监控上下文与席位就绪评估参数。
+ * 类型用途：evaluateMonitorContextAndSeatReadiness 的入参，封装上下文获取与双向席位快照校验依赖。
+ * 数据来源：由 monitorTaskProcessor 各 handler 在处理任务时组装。
+ * 使用范围：仅 monitorTaskProcessor 模块内部使用。
+ */
+export type EvaluateMonitorContextAndSeatReadinessParams = Readonly<{
+  getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
+  postTradeConsistencyRuntime: PostTradeConsistencyFreshnessPort;
+  monitorSymbol: string;
+  longSnapshot: SeatSnapshot;
+  shortSnapshot: SeatSnapshot;
 }>;

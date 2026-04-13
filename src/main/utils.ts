@@ -13,8 +13,7 @@ import { formatError } from '../utils/error/index.js';
  * @returns Promise，延迟结束后 resolve
  */
 export async function sleep(ms: number): Promise<void> {
-  const delay = ms;
-  if (!Number.isFinite(delay) || delay < 0) {
+  if (!Number.isFinite(ms) || ms < 0) {
     logger.warn(`[sleep] 无效的延迟时间 ${ms}，使用默认值 ${TIME.MILLISECONDS_PER_SECOND}ms`);
     return new Promise<void>((resolve) => {
       setTimeout(resolve, TIME.MILLISECONDS_PER_SECOND);
@@ -22,7 +21,7 @@ export async function sleep(ms: number): Promise<void> {
   }
 
   return new Promise<void>((resolve) => {
-    setTimeout(resolve, delay);
+    setTimeout(resolve, ms);
   });
 }
 
@@ -98,34 +97,6 @@ export function collectRuntimeQuoteSymbols(
   }
 
   return symbols;
-}
-
-/**
- * 计算两个行情标的集合的增量（新增与移除）。默认行为：遍历比较后返回 added/removed 数组。
- *
- * @param prevSymbols 上一次的标的集合
- * @param nextSymbols 当前需要的标的集合
- * @returns 新增标的数组（added）与移除标的数组（removed）
- */
-export function diffQuoteSymbols(
-  prevSymbols: ReadonlySet<string>,
-  nextSymbols: ReadonlySet<string>,
-): { added: ReadonlyArray<string>; removed: ReadonlyArray<string> } {
-  const added: string[] = [];
-  const removed: string[] = [];
-  for (const symbol of nextSymbols) {
-    if (!prevSymbols.has(symbol)) {
-      added.push(symbol);
-    }
-  }
-
-  for (const symbol of prevSymbols) {
-    if (!nextSymbols.has(symbol)) {
-      removed.push(symbol);
-    }
-  }
-
-  return { added, removed };
 }
 
 /**

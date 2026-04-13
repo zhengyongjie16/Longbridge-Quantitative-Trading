@@ -6,8 +6,10 @@
  */
 import { isSeatActive } from '../../../utils/seat/guards.js';
 import { logger } from '../../../utils/logger/index.js';
-import type { PostTradeConsistencyFreshnessPort } from '../../../types/services.js';
-import type { MonitorContextAndSeatReadiness, MonitorTaskContext, SeatSnapshot } from './types.js';
+import type {
+  EvaluateMonitorContextAndSeatReadinessParams,
+  MonitorContextSeatReadinessResult,
+} from './types.js';
 import {
   resolveSeatSnapshotReadiness,
   validateSeatSnapshotsAfterRefresh,
@@ -23,13 +25,9 @@ import {
  * @param params.shortSnapshot 空头席位快照（版本与标的）
  * @returns 成功时返回 context 与 seatReadiness，否则返回 null
  */
-export async function evaluateMonitorContextAndSeatReadiness(params: {
-  readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
-  readonly postTradeConsistencyRuntime: PostTradeConsistencyFreshnessPort;
-  readonly monitorSymbol: string;
-  readonly longSnapshot: SeatSnapshot;
-  readonly shortSnapshot: SeatSnapshot;
-}): Promise<MonitorContextAndSeatReadiness | null> {
+export async function evaluateMonitorContextAndSeatReadiness(
+  params: EvaluateMonitorContextAndSeatReadinessParams,
+): Promise<MonitorContextSeatReadinessResult | null> {
   const {
     getContextOrSkip,
     postTradeConsistencyRuntime,
