@@ -6,17 +6,13 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { calculateADX } from '../../../../src/services/indicators/runtime/adx.js';
-import { calculateEMA } from '../../../../src/services/indicators/runtime/ema.js';
-import { calculateKDJ } from '../../../../src/services/indicators/runtime/kdj.js';
-import { calculateMACD } from '../../../../src/services/indicators/runtime/macd.js';
-import { calculateMFI } from '../../../../src/services/indicators/runtime/mfi.js';
-import { calculatePSY } from '../../../../src/services/indicators/runtime/psy.js';
-import { calculateRSI } from '../../../../src/services/indicators/runtime/rsi.js';
 import {
-  buildIndicatorSnapshot,
-  getCandleFingerprint,
-} from '../../../../src/services/indicators/runtime/index.js';
+  calculateEMA,
+  calculateKDJ,
+  calculateMFI,
+  calculateRSI,
+} from '../../../../tools/dailyIndicatorAnalysis/indicatorCalculators.js';
+import { buildIndicatorSnapshot } from '../../../../tools/dailyKlineMonitor/runtimeSnapshot.js';
 import { toNumber } from '../../../../src/services/indicators/runtime/utils.js';
 import { toMockDecimal } from '../../../../mock/longbridge/decimal.js';
 import type { CandleData } from '../../../../src/types/data.js';
@@ -122,43 +118,19 @@ describe('indicators/runtime business flow', () => {
     expect(snapshot?.psy).toBeNull();
   });
 
-  it('supports number conversion and candle fingerprint checks used by pipeline cache', () => {
+  it('supports number conversion used by runtime helpers', () => {
     expect(toNumber(1.2)).toBe(1.2);
     expect(toNumber('2.3')).toBe(2.3);
     expect(toNumber(toMockDecimal(3.4))).toBe(3.4);
     expect(toNumber(null)).toBe(0);
-
-    const candles = createTrendCandles(3, 10, 1);
-    expect(getCandleFingerprint(candles)).toBe('3_12');
-    expect(getCandleFingerprint([{ close: 0 }])).toBeNull();
   });
 
-  it('enforces guard rails for individual indicators on invalid inputs', () => {
+  it('enforces guard rails for tool-owned full indicator calculators', () => {
     const shortCandles = createTrendCandles(3, 1, 1);
     expect(calculateRSI(shortCandles, 6)).toBeNull();
     expect(calculateEMA(shortCandles, 251)).toBeNull();
-    expect(calculatePSY(shortCandles, 0)).toBeNull();
     expect(calculateKDJ(createTrendCandles(3, 10, 1), 9)).toBeNull();
-    expect(calculateMACD(createTrendCandles(4, 1, 1), 12, 26, 9)).toBeNull();
     expect(calculateMFI([{ high: 1, low: 1, close: 1, volume: 1 }], 14)).toBeNull();
-  });
-
-  it('computes ADX as finite number when sufficient candles are provided', () => {
-    const candles = createTrendCandles(60, 100, 0.5);
-    const adx = calculateADX(candles, 14);
-
-    expect(adx).not.toBeNull();
-    expect(adx).toBeFinite();
-    if (adx !== null) {
-      expect(adx).toBeGreaterThanOrEqual(0);
-      expect(adx).toBeLessThanOrEqual(100);
-    }
-  });
-
-  it('returns null for ADX when candles are insufficient', () => {
-    const shortCandles = createTrendCandles(20, 100, 1);
-    expect(calculateADX(shortCandles, 14)).toBeNull();
-    expect(calculateADX([], 14)).toBeNull();
   });
 
   it('includes ADX in full indicator snapshot', () => {
@@ -167,15 +139,5 @@ describe('indicators/runtime business flow', () => {
 
     expect(snapshot).not.toBeNull();
     expect(snapshot?.adx).toBeFinite();
-  });
-
-  it('keeps zero-value MACD as valid output on flat closes', () => {
-    const candles = createTrendCandles(60, 100, 0);
-    const macd = calculateMACD(candles);
-
-    expect(macd).not.toBeNull();
-    expect(macd?.dif).toBeCloseTo(0, 10);
-    expect(macd?.dea).toBeCloseTo(0, 10);
-    expect(macd?.macd).toBeCloseTo(0, 10);
   });
 });

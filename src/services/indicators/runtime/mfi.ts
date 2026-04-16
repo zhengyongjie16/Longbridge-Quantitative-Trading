@@ -5,7 +5,7 @@
  * - MFI：周期 14，结合价格和成交量
  */
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
-import { toNumber, logDebug, roundToFixed2, validatePercentage } from './utils.js';
+import { toNumber, roundToFixed2, validatePercentage } from './utils.js';
 import type { CandleData } from '../../../types/data.js';
 import type { BufferNewPush, MfiStreamState } from './types.js';
 
@@ -160,31 +160,4 @@ export function readMfiValue(state: MfiStreamState): number | null {
   }
 
   return mfi;
-}
-
-/**
- * 计算 MFI（资金流量指标）
- * @param candles K线数据数组
- * @param period MFI周期，默认14
- * @returns MFI值（0-100），如果无法计算则返回null
- */
-export function calculateMFI(
-  candles: ReadonlyArray<CandleData>,
-  period: number = 14,
-): number | null {
-  if (candles.length < period + 1) {
-    return null;
-  }
-
-  try {
-    const state = createMfiState(period);
-    for (const candle of candles) {
-      commitMfiCandle(state, candle);
-    }
-
-    return readMfiValue(state);
-  } catch (err) {
-    logDebug(`MFI计算失败 (period=${period})`, err);
-    return null;
-  }
 }

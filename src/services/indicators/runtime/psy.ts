@@ -9,9 +9,6 @@
  * - 高于 75：市场过热，可能回调
  * - 低于 25：市场过冷，可能反弹
  */
-import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
-import { logDebug, toNumber } from './utils.js';
-import type { CandleData } from '../../../types/data.js';
 import type { PsyStreamState } from './types.js';
 
 /**
@@ -64,35 +61,6 @@ export function commitPsyClose(state: PsyStreamState, close: number): void {
   }
 
   state.previousClose = close;
-}
-
-/**
- * 计算 PSY（心理线指标）
- * @param candles K线数据数组
- * @param period PSY 周期
- * @returns PSY 值（0-100），如果无法计算则返回 null
- */
-export function calculatePSY(candles: ReadonlyArray<CandleData>, period: number): number | null {
-  if (!Number.isInteger(period) || period <= 0 || candles.length <= period) {
-    return null;
-  }
-
-  try {
-    const state = createPsyState(period);
-    for (const candle of candles) {
-      const close = toNumber(candle.close);
-      if (!isValidPositiveNumber(close)) {
-        continue;
-      }
-
-      commitPsyClose(state, close);
-    }
-
-    return readPsyValue(state);
-  } catch (err) {
-    logDebug(`PSY计算失败 (period=${period})`, err);
-    return null;
-  }
 }
 
 /**

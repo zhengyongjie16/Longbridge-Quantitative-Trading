@@ -6,9 +6,7 @@
  * - 使用本地算法计算并输出稳定数值
  * - 返回值范围 0-100
  */
-import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
-import { logDebug, roundToFixed2, toNumber, validatePercentage } from './utils.js';
-import type { CandleData } from '../../../types/data.js';
+import { roundToFixed2 } from './utils.js';
 import type { RsiStreamState } from './types.js';
 
 /**
@@ -84,41 +82,6 @@ export function readRsiValue(state: RsiStreamState): number | null {
   }
 
   return roundToFixed2(state.lastRawValue);
-}
-
-/**
- * 计算 RSI（相对强弱指标）
- * @param candles K线数据数组
- * @param period RSI周期，例如：6（RSI6）
- * @returns RSI值（0-100），如果无法计算则返回null
- */
-export function calculateRSI(candles: ReadonlyArray<CandleData>, period: number): number | null {
-  if (candles.length <= period || !Number.isFinite(period) || period <= 0) {
-    return null;
-  }
-
-  try {
-    const state = createRsiState(period);
-    for (const candle of candles) {
-      const close = toNumber(candle.close);
-      if (!isValidPositiveNumber(close)) {
-        continue;
-      }
-
-      commitRsiClose(state, close);
-    }
-
-    const rsi = readRsiValue(state);
-
-    if (rsi === null || !validatePercentage(rsi)) {
-      return null;
-    }
-
-    return rsi;
-  } catch (err) {
-    logDebug(`RSI计算失败 (period=${period})`, err);
-    return null;
-  }
 }
 
 /**

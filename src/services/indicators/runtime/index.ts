@@ -2,7 +2,6 @@
  * indicators/runtime 指标运行时计算模块
  *
  * 职责：
- * - 提供旧全量构建函数（作为对拍 oracle）
  * - 提供增量 runtime 的 bootstrap / update / snapshot 构造能力
  * - 确保对象池对象仅在对外快照构造时创建，不在 runtime 内长期持有
  */
@@ -57,37 +56,6 @@ function unwrapIndicatorRuntime(
   }
 
   return runtime as unknown as IndicatorRuntimeState<typeof indicatorRuntimeStateBrand>;
-}
-
-/**
- * 从 K 线长度与最后一根收盘价构造指纹字符串（格式 length_lastClose），供 getCandleFingerprint 使用。
- *
- * @param candles K 线数据数组（仅用 length）
- * @param lastClose 最后一根 K 线收盘价
- * @returns 指纹字符串
- */
-function buildDataFingerprint(candles: ReadonlyArray<CandleData>, lastClose: number): string {
-  return `${candles.length}_${lastClose}`;
-}
-
-/**
- * 从 K 线计算指纹，供旧路径判断是否可复用上一拍快照。
- *
- * @param candles K 线数据数组
- * @returns 指纹字符串（格式：length_lastClose），无效时返回 null
- */
-export function getCandleFingerprint(candles: ReadonlyArray<CandleData>): string | null {
-  if (candles.length === 0) {
-    return null;
-  }
-
-  const lastCandle = candles.at(-1);
-  const lastClose = lastCandle ? toNumber(lastCandle.close) : 0;
-  if (!isValidPositiveNumber(lastClose)) {
-    return null;
-  }
-
-  return buildDataFingerprint(candles, lastClose);
 }
 
 function createRecordFromPeriods<T>(params: {
@@ -219,7 +187,7 @@ function buildPeriodSnapshotRecord<T>(params: {
   readonly periods: ReadonlyArray<number>;
   readonly isValidPeriod: (period: unknown) => period is number;
   readonly states: Record<number, T>;
-  readonly readValue: (state: T, period: number) => number | null;
+  readonly readValue: (state: T) => number | null;
 }): Record<number, number> | null {
   if (params.periods.length === 0) {
     return null;
@@ -237,7 +205,7 @@ function buildPeriodSnapshotRecord<T>(params: {
       continue;
     }
 
-    const value = params.readValue(state, period);
+    const value = params.readValue(state);
     if (value === null) {
       continue;
     }
@@ -317,35 +285,6 @@ function buildSnapshotFromCommitted(params: {
     macd,
     adx,
   };
-}
-
-/**
- * 构建指标快照（旧全量路径，保留作为对拍 oracle）。
- *
- * @param symbol 标的代码
- * @param candles K线数据数组
- * @param indicatorProfile 指标画像
- * @returns 指标快照，无有效价格时返回 null
- */
-export function buildIndicatorSnapshot(
-  symbol: string,
-  candles: ReadonlyArray<CandleData>,
-  indicatorProfile: IndicatorUsageProfile,
-): IndicatorSnapshot | null {
-  if (candles.length === 0) {
-    return null;
-  }
-
-  const committed = buildCommittedState(indicatorProfile);
-  for (const candle of candles) {
-    commitCandleToCommittedState(committed, candle);
-  }
-
-  return buildSnapshotFromCommitted({
-    symbol,
-    profile: indicatorProfile,
-    committed,
-  });
 }
 
 function resolveActiveBar(params: {

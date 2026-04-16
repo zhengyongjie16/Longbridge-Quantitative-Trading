@@ -13,10 +13,10 @@ import type { IndicatorUsageProfile } from '../../../../src/types/indicatorProfi
 import type { CandlestickCacheSnapshot } from '../../../../src/types/services.js';
 import {
   bootstrapIndicatorRuntime,
-  buildIndicatorSnapshot,
   buildSnapshotFromRuntime,
   updateRuntimeForCandlestickSnapshot,
 } from '../../../../src/services/indicators/runtime/index.js';
+import { buildIndicatorSnapshot } from '../../../../tools/dailyKlineMonitor/runtimeSnapshot.js';
 import { createIndicatorUsageProfileDouble } from '../../../helpers/testDoubles.js';
 
 function createCandle(params: {

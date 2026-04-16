@@ -10,7 +10,7 @@
  * 默认周期 14，输出 number | null
  */
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
-import { toNumber, logDebug, roundToFixed2 } from './utils.js';
+import { toNumber, roundToFixed2 } from './utils.js';
 import type { CandleData } from '../../../types/data.js';
 import type { AdxStreamState } from './types.js';
 
@@ -139,55 +139,6 @@ export function readAdxValue(state: AdxStreamState): number | null {
   }
 
   return roundToFixed2(state.adx);
-}
-
-/**
- * 计算 ADX（平均趋向指数）。
- *
- * 需要至少 2 * period 根有效 K 线才能产出首个 ADX 值。
- * 样本不足或计算异常时返回 null。
- *
- * @param candles K 线数据数组
- * @param period ADX 周期，默认 14
- * @returns ADX 值（0-100），无法计算时返回 null
- */
-export function calculateADX(
-  candles: ReadonlyArray<CandleData>,
-  period: number = 14,
-): number | null {
-  // 至少需要 2 * period + 1 根 K 线（period 根用于首次 Wilder 平滑，period 根用于 DX 平滑，+1 用于首根基准）
-  if (candles.length < 2 * period + 1) {
-    return null;
-  }
-
-  try {
-    const state = createAdxState(period);
-    let validCount = 0;
-    for (const candle of candles) {
-      const high = toNumber(candle.high);
-      const low = toNumber(candle.low);
-      const close = toNumber(candle.close);
-      if (
-        !isValidPositiveNumber(high) ||
-        !isValidPositiveNumber(low) ||
-        !isValidPositiveNumber(close)
-      ) {
-        continue;
-      }
-
-      validCount += 1;
-      commitAdxCandle(state, candle);
-    }
-
-    if (validCount < 2 * period + 1) {
-      return null;
-    }
-
-    return readAdxValue(state);
-  } catch (err) {
-    logDebug(`ADX计算失败 (period=${period})`, err);
-    return null;
-  }
 }
 
 /**

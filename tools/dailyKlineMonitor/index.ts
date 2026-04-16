@@ -6,7 +6,7 @@
 import dotenv from 'dotenv';
 import { AdjustType, Period, QuoteContext, TradeSessions } from 'longbridge';
 import { createSdkConfigFromAuth } from '../../src/config/auth/index.js';
-import { buildIndicatorSnapshot } from '../../src/services/indicators/runtime/index.js';
+import { buildIndicatorSnapshot } from './runtimeSnapshot.js';
 import { sleep } from '../../src/main/utils.js';
 import { decimalToNumber } from '../../src/utils/helpers/index.js';
 import type { CandleData } from '../../src/types/data.js';

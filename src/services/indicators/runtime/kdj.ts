@@ -7,7 +7,7 @@
  * - J = 3K - 2D
  */
 import { kdjObjectPool } from '../../../utils/objectPool/index.js';
-import { feedEmaStreamState, initEmaStreamState, isValidKDJ, logDebug, toNumber } from './utils.js';
+import { feedEmaStreamState, initEmaStreamState, isValidKDJ, toNumber } from './utils.js';
 import type { KDJIndicator } from '../../../types/quote.js';
 import type { CandleData } from '../../../types/data.js';
 import type { KdjStreamState } from './types.js';
@@ -207,31 +207,4 @@ export function readKdjValue(state: KdjStreamState): KDJIndicator | null {
 
   kdjObjectPool.release(kdjObj);
   return null;
-}
-
-/**
- * 计算 KDJ（随机指标）
- * @param candles K线数据数组
- * @param period KDJ周期，默认9
- * @returns KDJ对象 {k, d, j}，如果无法计算则返回null
- */
-export function calculateKDJ(
-  candles: ReadonlyArray<CandleData>,
-  period: number = 9,
-): KDJIndicator | null {
-  if (candles.length < period) {
-    return null;
-  }
-
-  try {
-    const state = createKdjState(period);
-    for (const candle of candles) {
-      commitKdjCandle(state, candle);
-    }
-
-    return readKdjValue(state);
-  } catch (err) {
-    logDebug('KDJ计算失败', err);
-    return null;
-  }
 }
