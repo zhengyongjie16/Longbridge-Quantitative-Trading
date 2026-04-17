@@ -1,4 +1,3 @@
-import type { Market } from 'longbridge';
 import type { OrderTypeConfig, SignalType } from '../../types/signal.js';
 
 /**
@@ -71,23 +70,6 @@ export type PoolableMonitorValues = {
   kdj: PoolableKDJ | null;
   macd: PoolableMACD | null;
   adx: number | null;
-};
-
-/**
- * 对象池 - Position（可池化持仓）。
- * 类型用途：持仓数据的可池化版本，供对象池复用；属性可变以支持重置复用。
- * 数据来源：由 Longbridge SDK 账户持仓接口返回后转换填充。
- * 使用范围：仅对象池内部使用，外部通过 acquire/release 访问。
- */
-export type PoolablePosition = {
-  accountChannel: string | null;
-  symbol: string | null;
-  symbolName: string | null;
-  quantity: number;
-  availableQuantity: number;
-  currency: string | null;
-  costPrice: number;
-  market: Market | string | null;
 };
 
 /**

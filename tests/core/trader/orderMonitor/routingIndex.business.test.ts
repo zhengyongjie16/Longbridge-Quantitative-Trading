@@ -9,7 +9,6 @@ import { describe, expect, it } from 'bun:test';
 import {
   attachTrackedOrder,
   detachTrackedOrder,
-  ensureRouteState,
   resetRoutingIndex,
 } from '../../../../src/core/trader/orderMonitor/routingIndex.js';
 import type {
@@ -61,7 +60,11 @@ describe('orderMonitor routingIndex', () => {
   it('detachTrackedOrder 在最后一个订单关闭时移除 bucket 与 route state，并清理 route timer', async () => {
     const runtime = createRuntime();
     attachTrackedOrder(runtime, 'BULL.HK', 'ORDER-1');
-    const routeState = ensureRouteState(runtime, 'BULL.HK');
+    const routeState = runtime.routeStatesBySymbol.get('BULL.HK');
+    if (!routeState) {
+      throw new Error('routeState should exist after attachTrackedOrder');
+    }
+
     let timerFired = false;
     const timerHandle = setTimeout(() => {
       timerFired = true;
@@ -99,8 +102,12 @@ describe('orderMonitor routingIndex', () => {
     const runtime = createRuntime();
     attachTrackedOrder(runtime, 'BULL.HK', 'ORDER-1');
     attachTrackedOrder(runtime, 'BEAR.HK', 'ORDER-2');
-    const bullRouteState = ensureRouteState(runtime, 'BULL.HK');
-    const bearRouteState = ensureRouteState(runtime, 'BEAR.HK');
+    const bullRouteState = runtime.routeStatesBySymbol.get('BULL.HK');
+    const bearRouteState = runtime.routeStatesBySymbol.get('BEAR.HK');
+    if (!bullRouteState || !bearRouteState) {
+      throw new Error('route states should exist after attachTrackedOrder');
+    }
+
     let bullTimerFired = false;
     let bearTimerFired = false;
     bullRouteState.timerHandles.set('ORDER-1:BUY_TIMEOUT', {

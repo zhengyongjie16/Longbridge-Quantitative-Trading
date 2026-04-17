@@ -1,6 +1,4 @@
-import { IS_DEBUG } from '../../../constants/index.js';
-import { logger } from '../../../utils/logger/index.js';
-import type { CandleValue } from '../../../types/data.js';
+import type { CandleData } from '../../../types/data.js';
 import type { PoolableKDJ, PoolableMACD } from '../../../utils/objectPool/types.js';
 import type { EmaStreamState } from './types.js';
 
@@ -9,7 +7,7 @@ import type { EmaStreamState } from './types.js';
  * @param value K 线数据值（支持 Decimal、number、string）
  * @returns 数字值，无效值返回 0
  */
-export function toNumber(value: CandleValue): number {
+export function toNumber(value: CandleData['close']): number {
   if (value === null || value === undefined) {
     return 0;
   }
@@ -44,18 +42,6 @@ export function roundToFixed2(value: number): number {
  */
 export function validatePercentage(value: unknown): boolean {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
-}
-
-/**
- * 记录调试日志（仅在 IS_DEBUG 模式下输出）
- * @param message 日志消息
- * @param error 可选的错误对象
- * @returns void
- */
-export function logDebug(message: string, error?: unknown): void {
-  if (IS_DEBUG) {
-    logger.debug(message, error);
-  }
 }
 
 /**

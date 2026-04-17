@@ -29,10 +29,7 @@ import type {
   WarrantListCache,
   WarrantListCacheConfig,
 } from '../services/autoSymbolFinder/types.js';
-import type {
-  LiquidationCooldownTracker,
-  TradeLogHydrator,
-} from '../services/liquidationCooldown/types.js';
+import type { LiquidationCooldownTracker } from '../services/liquidationCooldown/types.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../core/trader/protectiveLiquidationEpisodeTracker/types.js';
 import type { MarketMonitor } from '../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
@@ -73,7 +70,6 @@ import type {
 } from '../main/lifecycle/types.js';
 import type { Signal } from '../types/signal.js';
 import type { Logger } from '../utils/logger/types.js';
-import type { StartupGate } from '../main/startup/types.js';
 import type {
   GlobalStateDomainDeps,
   MarketDataDomainDeps,
@@ -382,7 +378,6 @@ export type PreGateRuntime = Readonly<{
   marketDataClient: MarketDataClient;
   gatePolicies: GatePolicies;
   startupTradingDayInfo: TradingDayInfo;
-  startupGate: StartupGate;
 }>;
 
 /**
@@ -418,7 +413,6 @@ type PostGateRuntime = Readonly<{
   postTradeConsistencyRuntime: PostTradeConsistencyRuntime;
   lastState: LastState;
   trader: Trader;
-  tradeLogHydrator: TradeLogHydrator;
   loadTradingDayRuntimeSnapshot: (
     params: LoadTradingDayRuntimeSnapshotParams,
   ) => Promise<LoadTradingDayRuntimeSnapshotResult>;

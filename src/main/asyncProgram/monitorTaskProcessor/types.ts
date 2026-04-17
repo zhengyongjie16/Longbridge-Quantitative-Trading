@@ -2,13 +2,7 @@ import type { SwitchWakeupRuntime } from '../../monitorQuoteEventRuntime/types.j
 import type { MonitorTaskQueue, MonitorTask } from '../monitorTaskQueue/types.js';
 import type { LastState, MonitorContext } from '../../../types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
-import type { SeatState } from '../../../types/seat.js';
-import type {
-  PostTradeConsistencyFreshnessPort,
-  RawOrderFromAPI,
-  Trader,
-  MarketDataClient,
-} from '../../../types/services.js';
+import type { RawOrderFromAPI, Trader, MarketDataClient } from '../../../types/services.js';
 import type { QuoteSubscriptionRuntime } from '../../quoteSubscriptionRuntime/types.js';
 
 /**
@@ -141,45 +135,12 @@ export type MonitorTaskProcessorDeps = Readonly<{
 
 /**
  * MonitorTaskProcessor 行为契约。
- * 类型用途：监控任务处理器的公开接口（start/stop/stopAndDrain/restart），与 Processor 一致，供主程序/ lifecycle 调度。
+ * 类型用途：监控任务处理器的公开接口（start/stopAndDrain/restart），供主程序/ lifecycle 调度。
  * 数据来源：主程序通过工厂创建并持有，任务由 processMonitor 经 monitorTaskQueue 入队。
  * 使用范围：timeDriverProgram、lifecycle、processMonitor 等，仅内部使用。
  */
 export interface MonitorTaskProcessor {
   readonly start: () => void;
-  readonly stop: () => void;
   readonly stopAndDrain: () => Promise<void>;
   readonly restart: () => void;
 }
-
-/**
- * 监控上下文与席位就绪结果。
- * 类型用途：evaluateMonitorContextAndSeatReadiness 的返回值，供自动换标等 handler 复用。
- * 数据来源：由 evaluateMonitorContextAndSeatReadiness 在校验席位快照后构造。
- * 使用范围：仅 monitorTaskProcessor 模块内部使用。
- */
-export type MonitorContextSeatReadinessResult = Readonly<{
-  context: MonitorTaskContext;
-  seatReadiness: Readonly<{
-    longSeat: SeatState;
-    shortSeat: SeatState;
-    isLongReady: boolean;
-    isShortReady: boolean;
-    longSymbol: string;
-    shortSymbol: string;
-  }>;
-}>;
-
-/**
- * 监控上下文与席位就绪评估参数。
- * 类型用途：evaluateMonitorContextAndSeatReadiness 的入参，封装上下文获取与双向席位快照校验依赖。
- * 数据来源：由 monitorTaskProcessor 各 handler 在处理任务时组装。
- * 使用范围：仅 monitorTaskProcessor 模块内部使用。
- */
-export type EvaluateMonitorContextAndSeatReadinessParams = Readonly<{
-  getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
-  postTradeConsistencyRuntime: PostTradeConsistencyFreshnessPort;
-  monitorSymbol: string;
-  longSnapshot: SeatSnapshot;
-  shortSnapshot: SeatSnapshot;
-}>;

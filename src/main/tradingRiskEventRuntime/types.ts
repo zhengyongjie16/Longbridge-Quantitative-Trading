@@ -55,7 +55,7 @@ export type RouteExecutionState = {
  * 数据来源：由 postTradeConsistencyRuntime.getStatus() 提供。
  * 使用范围：仅 tradingRiskEventRuntime 模块内部使用。
  */
-export type TradingRiskConsistencyStatus = Readonly<{
+type TradingRiskConsistencyStatus = Readonly<{
   readonly started: boolean;
   readonly currentVersion: number;
   readonly staleVersion: number;
@@ -67,7 +67,7 @@ export type TradingRiskConsistencyStatus = Readonly<{
  * 数据来源：由 app 层成交后一致性 runtime 实现并注入。
  * 使用范围：仅 tradingRiskEventRuntime 模块内部使用。
  */
-export interface TradingRiskConsistencyPort {
+interface TradingRiskConsistencyPort {
   /** 等待当前 freshness 追平 staleVersion。 */
   waitForFresh: () => Promise<void>;
 

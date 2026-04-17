@@ -6,13 +6,7 @@
  * - 验证 TRACKED / ORDER_EVENT / RECOVERED 只有在装配出的 route runtime 进入运行态后才会生效
  */
 import { afterEach, describe, expect, it, mock } from 'bun:test';
-import {
-  OrderSide,
-  OrderStatus,
-  OrderType,
-  type PushOrderChanged,
-  type TradeContext,
-} from 'longbridge';
+import { OrderSide, OrderStatus, OrderType, TopicType, type TradeContext } from 'longbridge';
 import { createTradingConfig } from '../../../mock/factories/configFactory.js';
 import { createPushOrderChanged } from '../../../mock/factories/tradeFactory.js';
 import { createTradeContextMock } from '../../../mock/longbridge/tradeContextMock.js';
@@ -112,10 +106,9 @@ function createPendingRecoveryOrder(params: {
   };
 }
 
-function createDeps(params?: {
-  readonly onHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
-}): {
+function createDeps(): {
   readonly deps: OrderMonitorDeps;
+  readonly tradeCtx: ReturnType<typeof createTradeContextMock>;
 } {
   const tradeCtx = createTradeContextMock();
   const baseConfig = createTradingConfig();
@@ -169,17 +162,10 @@ function createDeps(params?: {
       },
     }),
     symbolRegistry: createSymbolRegistryDouble({ monitorSymbol: 'HSI.HK' }),
-    ...(params?.onHandleOrderChanged
-      ? {
-          testHooks: {
-            setHandleOrderChanged: params.onHandleOrderChanged,
-          },
-        }
-      : {}),
     isExecutionAllowed: () => true,
   };
 
-  return { deps };
+  return { deps, tradeCtx };
 }
 
 afterEach(() => {
@@ -234,18 +220,11 @@ describe('createOrderMonitor route hooks integration', () => {
 
   it('真实装配路径在 tracked order 收到 WS 推进后触发 ORDER_EVENT wakeup', async () => {
     const capturedWakeups: CapturedRouteWakeup[] = [];
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const createOrderMonitor = await loadCreateOrderMonitorWithCapturedRouteWakeups(
       'order-event',
       capturedWakeups,
     );
-    const { deps } = createDeps({
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
-    });
+    const { deps, tradeCtx } = createDeps();
     const monitor = createOrderMonitor(deps);
 
     await monitor.initialize();
@@ -267,7 +246,8 @@ describe('createOrderMonitor route hooks integration', () => {
     await flushMicrotasks();
     capturedWakeups.length = 0;
 
-    handleOrderChanged(
+    expect(tradeCtx.getSubscribedTopics().has(TopicType.Private)).toBe(true);
+    tradeCtx.emitOrderChanged(
       createPushOrderChanged({
         orderId: 'ORDER-EVENT-INTEGRATION-1',
         symbol: 'BULL.HK',
@@ -275,6 +255,7 @@ describe('createOrderMonitor route hooks integration', () => {
         status: OrderStatus.PendingCancel,
       }),
     );
+    tradeCtx.flushAllEvents();
     await flushMicrotasks();
 
     expect(capturedWakeups).toEqual([

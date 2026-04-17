@@ -2,7 +2,9 @@
  * dailyIndicatorAnalysis 工具指标全量计算模块。
  * 职责：为分钟指标分析工具提供生产链路不再直接导出的全量指标包装计算。
  */
+import { IS_DEBUG } from '../../src/constants/index.js';
 import { isValidPositiveNumber } from '../../src/utils/helpers/index.js';
+import { logger } from '../../src/utils/logger/index.js';
 import {
   createEmaState,
   commitEmaClose,
@@ -23,13 +25,24 @@ import {
   commitRsiClose,
   readRsiValue,
 } from '../../src/services/indicators/runtime/rsi.js';
-import {
-  logDebug,
-  toNumber,
-  validatePercentage,
-} from '../../src/services/indicators/runtime/utils.js';
+import { toNumber, validatePercentage } from '../../src/services/indicators/runtime/utils.js';
 import type { CandleData } from '../../src/types/data.js';
 import type { KDJIndicator } from '../../src/types/quote.js';
+
+/**
+ * 输出工具内部的调试日志。默认行为：非调试模式直接跳过。
+ *
+ * @param message 日志消息
+ * @param error 可选错误对象
+ * @returns 无返回值
+ */
+function logDebug(message: string, error?: unknown): void {
+  if (!IS_DEBUG) {
+    return;
+  }
+
+  logger.debug(message, error);
+}
 
 /**
  * 计算 EMA（指数移动平均线）。默认行为：样本不足或周期无效时返回 null。

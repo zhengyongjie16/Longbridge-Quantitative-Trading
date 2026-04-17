@@ -1,9 +1,6 @@
-import { positionObjectPool } from '../../utils/objectPool/index.js';
 import { isRecord } from '../../utils/helpers/index.js';
 import { SIGNAL_ACTION_DESCRIPTIONS } from '../../constants/index.js';
-import type { Position } from '../../types/account.js';
 import type { Signal, SignalType } from '../../types/signal.js';
-import type { PositionCache } from '../../types/services.js';
 import type { DelayedSignalVerifierPort } from '../../types/monitorContextPorts.js';
 import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
@@ -113,52 +110,6 @@ export function clearMonitorDirectionQueues(params: {
     removedSell,
     removedMonitorTasks,
   };
-}
-
-/**
- * 从持仓缓存中获取指定标的的持仓
- *
- * 使用 PositionCache 提供 O(1) 查找，并从对象池获取 Position 对象
- * 注意：调用方需负责释放返回的 Position 对象到对象池
- *
- * @param positionCache 持仓缓存（O(1) 查找）
- * @param longSymbol 做多标的代码
- * @param shortSymbol 做空标的代码
- * @returns longPosition 和 shortPosition，无持仓时为 null
- */
-export function getPositions(
-  positionCache: PositionCache,
-  longSymbol: string,
-  shortSymbol: string,
-): Readonly<{ longPosition: Position | null; shortPosition: Position | null }> {
-  const longPos = positionCache.get(longSymbol);
-  const shortPos = positionCache.get(shortSymbol);
-
-  const longPosition = longPos ? createPositionFromCache(longSymbol, longPos) : null;
-  const shortPosition = shortPos ? createPositionFromCache(shortSymbol, shortPos) : null;
-
-  return { longPosition, shortPosition };
-}
-
-/**
- * 从持仓缓存数据构造对象池 Position 实例，用于信号流水线等处的持仓查找。调用方需负责将返回对象释放回对象池。
- *
- * @param symbol 标的代码
- * @param source 持仓缓存中的原始持仓数据
- * @returns 从对象池获取并填充字段后的 Position 对象（调用方负责释放）
- */
-function createPositionFromCache(symbol: string, source: Position): Position {
-  // 对象池返回 PoolablePosition，这里通过字段覆盖构造出完整的 Position
-  const position = positionObjectPool.acquire();
-  position.symbol = symbol;
-  position.costPrice = source.costPrice || 0;
-  position.quantity = source.quantity || 0;
-  position.availableQuantity = source.availableQuantity || 0;
-  position.accountChannel = source.accountChannel;
-  position.symbolName = source.symbolName;
-  position.currency = source.currency;
-  position.market = source.market;
-  return position as Position;
 }
 
 /**

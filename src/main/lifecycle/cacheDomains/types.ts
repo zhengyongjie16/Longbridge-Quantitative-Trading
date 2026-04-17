@@ -36,7 +36,7 @@ import type { ProtectiveLiquidationEpisodeTracker } from '../../../core/trader/p
  * 数据来源：由 app 层注入 PostTradeConsistencyRuntime 实例。
  * 使用范围：仅 lifecycle signalRuntimeDomain 使用。
  */
-export interface SignalRuntimePostTradeConsistencyRuntime {
+interface SignalRuntimePostTradeConsistencyRuntime {
   readonly abortWaiting: () => void;
   readonly resetAbort: () => void;
   readonly start: () => void;

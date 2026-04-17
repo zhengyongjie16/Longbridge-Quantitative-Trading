@@ -88,6 +88,5 @@ export async function createPreGateRuntime(params: AppEnvironmentParams): Promis
     marketDataClient,
     gatePolicies,
     startupTradingDayInfo,
-    startupGate,
   };
 }

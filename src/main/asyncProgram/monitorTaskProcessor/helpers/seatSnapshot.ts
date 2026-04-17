@@ -2,14 +2,10 @@
  * 席位快照校验助手
  *
  * 功能：
- * - 校验席位快照一致性与版本
- * - 计算席位就绪状态与可用标的
- * - 在成交后一致性 freshness 恢复后再次校验快照，避免旧席位任务执行
+ * - 校验席位快照一致性与版本，避免旧任务在换标后执行
  */
 import { isSeatVersionMatch } from '../../../../utils/seat/guards.js';
 
-import type { PostTradeConsistencyFreshnessPort } from '../../../../types/services.js';
-import type { SeatState } from '../../../../types/seat.js';
 import type { MonitorTaskContext, SeatSnapshot } from '../types.js';
 
 /**
@@ -39,91 +35,4 @@ export function isSeatSnapshotValid(
   }
 
   return seatState.symbol === snapshot.symbol;
-}
-
-/**
- * 等待成交后一致性 freshness 恢复后再次校验双向席位快照
- * 两次校验均失败时返回 null，避免旧席位任务在换标后执行
- *
- * @param monitorSymbol 监控标的代码
- * @param context 监控上下文
- * @param longSnapshot 多头席位快照
- * @param shortSnapshot 空头席位快照
- * @param postTradeConsistencyRuntime 成交后一致性 freshness 等待端口，用于 waitForFresh
- * @returns freshness 恢复后 longValid/shortValid 结果，两次校验均无有效席位时返回 null
- */
-export async function validateSeatSnapshotsAfterRefresh({
-  monitorSymbol,
-  context,
-  longSnapshot,
-  shortSnapshot,
-  postTradeConsistencyRuntime,
-}: {
-  readonly monitorSymbol: string;
-  readonly context: MonitorTaskContext;
-  readonly longSnapshot: SeatSnapshot;
-  readonly shortSnapshot: SeatSnapshot;
-  readonly postTradeConsistencyRuntime: PostTradeConsistencyFreshnessPort;
-}): Promise<Readonly<{ longValid: boolean; shortValid: boolean }> | null> {
-  const hasLongSnapshot = isSeatSnapshotValid(monitorSymbol, 'LONG', longSnapshot, context);
-  const hasShortSnapshot = isSeatSnapshotValid(monitorSymbol, 'SHORT', shortSnapshot, context);
-  if (!hasLongSnapshot && !hasShortSnapshot) {
-    return null;
-  }
-
-  await postTradeConsistencyRuntime.waitForFresh();
-
-  const longValid = isSeatSnapshotValid(monitorSymbol, 'LONG', longSnapshot, context);
-  const shortValid = isSeatSnapshotValid(monitorSymbol, 'SHORT', shortSnapshot, context);
-  if (!longValid && !shortValid) {
-    return null;
-  }
-
-  return { longValid, shortValid };
-}
-
-/**
- * 根据快照校验结果与席位可用性判断，计算双向席位的就绪状态与可用标的
- *
- * @param monitorSymbol 监控标的代码
- * @param context 监控上下文
- * @param snapshotValidity 刷新后的 longValid/shortValid 结果
- * @param isSeatUsable 判断席位是否可用的函数（如 isSeatActive）
- * @returns 双向席位状态、就绪标志及 longSymbol/shortSymbol
- */
-export function resolveSeatSnapshotReadiness({
-  monitorSymbol,
-  context,
-  snapshotValidity,
-  isSeatUsable,
-}: {
-  readonly monitorSymbol: string;
-  readonly context: MonitorTaskContext;
-  readonly snapshotValidity: Readonly<{ longValid: boolean; shortValid: boolean }>;
-  readonly isSeatUsable: (seatState: SeatState) => boolean;
-}): Readonly<{
-  longSeat: SeatState;
-  shortSeat: SeatState;
-  isLongReady: boolean;
-  isShortReady: boolean;
-  longSymbol: string;
-  shortSymbol: string;
-}> {
-  const longSeat = context.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
-  const shortSeat = context.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-
-  const isLongReady = snapshotValidity.longValid && isSeatUsable(longSeat);
-  const isShortReady = snapshotValidity.shortValid && isSeatUsable(shortSeat);
-
-  const longSymbol = isLongReady && typeof longSeat.symbol === 'string' ? longSeat.symbol : '';
-  const shortSymbol = isShortReady && typeof shortSeat.symbol === 'string' ? shortSeat.symbol : '';
-
-  return {
-    longSeat,
-    shortSeat,
-    isLongReady,
-    isShortReady,
-    longSymbol,
-    shortSymbol,
-  } as const;
 }

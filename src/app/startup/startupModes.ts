@@ -2,23 +2,10 @@
  * app 启动模式解析模块
  *
  * 职责：
- * - 从环境变量解析运行模式
  * - 从独立门禁配置解析 startup/runtime gate 策略与来源
  */
 import type { GatePolicies, GatePolicySources } from '../types.js';
-import type { GateMode, RunMode } from '../../types/seat.js';
-
-/**
- * 从环境变量解析运行模式。未设置或非 'dev' 时默认为 'prod'。
- *
- * @param env 环境变量对象（如 process.env）
- * @returns 'dev' 或 'prod'，默认 'prod'
- */
-export function resolveRunMode(env: NodeJS.ProcessEnv): RunMode {
-  const raw = env['RUN_MODE'];
-  const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-  return normalized === 'dev' ? 'dev' : 'prod';
-}
+import type { GateMode } from '../../types/seat.js';
 
 /**
  * 解析单个门禁模式。仅显式 `skip` 才会跳过门禁，其余值均使用 `strict`。

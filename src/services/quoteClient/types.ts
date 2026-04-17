@@ -8,11 +8,20 @@ import type {
   SubType,
   TradeSessions,
 } from 'longbridge';
-import type {
-  CandlestickCacheSnapshot,
-  CandlestickUpdatedEvent,
-  MarketWarrantQuote,
-} from '../../types/services.js';
+import type { CandlestickCacheSnapshot, CandlestickUpdatedEvent } from '../../types/services.js';
+import type { DecimalLike } from '../../utils/helpers/types.js';
+
+/**
+ * 轮证报价最小结构。
+ * 类型用途：约束 quoteClient 对 Longbridge warrantQuote 返回值的最小依赖边界。
+ * 数据来源：Longbridge warrantQuote 响应。
+ * 使用范围：仅 QuoteContextLike.warrantQuote 内部契约使用。
+ */
+type QuoteContextWarrantQuote = Readonly<{
+  readonly symbol: string;
+  readonly callPrice?: DecimalLike | string | number | null;
+  readonly category?: number | string | null;
+}>;
 
 /**
  * withRetry 重试配置。
@@ -76,7 +85,7 @@ export interface QuoteContextLike {
     period: Period,
     count: number,
   ) => Promise<ReadonlyArray<unknown>>;
-  readonly warrantQuote: (symbols: string[]) => Promise<ReadonlyArray<MarketWarrantQuote>>;
+  readonly warrantQuote: (symbols: string[]) => Promise<ReadonlyArray<QuoteContextWarrantQuote>>;
   readonly warrantList: QuoteContext['warrantList'];
   readonly setOnQuote: (callback: (err: null | Error, event: PushQuoteEvent) => void) => void;
   readonly setOnCandlestick: (

@@ -6,7 +6,6 @@ import type {
   OrderStatus,
   TimeInForceType,
   TradeContext,
-  PushOrderChanged,
 } from 'longbridge';
 import type { Signal, SignalType, OrderTypeConfig } from '../../types/signal.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';
@@ -511,11 +510,6 @@ export type OrderMonitorDeps = {
 
   /** 标的注册表（用于解析动态标的归属） */
   readonly symbolRegistry: SymbolRegistry;
-
-  /** 可选测试钩子（仅用于单元测试） */
-  readonly testHooks?: {
-    readonly setHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
-  };
 
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;

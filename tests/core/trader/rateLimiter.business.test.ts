@@ -9,6 +9,47 @@ import { API } from '../../../src/constants/index.js';
 import { createRateLimiter } from '../../../src/core/trader/rateLimiter.js';
 
 describe('rateLimiter business behavior', () => {
+  it('rechecks the interval when the scheduler wakes early', async () => {
+    const originalNow = performance.now;
+    const originalSetTimeout = globalThis.setTimeout;
+    let currentTimeMs = 1_000;
+    let waitCount = 0;
+
+    Object.defineProperty(performance, 'now', {
+      configurable: true,
+      value: () => currentTimeMs,
+    });
+
+    globalThis.setTimeout = ((callback: () => void, delayMs?: number) => {
+      waitCount += 1;
+      currentTimeMs += waitCount === 1 ? 25 : (delayMs ?? 0);
+      const handle = originalSetTimeout(() => {}, 0);
+      callback();
+      return handle;
+    }) as typeof setTimeout;
+
+    try {
+      const limiter = createRateLimiter({
+        config: {
+          maxCalls: 30,
+          windowMs: 30_000,
+        },
+      });
+
+      await limiter.throttle();
+      const firstCallTimeMs = currentTimeMs;
+      await limiter.throttle();
+
+      expect(currentTimeMs - firstCallTimeMs).toBeGreaterThanOrEqual(API.MIN_CALL_INTERVAL_MS);
+    } finally {
+      Object.defineProperty(performance, 'now', {
+        configurable: true,
+        value: originalNow,
+      });
+      globalThis.setTimeout = originalSetTimeout;
+    }
+  });
+
   it('serializes concurrent calls and enforces minimum API interval', async () => {
     const limiter = createRateLimiter({
       config: {

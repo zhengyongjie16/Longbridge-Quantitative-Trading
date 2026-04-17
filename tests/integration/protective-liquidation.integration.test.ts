@@ -5,13 +5,7 @@
  * - 验证保护性清仓端到端场景与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
-import {
-  OrderSide,
-  OrderStatus,
-  OrderType,
-  type PushOrderChanged,
-  type TradeContext,
-} from 'longbridge';
+import { OrderSide, OrderStatus, OrderType, TopicType, type TradeContext } from 'longbridge';
 import { createOrderMonitor } from '../../src/core/trader/orderMonitor/index.js';
 import type { OrderMonitorDeps } from '../../src/core/trader/types.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
@@ -26,9 +20,6 @@ import {
 
 describe('protective-liquidation integration', () => {
   it('records protective episode progress + local sell update after protective liquidation fill event', async () => {
-    let capturedHandler: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('order changed handler was not captured');
-    };
     let recordLocalSellCount = 0;
     let markSellFilledCount = 0;
     const episodeProgressPayloads: Array<{
@@ -89,11 +80,6 @@ describe('protective-liquidation integration', () => {
       },
       tradingConfig: createTradingConfig(),
       symbolRegistry: createSymbolRegistryDouble(),
-      testHooks: {
-        setHandleOrderChanged: (handler) => {
-          capturedHandler = handler;
-        },
-      },
       isExecutionAllowed: () => true,
     };
 
@@ -114,7 +100,8 @@ describe('protective-liquidation integration', () => {
       orderType: OrderType.MO,
     });
 
-    capturedHandler(
+    expect(tradeCtx.getSubscribedTopics().has(TopicType.Private)).toBe(true);
+    tradeCtx.emitOrderChanged(
       createPushOrderChanged({
         orderId: 'PL-001',
         symbol: 'BULL.HK',
@@ -127,6 +114,7 @@ describe('protective-liquidation integration', () => {
         executedPrice: 1,
       }),
     );
+    tradeCtx.flushAllEvents();
 
     expect(recordLocalSellCount).toBe(1);
     expect(markSellFilledCount).toBe(1);

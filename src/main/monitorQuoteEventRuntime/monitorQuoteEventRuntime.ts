@@ -275,7 +275,7 @@ export function createDefaultMonitorQuoteEventRuntime(
  * @param deps 行情事件源与最小执行依赖
  * @returns runtime 实例
  */
-export function createMonitorQuoteEventRuntime(
+function createMonitorQuoteEventRuntime(
   deps: CreateMonitorQuoteEventRuntimeDeps,
 ): MonitorQuoteEventRuntime {
   const {

@@ -205,7 +205,7 @@ export function validateCriticalBoundedNumberConfig({
  * @param options 校验参数
  * @returns 缺失时返回 null；显式配置但非法时返回错误信息
  */
-export function validateCriticalMinimumNumberConfig({
+function validateCriticalMinimumNumberConfig({
   env,
   envKey,
   min,

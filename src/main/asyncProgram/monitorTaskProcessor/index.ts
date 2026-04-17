@@ -45,7 +45,7 @@ function assertNeverTask(_task: never): never {
  * 消费 MonitorTaskQueue 中的任务，使用 setImmediate 异步执行；依赖 getMonitorContext 与各 handler 完成席位校验与刷新。
  *
  * @param deps 依赖注入，包含 monitorTaskQueue、getMonitorContext、各 handler 依赖等
- * @returns 实现 start/stop/stopAndDrain/restart 的处理器实例
+ * @returns 实现 start/stopAndDrain/restart 的处理器实例
  */
 export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): MonitorTaskProcessor {
   const {
@@ -141,9 +141,6 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
   return {
     start: () => {
       queueRunner.start();
-    },
-    stop: () => {
-      queueRunner.stop();
     },
     stopAndDrain: async () => {
       await queueRunner.stopAndDrain();

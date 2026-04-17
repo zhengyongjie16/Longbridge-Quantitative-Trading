@@ -16,7 +16,7 @@ import type { OrderHoldRegistry, TrackOrderParams } from '../../../../src/core/t
 import type { RawOrderFromAPI } from '../../../../src/types/services.js';
 import type { MonitorConfig } from '../../../../src/types/config.js';
 import { createTradingConfig } from '../../../../mock/factories/configFactory.js';
-import { ensureRouteState } from '../../../../src/core/trader/orderMonitor/routingIndex.js';
+import { attachTrackedOrder } from '../../../../src/core/trader/orderMonitor/routingIndex.js';
 import {
   createOrderRecorderDouble,
   createSymbolRegistryDouble,
@@ -149,8 +149,7 @@ describe('orderMonitor recoveryFlow', () => {
           params.orderId,
           createTrackedOrder(params.orderId, params.symbol),
         );
-        runtime.trackedOrderIdsBySymbol.set(params.symbol, new Set([params.orderId]));
-        ensureRouteState(runtime, params.symbol);
+        attachTrackedOrder(runtime, params.symbol, params.orderId);
       },
       cancelOrder: async () => ({
         kind: 'CANCEL_CONFIRMED',
@@ -185,10 +184,7 @@ describe('orderMonitor recoveryFlow', () => {
           params.orderId,
           createTrackedOrder(params.orderId, params.symbol),
         );
-        const bucket = runtime.trackedOrderIdsBySymbol.get(params.symbol) ?? new Set<string>();
-        bucket.add(params.orderId);
-        runtime.trackedOrderIdsBySymbol.set(params.symbol, bucket);
-        ensureRouteState(runtime, params.symbol);
+        attachTrackedOrder(runtime, params.symbol, params.orderId);
       },
       cancelOrder: async () => ({
         kind: 'CANCEL_CONFIRMED',

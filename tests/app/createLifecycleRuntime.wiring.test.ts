@@ -62,7 +62,6 @@ function createMonitorTaskProcessorDouble(): MonitorTaskProcessor {
     start: () => {
       factoryCalls.push('monitorTaskProcessor.start');
     },
-    stop: () => {},
     stopAndDrain: async () => {},
     restart: () => {},
   };
@@ -183,9 +182,6 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
         isTradingDay: true,
         isHalfDay: false,
       },
-      startupGate: {
-        wait: async () => ({ isTradingDay: true, isHalfDay: false }),
-      },
     },
     businessEventProgram: {
       start: () => {},
@@ -216,9 +212,6 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
       postTradeConsistencyRuntime: createPostTradeConsistencyRuntimeDouble(),
       lastState,
       trader: createTraderDouble(),
-      tradeLogHydrator: {
-        hydrate: () => new Map(),
-      },
       loadTradingDayRuntimeSnapshot: async () => ({
         allOrders: [],
         quotesMap: new Map(),

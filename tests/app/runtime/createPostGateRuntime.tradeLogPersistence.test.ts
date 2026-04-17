@@ -5,18 +5,47 @@
  * - 验证订单状态事件可落盘为 trade log
  * - 验证落盘结构可被 tradeLogHydrator 读取并恢复冷却边界
  */
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { TRADING } from '../../../src/constants/index.js';
 import { createTradingConfig, createMonitorConfig } from '../../../mock/factories/configFactory.js';
+import { createWarrantListCache } from '../../../src/services/autoSymbolFinder/utils.js';
 import { createLiquidationCooldownTracker } from '../../../src/services/liquidationCooldown/index.js';
 import { createTradeLogHydrator } from '../../../src/services/liquidationCooldown/tradeLogHydrator.js';
 import { buildTradeLogPath } from '../../../src/utils/trading/tradeLogPath.js';
-import { persistTradeRecordFromOrderStateChangedEvent } from '../../../src/app/runtime/createPostGateRuntime.js';
+import {
+  createMarketDataClientDouble,
+  createSdkConfigDouble,
+  createSymbolRegistryDouble,
+  createTraderDouble,
+} from '../../helpers/testDoubles.js';
+import type { CreatePostGateRuntimeParams } from '../../../src/app/types.js';
 import type { OrderStateChangedEvent } from '../../../src/types/services.js';
 
 const TEST_LOG_ROOT_DIR = path.join(process.cwd(), 'tests', 'logs', 'post-gate-runtime');
+let createPostGateRuntimeImportIndex = 0;
+let capturedOrderStateChangedListener: ((event: OrderStateChangedEvent) => void) | null = null;
+
+type CreatePostGateRuntimeFunction = (params: CreatePostGateRuntimeParams) => Promise<unknown>;
+
+type CreatePostGateRuntimeModuleShape = {
+  readonly createPostGateRuntime: CreatePostGateRuntimeFunction;
+};
+
+void mock.module('../../../src/core/trader/index.js', () => ({
+  createTrader: async () =>
+    createTraderDouble({
+      onOrderStateChanged: (listener) => {
+        capturedOrderStateChangedListener = listener;
+        return () => {
+          if (capturedOrderStateChangedListener === listener) {
+            capturedOrderStateChangedListener = null;
+          }
+        };
+      },
+    }),
+}));
 
 function createTestEnv(): NodeJS.ProcessEnv {
   return {
@@ -25,12 +54,66 @@ function createTestEnv(): NodeJS.ProcessEnv {
   };
 }
 
+function createRuntimeParams(): CreatePostGateRuntimeParams {
+  const warrantListCache = createWarrantListCache();
+  const monitorConfig = createMonitorConfig({ monitorSymbol: 'HSI.HK' });
+  return {
+    env: createTestEnv(),
+    now: new Date('2026-03-13T09:30:00+08:00'),
+    preGateRuntime: {
+      config: createSdkConfigDouble(),
+      tradingConfig: createTradingConfig({ monitors: [monitorConfig] }),
+      symbolRegistry: createSymbolRegistryDouble({ monitorSymbol: monitorConfig.monitorSymbol }),
+      warrantListCache,
+      warrantListCacheConfig: {
+        cache: warrantListCache,
+        ttlMs: 60_000,
+        nowMs: () => 0,
+      },
+      marketDataClient: createMarketDataClientDouble(),
+      gatePolicies: {
+        startupGate: 'strict',
+        runtimeGate: 'strict',
+      },
+      startupTradingDayInfo: {
+        isTradingDay: true,
+        isHalfDay: false,
+      },
+    },
+  };
+}
+
+async function loadCreatePostGateRuntime(): Promise<CreatePostGateRuntimeFunction> {
+  createPostGateRuntimeImportIndex += 1;
+  const loadedModule = (await import(
+    `../../../src/app/runtime/createPostGateRuntime.js?trade-log-test=${createPostGateRuntimeImportIndex}`
+  )) as CreatePostGateRuntimeModuleShape;
+  return loadedModule.createPostGateRuntime;
+}
+
+function requireCapturedOrderStateChangedListener(): (event: OrderStateChangedEvent) => void {
+  if (capturedOrderStateChangedListener === null) {
+    throw new Error('expected createPostGateRuntime to register order state changed listener');
+  }
+
+  return capturedOrderStateChangedListener;
+}
+
+async function emitOrderStateChangedThroughPostGateRuntime(
+  event: OrderStateChangedEvent,
+): Promise<void> {
+  const createPostGateRuntime = await loadCreatePostGateRuntime();
+  await createPostGateRuntime(createRuntimeParams());
+  requireCapturedOrderStateChangedListener()(event);
+}
+
 describe('createPostGateRuntime trade log persistence', () => {
   beforeEach(() => {
     fs.rmSync(TEST_LOG_ROOT_DIR, { recursive: true, force: true });
+    capturedOrderStateChangedListener = null;
   });
 
-  it('persists FILLED buy order state event into daily trade log', () => {
+  it('persists FILLED buy order state event into daily trade log', async () => {
     const executedTimeMs = Date.parse('2026-03-13T09:35:00+08:00');
     const event: OrderStateChangedEvent = {
       orderId: 'BUY-001',
@@ -46,10 +129,7 @@ describe('createPostGateRuntime trade log persistence', () => {
       executedTimeMs,
     };
 
-    persistTradeRecordFromOrderStateChangedEvent({
-      env: createTestEnv(),
-      event,
-    });
+    await emitOrderStateChangedThroughPostGateRuntime(event);
 
     const logFile = buildTradeLogPath(TEST_LOG_ROOT_DIR, new Date(executedTimeMs));
     expect(fs.existsSync(logFile)).toBe(true);
@@ -74,7 +154,7 @@ describe('createPostGateRuntime trade log persistence', () => {
     });
   });
 
-  it('writes protective liquidation completion records compatible with tradeLogHydrator', () => {
+  it('writes protective liquidation completion records compatible with tradeLogHydrator', async () => {
     const executedTimeMs = Date.parse('2026-03-13T10:00:00+08:00');
     const event: OrderStateChangedEvent = {
       orderId: 'PL-001',
@@ -90,10 +170,7 @@ describe('createPostGateRuntime trade log persistence', () => {
       executedTimeMs,
     };
 
-    persistTradeRecordFromOrderStateChangedEvent({
-      env: createTestEnv(),
-      event,
-    });
+    await emitOrderStateChangedThroughPostGateRuntime(event);
 
     const tradingConfig = createTradingConfig({
       monitors: [

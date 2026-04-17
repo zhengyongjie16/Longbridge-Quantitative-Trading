@@ -14,7 +14,7 @@ import type { QuoteSubscriptionRuntime } from '../quoteSubscriptionRuntime/types
  * 数据来源：由 postTradeConsistencyRuntime.getStatus 返回。
  * 使用范围：monitorQuoteEventRuntime 模块内部依赖与相关测试使用。
  */
-export type MonitorQuoteFreshnessStatus = Readonly<{
+type MonitorQuoteFreshnessStatus = Readonly<{
   /** freshness runtime 是否已经启动 */
   started: boolean;
 
@@ -48,7 +48,7 @@ export type MonitorQuoteFreshnessDeps = Readonly<{
  * 数据来源：由 app 层 postTradeConsistencyRuntime 实现并注入。
  * 使用范围：switchWakeupRuntime 模块内部依赖使用。
  */
-export type SwitchWakeupFreshnessDeps = Readonly<{
+type SwitchWakeupFreshnessDeps = Readonly<{
   /** 等待 freshness 追平 */
   waitForFresh: PostTradeConsistencyFreshnessPort['waitForFresh'];
 
@@ -199,7 +199,7 @@ export type StaticLiquidationRuntimeResult =
 /**
  * Monitor quote 事件运行时行为契约。
  * 类型用途：统一拥有 monitor quote 驱动执行与生命周期启停能力。
- * 数据来源：由 createMonitorQuoteEventRuntime 创建。
+ * 数据来源：由 monitorQuoteEventRuntime 工厂创建。
  * 使用范围：app cleanup、lifecycle 与相关测试使用。
  */
 export interface MonitorQuoteEventRuntime {

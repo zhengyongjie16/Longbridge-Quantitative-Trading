@@ -144,7 +144,7 @@ export type OrderMonitorTimerKey = `${string}:${OrderMonitorTimerKind}`;
  * 数据来源：routeRuntime.reconcileRouteTimers 在投影 tracked order timer 时写入。
  * 使用范围：orderMonitor route runtime 与 routing index。
  */
-export type OrderMonitorTimerRegistration = {
+type OrderMonitorTimerRegistration = {
   readonly atMs: number;
   readonly handle: ReturnType<typeof setTimeout>;
 };
@@ -409,7 +409,7 @@ export interface RouteProcessor {
  * 数据来源：由 routeProcessor 等终态调用方按业务路径传入。
  * 使用范围：orderMonitor/settlementFlow.ts 与相关调用链。
  */
-export type PendingSellDisposition =
+type PendingSellDisposition =
   | {
       readonly kind: 'RELEASE';
     }

@@ -2,9 +2,9 @@
  * 行情静态信息。
  * 类型用途：标的静态元数据（名称、每手股数、回收价、到期日、牛熊证类型等），作为 Quote.staticInfo 的类型。
  * 数据来源：Longbridge 行情 API（如 getQuotes 返回的静态字段）。
- * 使用范围：Quote、风控与牛熊证距离计算等；全项目可引用。
+ * 使用范围：Quote.staticInfo 字段内部复用，不作为跨模块公共类型导出。
  */
-export type QuoteStaticInfo = {
+type QuoteStaticInfo = {
   readonly nameHk?: string | null;
   readonly nameCn?: string | null;
   readonly nameEn?: string | null;

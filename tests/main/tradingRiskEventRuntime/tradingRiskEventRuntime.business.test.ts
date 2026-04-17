@@ -21,8 +21,12 @@ import { createTradingRiskEventRuntime } from '../../../src/main/tradingRiskEven
 import { buildTradingRiskRoutingIndex } from '../../../src/main/tradingRiskEventRuntime/routingIndex.js';
 import { resolveTradingRiskRoute } from '../../../src/main/tradingRiskEventRuntime/routeValidation.js';
 import { createUnrealizedLossMonitor } from '../../../src/core/riskController/unrealizedLossMonitor.js';
-import type { TradingRiskConsistencyStatus } from '../../../src/main/tradingRiskEventRuntime/types.js';
+import type { TradingRiskEventRuntimeDeps } from '../../../src/main/tradingRiskEventRuntime/types.js';
 import type { QuoteUpdatedEvent } from '../../../src/types/services.js';
+
+type TestTradingRiskConsistencyStatus = ReturnType<
+  TradingRiskEventRuntimeDeps['postTradeConsistencyRuntime']['getStatus']
+>;
 
 function createDeferred<voidValue = void>(): {
   readonly promise: Promise<voidValue>;
@@ -35,7 +39,7 @@ function createDeferred<voidValue = void>(): {
   return { promise, resolve };
 }
 
-function createConsistencyPort(initialStatus: TradingRiskConsistencyStatus) {
+function createConsistencyPort(initialStatus: TestTradingRiskConsistencyStatus) {
   let status = initialStatus;
   let freshDeferred: ReturnType<typeof createDeferred<void>> | null = null;
   return {
@@ -50,7 +54,7 @@ function createConsistencyPort(initialStatus: TradingRiskConsistencyStatus) {
         }
       },
     },
-    setStatus: (nextStatus: TradingRiskConsistencyStatus) => {
+    setStatus: (nextStatus: TestTradingRiskConsistencyStatus) => {
       status = nextStatus;
     },
     resolveFresh: () => {
@@ -164,8 +168,10 @@ describe('tradingRiskEventRuntime runtime flow', () => {
         readonly isHalfDay: boolean | null;
       };
       readonly doomsdayProtectionEnabled?: boolean;
-      readonly consistencyStatus?: TradingRiskConsistencyStatus;
+      readonly consistencyPort?: ReturnType<typeof createConsistencyPort>;
+      readonly consistencyStatus?: TestTradingRiskConsistencyStatus;
       readonly monitorContexts?: ReadonlyMap<string, ReturnType<typeof createMonitorContextDouble>>;
+      readonly now?: () => Date;
       readonly symbolRegistry?: ReturnType<typeof createSymbolRegistryDouble>;
       readonly trader?: ReturnType<typeof createTraderDouble>;
       readonly unrealizedLossMonitor?: ReturnType<typeof createUnrealizedLossMonitorDouble>;
@@ -211,12 +217,15 @@ describe('tradingRiskEventRuntime runtime flow', () => {
           }),
         ],
       ]);
-    const consistencyStatus: TradingRiskConsistencyStatus = params.consistencyStatus ?? {
-      started: true,
-      currentVersion: 1,
-      staleVersion: 1,
-    };
-    const consistencyPort = createConsistencyPort(consistencyStatus);
+    const consistencyPort =
+      params.consistencyPort ??
+      createConsistencyPort(
+        params.consistencyStatus ?? {
+          started: true,
+          currentVersion: 1,
+          staleVersion: 1,
+        },
+      );
 
     return {
       deps: {
@@ -240,7 +249,7 @@ describe('tradingRiskEventRuntime runtime flow', () => {
         },
         postTradeConsistencyRuntime: consistencyPort.port,
         doomsdayProtectionEnabled: params.doomsdayProtectionEnabled ?? false,
-        now: () => new Date('2026-04-06T01:30:00.000Z'),
+        now: params.now ?? (() => new Date('2026-04-06T01:30:00.000Z')),
       },
       consistencyPort,
       trader,
@@ -357,13 +366,13 @@ describe('tradingRiskEventRuntime runtime flow', () => {
       staleVersion: 1,
     });
     const { deps } = createRuntimeDeps({
+      consistencyPort,
       unrealizedLossMonitor: createUnrealizedLossMonitorDouble({
         monitorDirectionalUnrealizedLoss: async ({ quote }) => {
           executedPrices.push(quote.price);
         },
       }),
     });
-    deps.postTradeConsistencyRuntime = consistencyPort.port;
     const runtime = createTradingRiskEventRuntime(deps);
 
     runtime.start();
@@ -405,6 +414,7 @@ describe('tradingRiskEventRuntime runtime flow', () => {
     });
     consistencyPort.enablePendingFreshWait();
     const { deps } = createRuntimeDeps({
+      consistencyPort,
       symbolRegistry,
       unrealizedLossMonitor: createUnrealizedLossMonitorDouble({
         monitorDirectionalUnrealizedLoss: async ({ quote }) => {
@@ -412,7 +422,6 @@ describe('tradingRiskEventRuntime runtime flow', () => {
         },
       }),
     });
-    deps.postTradeConsistencyRuntime = consistencyPort.port;
     const runtime = createTradingRiskEventRuntime(deps);
 
     runtime.start();
@@ -431,13 +440,13 @@ describe('tradingRiskEventRuntime runtime flow', () => {
     const executedPrices: number[] = [];
     const { deps } = createRuntimeDeps({
       doomsdayProtectionEnabled: true,
+      now: () => new Date('2026-04-06T07:56:00.000Z'),
       unrealizedLossMonitor: createUnrealizedLossMonitorDouble({
         monitorDirectionalUnrealizedLoss: async ({ quote }) => {
           executedPrices.push(quote.price);
         },
       }),
     });
-    deps.now = () => new Date('2026-04-06T07:56:00.000Z');
     const runtime = createTradingRiskEventRuntime(deps);
 
     runtime.start();
@@ -457,13 +466,13 @@ describe('tradingRiskEventRuntime runtime flow', () => {
     });
     consistencyPort.enablePendingFreshWait();
     const { deps } = createRuntimeDeps({
+      consistencyPort,
       unrealizedLossMonitor: createUnrealizedLossMonitorDouble({
         monitorDirectionalUnrealizedLoss: async ({ quote }) => {
           executedPrices.push(quote.price);
         },
       }),
     });
-    deps.postTradeConsistencyRuntime = consistencyPort.port;
     const runtime = createTradingRiskEventRuntime(deps);
 
     runtime.start();
@@ -496,6 +505,7 @@ describe('tradingRiskEventRuntime runtime flow', () => {
       isHalfDay: false,
     };
     const { deps } = createRuntimeDeps({
+      consistencyPort,
       lastState,
       unrealizedLossMonitor: createUnrealizedLossMonitorDouble({
         monitorDirectionalUnrealizedLoss: async ({ quote }) => {
@@ -503,7 +513,6 @@ describe('tradingRiskEventRuntime runtime flow', () => {
         },
       }),
     });
-    deps.postTradeConsistencyRuntime = consistencyPort.port;
     const runtime = createTradingRiskEventRuntime(deps);
 
     runtime.start();

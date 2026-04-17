@@ -201,12 +201,6 @@ export const API = {
 
 /** 指标缓存相关常量 */
 export const INDICATOR_CACHE = {
-  /** 指标计算缓存 TTL（毫秒） */
-  CALCULATION_TTL_MS: 5_000,
-
-  /** 指标计算最大缓存条目数（防止内存泄漏） */
-  CALCULATION_MAX_SIZE: 50,
-
   /** 指标时序缓存默认最大条目数（环形缓冲区） */
   TIMESERIES_DEFAULT_MAX_ENTRIES: 100,
 } as const;

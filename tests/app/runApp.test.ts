@@ -356,7 +356,6 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
           start: () => {
             harnessState.events.push('monitorTaskProcessor.start');
           },
-          stop: () => {},
           stopAndDrain: async () => {},
           restart: () => {},
         },

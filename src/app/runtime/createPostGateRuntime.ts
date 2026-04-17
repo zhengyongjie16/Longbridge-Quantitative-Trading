@@ -143,7 +143,7 @@ function resolveTradeRecordFromOrderStateChangedEvent(
  *
  * @param params 运行时环境与订单状态事件
  */
-export function persistTradeRecordFromOrderStateChangedEvent(params: {
+function persistTradeRecordFromOrderStateChangedEvent(params: {
   readonly env: NodeJS.ProcessEnv;
   readonly event: OrderStateChangedEvent;
 }): void {
@@ -382,7 +382,6 @@ export async function createPostGateRuntime(
     postTradeConsistencyRuntime,
     lastState,
     trader,
-    tradeLogHydrator,
     loadTradingDayRuntimeSnapshot,
     marketMonitor,
     doomsdayProtection,

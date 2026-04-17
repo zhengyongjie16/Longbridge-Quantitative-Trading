@@ -74,12 +74,18 @@ class TestNaiveDate {
 import {
   Market as RealMarket,
   Period as RealPeriod,
+  SortOrderType,
   TradeSessions as RealTradeSessions,
+  WarrantSortBy,
+  WarrantStatus,
+  WarrantType,
 } from 'longbridge';
 
 import {
   createPushCandlestickEvent,
   createPushQuoteEvent,
+  createWarrantInfo,
+  createWarrantQuote,
 } from '../../../mock/factories/quoteFactory.js';
 import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
 import { createMarketDataClient } from '../../../src/services/quoteClient/index.js';
@@ -400,6 +406,48 @@ describe('quoteClient business flow', () => {
     expect(quoteMock.getCalls('subscribeCandlesticks')[0]?.args[2]).toBe(
       RealTradeSessions.Intraday,
     );
+  });
+
+  it('bridges quote context warrant queries without altering request or response data', async () => {
+    quoteMock.seedWarrantQuotes([
+      createWarrantQuote({ symbol: 'BULL-CALL.HK', callPrice: 18800, category: 1 }),
+    ]);
+
+    quoteMock.seedWarrantList('HSI.HK', [
+      createWarrantInfo({ symbol: 'BULL-CALL.HK', warrantType: 'Bull', callPrice: 18800 }),
+      createWarrantInfo({ symbol: 'BEAR-CALL.HK', warrantType: 'Bear', callPrice: 21200 }),
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    const quoteContext = await client.getQuoteContext();
+    const warrantQuotes = await quoteContext.warrantQuote(['BULL-CALL.HK']);
+    const warrantList = await quoteContext.warrantList({
+      symbol: 'HSI.HK',
+      sortBy: WarrantSortBy.Turnover,
+      sortOrder: SortOrderType.Descending,
+      types: [WarrantType.Bull],
+      issuerIds: [1, 2],
+      status: [WarrantStatus.Normal],
+    });
+
+    expect(warrantQuotes).toHaveLength(1);
+    expect(warrantQuotes[0]?.symbol).toBe('BULL-CALL.HK');
+    expect(warrantList.map((item) => item.symbol)).toEqual(['BULL-CALL.HK']);
+    expect(quoteMock.getCalls('warrantQuote')[0]?.args).toEqual([['BULL-CALL.HK']]);
+    expect(quoteMock.getCalls('warrantList')[0]?.args).toEqual([
+      'HSI.HK',
+      WarrantSortBy.Turnover,
+      SortOrderType.Descending,
+      [WarrantType.Bull],
+      [1, 2],
+      undefined,
+      undefined,
+      [WarrantStatus.Normal],
+    ]);
   });
 
   it('returns null for subscribed symbol when realtime quote is not warmed', async () => {

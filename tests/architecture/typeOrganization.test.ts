@@ -5,7 +5,7 @@
  * - 本次专项治理的硬违规文件不再在实现文件中声明命名类型
  * - strategy 契约类型整合到 core/strategy/types.ts
  * - 本次触达的 types.ts 保持纯类型文件
- * - 本次触达的 utils.ts 不再定义 type/interface
+ * - 已确认的内部符号不再作为公共 surface 导出
  */
 import path from 'node:path';
 import { constants as fsConstants } from 'node:fs';
@@ -41,6 +41,13 @@ function getRelevantLines(source: string): string[] {
     );
 }
 
+function expectNoNamedExport(source: string, symbolName: string): void {
+  expect(source).not.toMatch(
+    new RegExp(`export\\s+(?:type|interface|function)\\s+${symbolName}\\b`),
+  );
+  expect(source).not.toMatch(new RegExp(`export\\s*\\{[^}]*\\b${symbolName}\\b[^}]*\\}`));
+}
+
 describe('type organization regressions', () => {
   it('keeps named type declarations out of the scoped implementation files', async () => {
     const fileChecks: ReadonlyArray<{
@@ -59,10 +66,6 @@ describe('type organization regressions', () => {
       {
         relativePath: 'src/services/indicators/runtime/index.ts',
         forbiddenPatterns: [/\btype\s+IndicatorRuntimeState\b/],
-      },
-      {
-        relativePath: 'src/main/asyncProgram/monitorTaskProcessor/utils.ts',
-        forbiddenPatterns: [/\btype\s+MonitorContextAndSeatReadiness\b/],
       },
       {
         relativePath: 'src/main/asyncProgram/monitorTaskProcessor/index.ts',
@@ -144,6 +147,49 @@ describe('type organization regressions', () => {
     expect(orderMonitorTypesSource).not.toMatch(/stateCheckBlockedUntilAt/);
   });
 
+  it('keeps config module internal helpers non-exported', async () => {
+    const tradingUtilsSource = await readProjectFile('src/config/trading/utils.ts');
+    const validatorUtilsSource = await readProjectFile('src/config/validator/utils.ts');
+
+    expect(tradingUtilsSource).not.toMatch(
+      /export\s+function\s+parseFailFastMinimumNumberConfig\b/,
+    );
+
+    expect(validatorUtilsSource).not.toMatch(
+      /export\s+function\s+validateCriticalMinimumNumberConfig\b/,
+    );
+  });
+
+  it('keeps orderMonitor production dependencies free of test-only hooks', async () => {
+    const sources = [
+      await readProjectFile('src/core/trader/types.ts'),
+      await readProjectFile('src/core/trader/orderMonitor/index.ts'),
+    ];
+    const forbiddenPatterns = [/testHooks/, /setHandleOrderChanged/] as const;
+
+    for (const source of sources) {
+      for (const forbiddenPattern of forbiddenPatterns) {
+        expect(source).not.toMatch(forbiddenPattern);
+      }
+    }
+  });
+
+  it('keeps routingIndex internal state helpers non-exported', async () => {
+    const routingIndexSource = await readProjectFile(
+      'src/core/trader/orderMonitor/routingIndex.ts',
+    );
+
+    expect(routingIndexSource).not.toMatch(/export\s+function\s+ensureRouteState\b/);
+  });
+
+  it('keeps concrete strategy implementation factory non-exported', async () => {
+    const strategySource = await readProjectFile('src/core/strategy/index.ts');
+
+    expect(strategySource).not.toMatch(
+      /export\s+function\s+createHangSengMultiIndicatorStrategy\b/,
+    );
+  });
+
   it('keeps scoped types.ts files free of runtime declarations', async () => {
     const scopedTypeFiles = [
       'src/core/strategy/types.ts',
@@ -182,20 +228,68 @@ describe('type organization regressions', () => {
     }
   });
 
-  it('keeps scoped utils.ts files free of type declarations', async () => {
-    const scopedUtilsFiles = ['src/main/asyncProgram/monitorTaskProcessor/utils.ts'] as const;
+  it('keeps shared constants and service ports free of confirmed dead public surface', async () => {
+    const constantsSource = await readProjectFile('src/constants/index.ts');
+    const servicesTypesSource = await readProjectFile('src/types/services.ts');
 
-    for (const relativePath of scopedUtilsFiles) {
-      const relevantLines = getRelevantLines(await readProjectFile(relativePath));
-      expect(
-        relevantLines.some(
-          (line) =>
-            line.startsWith('type ') ||
-            line.startsWith('interface ') ||
-            line.startsWith('export type ') ||
-            line.startsWith('export interface '),
-        ),
-      ).toBe(false);
-    }
+    expect(constantsSource).not.toMatch(/CALCULATION_TTL_MS/);
+    expect(constantsSource).not.toMatch(/CALCULATION_MAX_SIZE/);
+    expectNoNamedExport(servicesTypesSource, 'MarketWarrantListItem');
+    expectNoNamedExport(servicesTypesSource, 'MarketWarrantListRequest');
+    expectNoNamedExport(servicesTypesSource, 'MarketWarrantQuote');
+    expectNoNamedExport(servicesTypesSource, 'OrderRecorderPendingSellAndSellable');
+  });
+
+  it('keeps shared foundational helper types private when only nested consumers need them', async () => {
+    const dataTypesSource = await readProjectFile('src/types/data.ts');
+    const quoteTypesSource = await readProjectFile('src/types/quote.ts');
+
+    expect(await exists('src/types/common.ts')).toBe(false);
+    expectNoNamedExport(dataTypesSource, 'CandleValue');
+    expectNoNamedExport(quoteTypesSource, 'QuoteStaticInfo');
+  });
+
+  it('keeps unused startup run mode parsing removed from production surface', async () => {
+    const startupModesSource = await readProjectFile('src/app/startup/startupModes.ts');
+    const seatTypesSource = await readProjectFile('src/types/seat.ts');
+
+    expectNoNamedExport(startupModesSource, 'resolveRunMode');
+    expectNoNamedExport(seatTypesSource, 'RunMode');
+  });
+
+  it('keeps non-app modules free of confirmed dead public surface', async () => {
+    const indicatorRuntimeUtilsSource = await readProjectFile(
+      'src/services/indicators/runtime/utils.ts',
+    );
+    const objectPoolSource = await readProjectFile('src/utils/objectPool/index.ts');
+    const objectPoolTypesSource = await readProjectFile('src/utils/objectPool/types.ts');
+    const monitorQuoteTypesSource = await readProjectFile(
+      'src/main/monitorQuoteEventRuntime/types.ts',
+    );
+    const tradingRiskTypesSource = await readProjectFile(
+      'src/main/tradingRiskEventRuntime/types.ts',
+    );
+    const signalRuntimeDomainTypesSource = await readProjectFile(
+      'src/main/lifecycle/cacheDomains/types.ts',
+    );
+    const orderMonitorTypesSource = await readProjectFile('src/core/trader/orderMonitor/types.ts');
+    const monitorTaskProcessorTypesSource = await readProjectFile(
+      'src/main/asyncProgram/monitorTaskProcessor/types.ts',
+    );
+
+    expect(indicatorRuntimeUtilsSource).not.toMatch(/export\s+function\s+logDebug\b/);
+    expect(objectPoolSource).not.toMatch(/export\s+const\s+positionObjectPool\b/);
+    expect(objectPoolTypesSource).not.toMatch(/export\s+type\s+PoolablePosition\b/);
+    expect(monitorQuoteTypesSource).not.toMatch(/export\s+type\s+MonitorQuoteFreshnessStatus\b/);
+    expect(monitorQuoteTypesSource).not.toMatch(/export\s+interface\s+SwitchWakeupFreshnessDeps\b/);
+    expect(tradingRiskTypesSource).not.toMatch(/export\s+interface\s+TradingRiskConsistencyPort\b/);
+    expect(signalRuntimeDomainTypesSource).not.toMatch(
+      /export\s+interface\s+SignalRuntimePostTradeConsistencyRuntime\b/,
+    );
+    expect(orderMonitorTypesSource).not.toMatch(/export\s+type\s+OrderMonitorTimerRegistration\b/);
+    expect(orderMonitorTypesSource).not.toMatch(/export\s+type\s+PendingSellDisposition\b/);
+    expect(monitorTaskProcessorTypesSource).not.toMatch(
+      /export\s+interface\s+MonitorTaskProcessor[\s\S]*?readonly\s+stop:/,
+    );
   });
 });

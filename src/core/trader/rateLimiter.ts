@@ -60,13 +60,12 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
       // 1. 检查最小调用间隔（两次调用间隔不少于 API.MIN_CALL_INTERVAL_MS 毫秒）
       const lastCallTime = callTimestamps.at(-1);
       if (lastCallTime) {
-        const timeSinceLastCall = now - lastCallTime;
-        if (timeSinceLastCall < API.MIN_CALL_INTERVAL_MS) {
-          const waitTime = API.MIN_CALL_INTERVAL_MS - timeSinceLastCall;
+        while (now - lastCallTime < API.MIN_CALL_INTERVAL_MS) {
+          const waitTime = API.MIN_CALL_INTERVAL_MS - (now - lastCallTime);
           await new Promise<void>((resolve) => {
             setTimeout(resolve, waitTime);
           });
-          now = performance.now(); // 更新当前单调时间
+          now = performance.now();
         }
       }
 

@@ -65,7 +65,7 @@ function clearRouteTimers(routeState: OrderMonitorSymbolRouteState): void {
  * @param symbol 交易标的
  * @returns 已存在或新建的 route state
  */
-export function ensureRouteState(
+function ensureRouteState(
   runtime: OrderMonitorRuntimeStore,
   symbol: string,
 ): OrderMonitorSymbolRouteState {

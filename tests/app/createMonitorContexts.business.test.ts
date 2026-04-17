@@ -119,12 +119,6 @@ function createRuntime(monitors: ReadonlyArray<MonitorConfig>): {
       isTradingDay: true,
       isHalfDay: false,
     },
-    startupGate: {
-      wait: async () => ({
-        isTradingDay: true,
-        isHalfDay: false,
-      }),
-    },
   };
 
   const postGateRuntime: MutableMonitorContextsPostGateRuntime = {
@@ -199,9 +193,6 @@ function createRuntime(monitors: ReadonlyArray<MonitorConfig>): {
       allTradingSymbols: new Set<string>(),
     },
     trader,
-    tradeLogHydrator: {
-      hydrate: () => new Map<string, number>(),
-    },
     loadTradingDayRuntimeSnapshot: async () => ({
       allOrders: [],
       quotesMap: new Map(),

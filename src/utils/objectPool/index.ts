@@ -6,7 +6,6 @@ import type {
   PoolableKDJ,
   PoolableMACD,
   PoolableMonitorValues,
-  PoolablePosition,
   PoolableVerificationEntry,
 } from './types.js';
 import type { Signal } from '../../types/signal.js';
@@ -273,38 +272,6 @@ export const monitorValuesObjectPool = createObjectPool<PoolableMonitorValues>(
 export function acquireMonitorValues(): MonitorValues {
   return monitorValuesObjectPool.acquire() as unknown as MonitorValues;
 }
-
-/**
- * 持仓对象池
- * 用于持仓数据对象的复用
- *
- * 注意：acquire() 返回 PoolablePosition，使用时需要断言为 Position 类型
- * 这是对象池模式的标准实现，类型断言在此场景下是安全的
- */
-export const positionObjectPool = createObjectPool<PoolablePosition>(
-  () => ({
-    accountChannel: null,
-    symbol: null,
-    symbolName: null,
-    quantity: 0,
-    availableQuantity: 0,
-    currency: null,
-    costPrice: 0,
-    market: null,
-  }),
-  (obj) => {
-    obj.accountChannel = null;
-    obj.symbol = null;
-    obj.symbolName = null;
-    obj.quantity = 0;
-    obj.availableQuantity = 0;
-    obj.currency = null;
-    obj.costPrice = 0;
-    obj.market = null;
-    return obj;
-  },
-  10, // 通常不会有超过10个持仓
-);
 
 /**
  * 周期指标记录对象池（数字键）

@@ -11,7 +11,6 @@ import {
   OrderStatus,
   OrderType,
   TopicType,
-  type PushOrderChanged,
   type TradeContext,
 } from 'longbridge';
 import { createOrderMonitor } from '../../../src/core/trader/orderMonitor/index.js';
@@ -98,6 +97,17 @@ async function waitForConditionWithDelay(
   throw new Error(failureMessage);
 }
 
+async function emitOrderChanged(
+  tradeCtx: ReturnType<typeof createTradeContextMock>,
+  event: Parameters<ReturnType<typeof createTradeContextMock>['emitOrderChanged']>[0],
+): Promise<void> {
+  expect(tradeCtx.getSubscribedTopics().has(TopicType.Private)).toBe(true);
+  tradeCtx.emitOrderChanged(event);
+  tradeCtx.flushAllEvents();
+  await flushMicrotasks();
+  await flushMicrotasks();
+}
+
 type RuntimeTimerHarness = {
   readonly advanceBy: (delayMs: number) => Promise<void>;
   readonly restore: () => void;
@@ -173,7 +183,6 @@ function createDeps(params?: {
   readonly buyTimeoutSeconds?: number;
   readonly allowBuyOrderTrackingAboveInitialPrice?: boolean;
   readonly gateOpen?: () => boolean;
-  readonly onHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
   readonly allocateRelatedBuyOrderIdsForRecovery?: () => readonly string[];
   readonly liquidationTriggerLimit?: number;
   readonly protectiveLiquidationEpisodeTrackerOverride?: OrderMonitorDeps['protectiveLiquidationEpisodeTracker'];
@@ -388,13 +397,6 @@ function createDeps(params?: {
     },
     tradingConfig,
     symbolRegistry,
-    ...(params?.onHandleOrderChanged
-      ? {
-          testHooks: {
-            setHandleOrderChanged: params.onHandleOrderChanged,
-          },
-        }
-      : {}),
     isExecutionAllowed: params?.gateOpen ?? (() => true),
   };
 
@@ -827,14 +829,8 @@ describe('orderMonitor business flow', () => {
   });
 
   it('does not retry cancel when timed-out sell receives PendingCancel after cancel request success', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
     });
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
@@ -854,7 +850,8 @@ describe('orderMonitor business flow', () => {
     });
     await flushMicrotasks();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-TIMEOUT-PENDING-CANCEL',
         symbol: 'BULL.HK',
@@ -875,15 +872,9 @@ describe('orderMonitor business flow', () => {
   });
 
   it('does not retry cancel when timed-out buy receives PendingCancel after cancel request success', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const { deps, tradeCtx } = createDeps({
       buyTimeoutSeconds: 0,
       sellTimeoutSeconds: 999,
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
     });
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
@@ -903,7 +894,8 @@ describe('orderMonitor business flow', () => {
     });
     await flushMicrotasks();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'BUY-TIMEOUT-PENDING-CANCEL',
         symbol: 'BULL.HK',
@@ -923,14 +915,8 @@ describe('orderMonitor business flow', () => {
   });
 
   it('does not retry cancel when timed-out sell receives WaitToCancel after cancel request success', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
     });
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
@@ -950,7 +936,8 @@ describe('orderMonitor business flow', () => {
     });
     await flushMicrotasks();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-TIMEOUT-WAIT-TO-CANCEL',
         symbol: 'BULL.HK',
@@ -971,15 +958,9 @@ describe('orderMonitor business flow', () => {
   });
 
   it('does not retry cancel when timed-out buy receives WaitToCancel after cancel request success', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const { deps, tradeCtx } = createDeps({
       buyTimeoutSeconds: 0,
       sellTimeoutSeconds: 999,
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
     });
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
@@ -999,7 +980,8 @@ describe('orderMonitor business flow', () => {
     });
     await flushMicrotasks();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'BUY-TIMEOUT-WAIT-TO-CANCEL',
         symbol: 'BULL.HK',
@@ -1050,14 +1032,8 @@ describe('orderMonitor business flow', () => {
   });
 
   it('converts timed-out sell to market order after WS confirms non-filled terminal', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
     });
     const monitor = createOrderMonitor(deps);
 
@@ -1084,7 +1060,8 @@ describe('orderMonitor business flow', () => {
     );
     await flushMicrotasks();
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-TIMEOUT-CONVERT-WS',
         symbol: 'BULL.HK',
@@ -1118,15 +1095,9 @@ describe('orderMonitor business flow', () => {
   });
 
   it('fails fast when timeout market sell submit response misses real orderId', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     let submitCalls = 0;
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
     });
     tradeCtx.submitOrder = (async () => {
       submitCalls += 1;
@@ -1156,7 +1127,8 @@ describe('orderMonitor business flow', () => {
       '[测试] 预期超时卖单先发起撤单，但 cancelOrder 未发生',
     );
     await flushMicrotasks();
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-TIMEOUT-MISSING-ID',
         symbol: 'BULL.HK',
@@ -1187,15 +1159,9 @@ describe('orderMonitor business flow', () => {
   });
 
   it('surfaces timeout market sell local sync failures after broker submit succeeds', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const pendingSellSnapshot = new Map<string, PendingSellInfo>();
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
       orderRecorderOverride: createOrderRecorderDouble({
         allocateRelatedBuyOrderIdsForRecovery: () => ['BUY-1'],
         submitSellOrder: (
@@ -1260,7 +1226,8 @@ describe('orderMonitor business flow', () => {
       '[测试] 预期超时卖单先发起撤单，但 cancelOrder 未发生',
     );
     await flushMicrotasks();
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-TIMEOUT-LOCAL-SYNC-FAIL',
         symbol: 'BULL.HK',
@@ -1386,15 +1353,9 @@ describe('orderMonitor business flow', () => {
   });
 
   it('does not replace orders when status/type is non-replaceable', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 999,
       buyTimeoutSeconds: 999,
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
     });
     const monitor = createOrderMonitor(deps);
 
@@ -1416,7 +1377,8 @@ describe('orderMonitor business flow', () => {
     });
     await flushMicrotasks();
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-003',
         symbol: 'BULL.HK',
@@ -1498,18 +1460,12 @@ describe('orderMonitor business flow', () => {
   });
 
   it('replays bootstrapping filled events after snapshot recovery', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
-    const { deps } = createDeps({
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
-    });
+    const { deps, tradeCtx } = createDeps({});
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-BOOTSTRAP-FILLED',
         symbol: 'BULL.HK',
@@ -1538,14 +1494,7 @@ describe('orderMonitor business flow', () => {
   });
 
   it('stopRuntimeAndDrain 后忽略 late order WS，不再改写 tracked truth', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
-    const { deps } = createDeps({
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
-    });
+    const { deps, tradeCtx } = createDeps({});
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
     await monitor.recoverOrderTrackingFromSnapshot([]);
@@ -1569,7 +1518,8 @@ describe('orderMonitor business flow', () => {
 
     await monitor.stopRuntimeAndDrain();
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-STOPPED-LATE-WS',
         symbol: 'BULL.HK',
@@ -1587,14 +1537,7 @@ describe('orderMonitor business flow', () => {
   });
 
   it('clearTrackedOrders 后到下一次 initialize 前的 late WS 不会污染下一轮 recovery', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
-    const { deps } = createDeps({
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
-    });
+    const { deps, tradeCtx } = createDeps({});
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
     await monitor.recoverOrderTrackingFromSnapshot([]);
@@ -1602,7 +1545,8 @@ describe('orderMonitor business flow', () => {
     await monitor.stopRuntimeAndDrain();
     monitor.clearTrackedOrders();
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-CLEAR-STALE-WS',
         symbol: 'BULL.HK',
@@ -1632,9 +1576,6 @@ describe('orderMonitor business flow', () => {
   });
 
   it('restores protective liquidation semantics for recovered pending sells and keeps monitor trigger limit', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const progressCalls: Array<{
       monitorSymbol: string;
       direction: 'LONG' | 'SHORT';
@@ -1642,16 +1583,13 @@ describe('orderMonitor business flow', () => {
       executedTimeMs: number;
     }> = [];
     const executedTimeMs = Date.parse('2026-02-25T03:20:00.000Z');
-    const { deps } = createDeps({
+    const { deps, tradeCtx } = createDeps({
       liquidationTriggerLimit: 3,
       protectiveLiquidationEpisodeTrackerOverride: createProtectiveLiquidationEpisodeTrackerDouble({
         recordProtectiveFillProgress: (params) => {
           progressCalls.push(params);
         },
       }),
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
     });
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
@@ -1666,7 +1604,8 @@ describe('orderMonitor business flow', () => {
       }),
     ]);
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-RECOVER-PROTECTIVE',
         symbol: 'BULL.HK',
@@ -1892,16 +1831,10 @@ describe('orderMonitor business flow', () => {
   });
 
   it('records local buy when timeout cancel fails by network error and filled event arrives later', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     let localBuyCount = 0;
     const { deps, tradeCtx } = createDeps({
       buyTimeoutSeconds: 0,
       sellTimeoutSeconds: 999,
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
       orderRecorderOverride: createOrderRecorderDouble({
         recordLocalBuy: () => {
           localBuyCount += 1;
@@ -1933,7 +1866,8 @@ describe('orderMonitor business flow', () => {
     });
     await flushMicrotasks();
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'BUY-TIMEOUT-NETWORK-FAIL',
         symbol: 'BULL.HK',
@@ -1951,9 +1885,6 @@ describe('orderMonitor business flow', () => {
   });
 
   it('settles filled quantity once when sell is canceled after partial fill', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const pendingSellSnapshot = new Map<string, PendingSellInfo>();
     const buyOrders: ReadonlyArray<OrderRecord> = [
       {
@@ -2046,7 +1977,7 @@ describe('orderMonitor business flow', () => {
         });
       },
     });
-    const { deps } = createDeps({
+    const { deps, tradeCtx } = createDeps({
       orderRecorderOverride: orderRecorder,
       dailyLossTrackerOverride: {
         resetAll: () => {},
@@ -2056,9 +1987,6 @@ describe('orderMonitor business flow', () => {
           dailyLossCalls += 1;
         },
         getLossOffset: () => 0,
-      },
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
       },
       onRecordSettlementRefreshNeed: (need) => {
         refreshNeeds.push(need);
@@ -2086,7 +2014,8 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-PARTIAL-CANCELED',
         symbol: 'BULL.HK',
@@ -2101,7 +2030,8 @@ describe('orderMonitor business flow', () => {
       }),
     );
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-PARTIAL-CANCELED',
         symbol: 'BULL.HK',
@@ -2116,7 +2046,8 @@ describe('orderMonitor business flow', () => {
       }),
     );
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-PARTIAL-CANCELED',
         symbol: 'BULL.HK',
@@ -2146,9 +2077,6 @@ describe('orderMonitor business flow', () => {
   });
 
   it('settles filled quantity once when sell is rejected after partial fill', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const pendingSellSnapshot = new Map<string, PendingSellInfo>();
     const buyOrders: ReadonlyArray<OrderRecord> = [
       {
@@ -2241,7 +2169,7 @@ describe('orderMonitor business flow', () => {
         });
       },
     });
-    const { deps } = createDeps({
+    const { deps, tradeCtx } = createDeps({
       orderRecorderOverride: orderRecorder,
       dailyLossTrackerOverride: {
         resetAll: () => {},
@@ -2251,9 +2179,6 @@ describe('orderMonitor business flow', () => {
           dailyLossCalls += 1;
         },
         getLossOffset: () => 0,
-      },
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
       },
       onRecordSettlementRefreshNeed: (need) => {
         refreshNeeds.push(need);
@@ -2281,7 +2206,8 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-PARTIAL-REJECTED',
         symbol: 'BULL.HK',
@@ -2296,7 +2222,8 @@ describe('orderMonitor business flow', () => {
       }),
     );
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-PARTIAL-REJECTED',
         symbol: 'BULL.HK',
@@ -2311,7 +2238,8 @@ describe('orderMonitor business flow', () => {
       }),
     );
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-PARTIAL-REJECTED',
         symbol: 'BULL.HK',
@@ -2341,9 +2269,6 @@ describe('orderMonitor business flow', () => {
   });
 
   it('falls back to quantity-based local settlement when partial fill cannot be mapped to exact buy orders', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const pendingSellSnapshot = new Map<string, PendingSellInfo>();
     const buyOrders: ReadonlyArray<OrderRecord> = [
       {
@@ -2427,11 +2352,8 @@ describe('orderMonitor business flow', () => {
         });
       },
     });
-    const { deps } = createDeps({
+    const { deps, tradeCtx } = createDeps({
       orderRecorderOverride: orderRecorder,
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
     });
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
@@ -2455,7 +2377,8 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-PARTIAL-FALLBACK',
         symbol: 'BULL.HK',
@@ -2470,7 +2393,8 @@ describe('orderMonitor business flow', () => {
       }),
     );
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'SELL-PARTIAL-FALLBACK',
         symbol: 'BULL.HK',
@@ -2698,15 +2622,9 @@ describe('orderMonitor business flow', () => {
     const runtimeTimers = createRuntimeTimerHarness(Date.parse('2026-04-10T09:30:00.000Z'));
 
     try {
-      let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-        throw new Error('handleOrderChanged hook was not captured');
-      };
       const { deps, tradeCtx } = createDeps({
         sellTimeoutSeconds: 999,
         buyTimeoutSeconds: 1,
-        onHandleOrderChanged: (handler) => {
-          handleOrderChanged = handler;
-        },
       });
       const monitor = createOrderMonitor(deps);
       await monitor.initialize();
@@ -2736,7 +2654,8 @@ describe('orderMonitor business flow', () => {
         'BUY-INITIALIZE-ACTIVE-SHOULD-STAY-ACTIVE',
       );
 
-      handleOrderChanged(
+      await emitOrderChanged(
+        tradeCtx,
         createPushOrderChanged({
           orderId: 'BUY-INITIALIZE-ACTIVE-SHOULD-STAY-ACTIVE',
           symbol: 'BULL.HK',
@@ -2897,15 +2816,9 @@ describe('orderMonitor business flow', () => {
   it('resets 602013 consecutive counter after ws status progression and re-escalates only after next 5 hits', async () => {
     const runtimeTimers = createRuntimeTimerHarness(Date.parse('2026-02-25T04:00:00.000Z'));
 
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     const { deps, tradeCtx, emitQuoteUpdated } = createDeps({
       sellTimeoutSeconds: 999,
       buyTimeoutSeconds: 999,
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
     });
     tradeCtx.setFailureRule('replaceOrder', {
       failAtCalls: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -2983,7 +2896,8 @@ describe('orderMonitor business flow', () => {
       await flushMicrotasks();
       await flushMicrotasks();
 
-      handleOrderChanged(
+      await emitOrderChanged(
+        tradeCtx,
         createPushOrderChanged({
           orderId: 'SELL-REPLACE-602013-RESET',
           symbol: 'BULL.HK',
@@ -2997,7 +2911,8 @@ describe('orderMonitor business flow', () => {
         }),
       );
 
-      handleOrderChanged(
+      await emitOrderChanged(
+        tradeCtx,
         createPushOrderChanged({
           orderId: 'SELL-REPLACE-602013-RESET',
           symbol: 'BULL.HK',
@@ -3286,15 +3201,9 @@ describe('orderMonitor business flow', () => {
   });
 
   it('keeps close sink idempotent when duplicate filled events are received and emits one order state event', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     let localBuyCount = 0;
     const orderStateEvents: OrderStateChangedEvent[] = [];
-    const { deps } = createDeps({
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
+    const { deps, tradeCtx } = createDeps({
       orderRecorderOverride: createOrderRecorderDouble({
         recordLocalBuy: () => {
           localBuyCount += 1;
@@ -3334,8 +3243,8 @@ describe('orderMonitor business flow', () => {
       executedQuantity: 100,
       updatedAtMs: Date.now(),
     });
-    handleOrderChanged(filledEvent);
-    handleOrderChanged(filledEvent);
+    await emitOrderChanged(tradeCtx, filledEvent);
+    await emitOrderChanged(tradeCtx, filledEvent);
 
     expect(localBuyCount).toBe(1);
     expect(orderStateEvents).toHaveLength(1);
@@ -3355,19 +3264,13 @@ describe('orderMonitor business flow', () => {
   });
 
   it('records executed buy quantity when PartialWithdrawal closes remaining quantity', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('handleOrderChanged hook was not captured');
-    };
     let localBuyCount = 0;
     let dailyLossCount = 0;
     const refreshNeeds: Array<{
       readonly refreshAccount: boolean;
       readonly refreshPositions: boolean;
     }> = [];
-    const { deps } = createDeps({
-      onHandleOrderChanged: (handler) => {
-        handleOrderChanged = handler;
-      },
+    const { deps, tradeCtx } = createDeps({
       orderRecorderOverride: createOrderRecorderDouble({
         recordLocalBuy: () => {
           localBuyCount += 1;
@@ -3403,7 +3306,8 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    handleOrderChanged(
+    await emitOrderChanged(
+      tradeCtx,
       createPushOrderChanged({
         orderId: 'BUY-PARTIAL-WITHDRAWAL',
         symbol: 'BULL.HK',

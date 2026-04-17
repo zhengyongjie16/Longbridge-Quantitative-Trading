@@ -104,7 +104,7 @@ export function parseFailFastBoundedNumberConfig({
  * @param options 包含 env、envKey、defaultValue、min 的配置对象
  * @returns 大于等于 min 的合法数值
  */
-export function parseFailFastMinimumNumberConfig({
+function parseFailFastMinimumNumberConfig({
   env,
   envKey,
   defaultValue,

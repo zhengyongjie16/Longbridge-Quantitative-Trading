@@ -17,12 +17,19 @@ import type {
 import type { SignalType, Signal } from './signal.js';
 import type { Quote, IndicatorSnapshot } from './quote.js';
 import type { AccountSnapshot, Position } from './account.js';
-import type { DecimalLikeValue } from './common.js';
 import type { MonitorConfig } from './config.js';
 import type { TradingCalendarSnapshot } from './tradingCalendar.js';
 import type { CancelOrderOutcome, OrderClosedReason } from './trader.js';
 import type { CandleData } from './data.js';
 import type { DecimalLike } from '../utils/helpers/types.js';
+
+/**
+ * 可转换为数字的值类型。
+ * 类型用途：兼容 Longbridge SDK 返回的 Decimal 与原始数值，用于当前服务类型中的价格、数量等字段声明。
+ * 数据来源：Longbridge API 返回或本地数字。
+ * 使用范围：services 类型模块内部字段复用，不作为跨模块公共类型导出。
+ */
+type DecimalLikeValue = string | number | null;
 
 /**
  * 交易日查询结果。
@@ -103,9 +110,9 @@ export type CandlestickUpdatedEvent = {
  * 轮证报价最小结构。
  * 类型用途：表达当前仓库直接消费的 warrantQuote 字段边界，仅保留 symbol/callPrice/category。
  * 数据来源：quoteClient 透传的 Longbridge warrantQuote 响应。
- * 使用范围：牛熊证风险检查等直接消费 warrantQuote 的链路。
+ * 使用范围：MarketQuoteContext.warrantQuote 返回值内部使用，不作为跨模块公共类型导出。
  */
-export type MarketWarrantQuote = Readonly<{
+type MarketWarrantQuote = Readonly<{
   readonly symbol: string;
   readonly callPrice?: DecimalLike | DecimalLikeValue;
   readonly category?: number | string | null;
@@ -115,9 +122,9 @@ export type MarketWarrantQuote = Readonly<{
  * 轮证列表最小结构。
  * 类型用途：表达当前仓库直接消费的 warrantList 字段边界，仅保留自动寻标所需字段。
  * 数据来源：quoteClient 透传的 Longbridge warrantList 响应。
- * 使用范围：自动寻标、换标预寻标与运行时席位恢复链路。
+ * 使用范围：MarketQuoteContext.warrantList 返回值内部使用，不作为跨模块公共类型导出。
  */
-export type MarketWarrantListItem = Readonly<{
+type MarketWarrantListItem = Readonly<{
   readonly symbol: string;
   readonly name?: string | null;
   readonly lastDone: DecimalLike | DecimalLikeValue | null | undefined;
@@ -132,9 +139,9 @@ export type MarketWarrantListItem = Readonly<{
  * 轮证列表查询参数。
  * 类型用途：收口 warrantList 查询所需参数，避免业务边界暴露过长的位置参数列表。
  * 数据来源：由自动寻标、换标预寻标与席位恢复链路组装。
- * 使用范围：MarketQuoteContext.warrantList 入参与相关业务调用方。
+ * 使用范围：MarketQuoteContext.warrantList 入参内部使用，不作为跨模块公共类型导出。
  */
-export type MarketWarrantListRequest = Readonly<{
+type MarketWarrantListRequest = Readonly<{
   readonly symbol: string;
   readonly sortBy: WarrantSortBy;
   readonly sortOrder: SortOrderType;
@@ -429,11 +436,11 @@ export interface RateLimiter {
 
 /**
  * 订单记录器中「待成交卖单 + 可卖订单」相关方法的共享契约。
- * 类型用途：OrderRecorder 与 OrderStorage 共用此方法集合，单一来源避免重复定义。
- * 数据来源：如适用。
- * 使用范围：OrderRecorder、OrderStorage 等订单记录相关契约；全项目可直接引用。
+ * 类型用途：抽取 OrderRecorder 内部复用的方法集合，避免在公开契约中重复书写同一组方法签名。
+ * 数据来源：由订单记录器实现提供。
+ * 使用范围：OrderRecorder 内部组合复用，不作为跨模块公共类型导出。
  */
-export interface OrderRecorderPendingSellAndSellable {
+interface OrderRecorderPendingSellAndSellable {
   /** 更新待成交卖单元数据（卖单合并后同步数量与占用集合） */
   updatePendingSell: (
     orderId: string,

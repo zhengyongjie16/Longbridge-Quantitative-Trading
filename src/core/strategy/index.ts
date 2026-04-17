@@ -66,7 +66,7 @@ const DEFAULT_VERIFICATION_CONFIG: VerificationConfig = {
   sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
 };
 
-export function createHangSengMultiIndicatorStrategy(
+function createHangSengMultiIndicatorStrategy(
   strategyConfig: Partial<TradingSignalStrategyConfig> = {},
 ): TradingSignalStrategy {
   const finalSignalConfig: SignalConfigSet = strategyConfig.signalConfig ?? {

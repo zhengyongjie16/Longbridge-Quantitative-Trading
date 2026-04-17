@@ -79,7 +79,6 @@ export function createLastState(monitorStates: ReadonlyMap<string, MonitorState>
 function defaultDeps(steps: string[]): CleanupContext {
   const monitorTaskProcessor: MonitorTaskProcessor = {
     start: () => {},
-    stop: () => {},
     stopAndDrain: async () => {
       steps.push('monitorTask');
     },

@@ -37,7 +37,7 @@ import { decimalToNumber, isRecord, isValidPositiveNumber } from '../../utils/he
 import type { DecimalLike } from '../../utils/helpers/types.js';
 import { logger } from '../../utils/logger/index.js';
 import { API, TRADING } from '../../constants/index.js';
-import type { Quote, QuoteStaticInfo } from '../../types/quote.js';
+import type { Quote } from '../../types/quote.js';
 import type {
   TradingDayInfo,
   MarketDataClient,
@@ -116,12 +116,12 @@ function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string>
 }
 
 /**
- * 将 unknown 静态信息标准化为 QuoteStaticInfo，字段类型不匹配时返回 null。
+ * 将 unknown 静态信息标准化为 Quote.staticInfo 可接受的结构；字段类型不匹配时返回 null。
  *
  * @param staticInfo 原始静态信息
- * @returns 标准化后的 QuoteStaticInfo 或 null
+ * @returns 标准化后的静态信息或 null
  */
-function normalizeQuoteStaticInfo(staticInfo: unknown): QuoteStaticInfo | null {
+function normalizeQuoteStaticInfo(staticInfo: unknown): Exclude<Quote['staticInfo'], undefined> {
   if (!isRecord(staticInfo)) {
     return null;
   }

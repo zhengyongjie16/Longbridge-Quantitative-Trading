@@ -19,7 +19,7 @@ import type {
 import { TRADING } from '../../src/constants/index.js';
 import { timeDriverProgram } from '../../src/main/timeDriverProgram/index.js';
 import { createMonitorContext } from '../../src/app/context/createMonitorContexts.js';
-import { createHangSengMultiIndicatorStrategy } from '../../src/core/strategy/index.js';
+import { createDefaultTradingSignalStrategyFactory } from '../../src/core/strategy/index.js';
 import {
   createBuyTaskQueue,
   createSellTaskQueue,
@@ -401,6 +401,7 @@ describe('main loop latency full-chain integration', () => {
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
 
     const monitorContexts = new Map<string, MonitorContext>();
+    const createStrategy = createDefaultTradingSignalStrategyFactory();
     for (const monitorConfig of monitorConfigs) {
       const monitorState = monitorStates.get(monitorConfig.monitorSymbol);
       if (!monitorState) {
@@ -414,7 +415,7 @@ describe('main loop latency full-chain integration', () => {
           state: monitorState,
           symbolRegistry,
           quotesMap: initialQuotes,
-          strategy: createHangSengMultiIndicatorStrategy({
+          strategy: createStrategy({
             signalConfig: monitorConfig.signalConfig,
             verificationConfig: monitorConfig.verificationConfig,
           }),

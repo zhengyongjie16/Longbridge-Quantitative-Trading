@@ -49,7 +49,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     orderHoldRegistry,
     protectiveLiquidationEpisodeTracker,
     postTradeConsistencyRuntime,
-    testHooks,
     tradingConfig,
     symbolRegistry,
     isExecutionAllowed,
@@ -221,8 +220,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       relatedBuyOrderIds: settlementResult.relatedBuyOrderIds,
     };
   }
-
-  testHooks?.setHandleOrderChanged?.(eventFlow.handleOrderChanged);
 
   /**
    * 初始化 WebSocket 订阅（订阅 Private 主题）。

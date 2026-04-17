@@ -4,9 +4,9 @@ import type { KDJIndicator, MACDIndicator } from './quote.js';
  * K 线数据值类型。
  * 类型用途：兼容 Longbridge SDK 的 Decimal 与原始数值，作为 CandleData 各 OHLCV 字段的类型。
  * 数据来源：Longbridge K 线 API 返回。
- * 使用范围：CandleData、指标计算等；全项目可引用。
+ * 使用范围：CandleData 字段内部复用，不作为跨模块公共类型导出。
  */
-export type CandleValue = number | string | { toString: () => string } | null | undefined;
+type CandleValue = number | string | { toString: () => string } | null | undefined;
 
 /**
  * K 线数据。
