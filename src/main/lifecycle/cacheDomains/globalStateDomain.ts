@@ -7,25 +7,22 @@
  * - 清空账户/持仓缓存，确保开盘重建强制拉取当日实时快照
  * - 清空交易标的集合（allTradingSymbols 的权威清理位置）
  * - 重置各监控标的的运行状态（行情、信号、指标快照等）
- * - 释放对象池中的快照对象，防止内存泄漏
  *
  * 开盘重建：
  * - 调用 runTradingDayOpenRebuild 执行完整的开盘重建流水线
  *   （加载运行时快照 → 重建交易日状态）
  */
 import { logger } from '../../../utils/logger/index.js';
-import { releaseSnapshotObjects } from '../../../utils/helpers/index.js';
 import type { LastState, MonitorState } from '../../../types/state.js';
 import type { CacheDomain } from '../types.js';
 import type { GlobalStateDomainDeps } from './types.js';
 
 /**
- * 重置单个监控标的的运行状态，释放快照对象回对象池，防止跨日数据污染。
+ * 重置单个监控标的的运行状态，防止跨日数据污染。
  *
  * @param monitorState 单个监控标的的运行时状态（lastMonitorSnapshot、longPrice 等）
  */
 function resetMonitorStateForNewDay(monitorState: MonitorState): void {
-  releaseSnapshotObjects(monitorState.lastMonitorSnapshot, monitorState.monitorValues);
   monitorState.longPrice = null;
   monitorState.shortPrice = null;
   monitorState.signal = null;

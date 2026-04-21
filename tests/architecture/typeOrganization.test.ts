@@ -261,8 +261,9 @@ describe('type organization regressions', () => {
     const indicatorRuntimeUtilsSource = await readProjectFile(
       'src/services/indicators/runtime/utils.ts',
     );
-    const objectPoolSource = await readProjectFile('src/utils/objectPool/index.ts');
-    const objectPoolTypesSource = await readProjectFile('src/utils/objectPool/types.ts');
+    const dailyKlineRuntimeSnapshotSource = await readProjectFile(
+      'tools/dailyKlineMonitor/runtimeSnapshot.ts',
+    );
     const monitorQuoteTypesSource = await readProjectFile(
       'src/main/monitorQuoteEventRuntime/types.ts',
     );
@@ -278,8 +279,9 @@ describe('type organization regressions', () => {
     );
 
     expect(indicatorRuntimeUtilsSource).not.toMatch(/export\s+function\s+logDebug\b/);
-    expect(objectPoolSource).not.toMatch(/export\s+const\s+positionObjectPool\b/);
-    expect(objectPoolTypesSource).not.toMatch(/export\s+type\s+PoolablePosition\b/);
+    expect(await exists('src/utils/objectPool/index.ts')).toBe(false);
+    expect(await exists('src/utils/objectPool/types.ts')).toBe(false);
+    expect(dailyKlineRuntimeSnapshotSource).not.toMatch(/utils\/objectPool\/index\.js/);
     expect(monitorQuoteTypesSource).not.toMatch(/export\s+type\s+MonitorQuoteFreshnessStatus\b/);
     expect(monitorQuoteTypesSource).not.toMatch(/export\s+interface\s+SwitchWakeupFreshnessDeps\b/);
     expect(tradingRiskTypesSource).not.toMatch(/export\s+interface\s+TradingRiskConsistencyPort\b/);

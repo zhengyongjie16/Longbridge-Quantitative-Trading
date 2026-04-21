@@ -15,7 +15,6 @@
  */
 import { OrderSide } from 'longbridge';
 import { logger } from '../../utils/logger/index.js';
-import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { isSeatActive } from '../../utils/seat/guards.js';
 import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
 import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/quoteRetry/index.js';
@@ -44,25 +43,24 @@ import { isCancelAcceptedOrTerminalNonFilledClose } from '../../utils/trading/or
 
 /**
  * 创建单个清仓信号（清仓接管窗口使用）。
- * 从对象池获取 Signal 对象并填充标的、动作、价格、原因等，避免频繁分配。
+ * 直接构造普通 Signal 对象，避免跨链路共享可变池化对象。
  *
  * @param params 清仓信号参数（标的、名称、动作、价格、每手股数、多空类型）
- * @returns 填充后的 Signal，或 null（调用方需在不用时释放回对象池）
+ * @returns 填充后的 Signal
  */
-function createClearanceSignal(params: ClearanceSignalParams): Signal | null {
+function createClearanceSignal(params: ClearanceSignalParams): Signal {
   const { symbol, symbolName, action, price, lotSize, positionType } = params;
   const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
 
-  // 对象池返回 PoolableSignal；末日清仓信号会在此处完整填充后按 Signal 使用
-  const signal = signalObjectPool.acquire() as Signal;
-  signal.symbol = symbol;
-  signal.symbolName = symbolName;
-  signal.action = action;
-  signal.reason = `末日保护程序：清仓接管窗口自动清仓（${positionLabel}持仓）`;
-  signal.price = price;
-  signal.lotSize = lotSize;
-  signal.triggerTime = new Date(); // 末日保护信号的触发时间为当前时间
-  return signal;
+  return {
+    symbol,
+    symbolName,
+    action,
+    reason: `末日保护程序：清仓接管窗口自动清仓（${positionLabel}持仓）`,
+    price,
+    lotSize,
+    triggerTime: new Date(),
+  };
 }
 
 /**
@@ -114,7 +112,7 @@ function resolveMonitorSymbols(
 
 /**
  * 处理单个持仓，生成一条清仓信号。
- * 仅当持仓属于当前监控配置（longSymbol/shortSymbol）且数量有效时生成信号；从对象池创建 Signal，调用方负责释放。
+ * 仅当持仓属于当前监控配置（longSymbol/shortSymbol）且数量有效时生成信号；直接构造普通 Signal。
  *
  * @param pos 持仓信息（标的、可用数量、名称等）
  * @param longSymbol 当前监控下的做多交易标的，null 表示无
@@ -176,12 +174,10 @@ function processPositionForClearance(
     lotSize,
     positionType,
   });
-  if (signal) {
-    const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
-    logger.debug(
-      `[末日保护程序] 生成清仓信号：${positionLabel} ${pos.symbol} 数量=${availableQty} 操作=${action}`,
-    );
-  }
+  const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
+  logger.debug(
+    `[末日保护程序] 生成清仓信号：${positionLabel} ${pos.symbol} 数量=${availableQty} 操作=${action}`,
+  );
 
   return signal;
 }
@@ -356,10 +352,7 @@ export function createDoomsdayProtection(deps?: {
       const key = `${signal.action}_${signal.symbol}`;
       if (!uniqueSignalsMap.has(key)) {
         uniqueSignalsMap.set(key, signal);
-        continue;
       }
-
-      signalObjectPool.release(signal);
     }
 
     const uniqueClearanceSignals = [...uniqueSignalsMap.values()];
@@ -367,12 +360,8 @@ export function createDoomsdayProtection(deps?: {
     if (uniqueClearanceSignals.length > 0) {
       logger.info(`[末日保护程序] 生成 ${uniqueClearanceSignals.length} 个清仓信号，准备执行`);
       const submittedSymbols = new Set(uniqueClearanceSignals.map((signal) => signal.symbol));
-      try {
-        const executionResult = await trader.executeSignals(uniqueClearanceSignals);
-        submittedCount = executionResult.submittedCount;
-      } finally {
-        signalObjectPool.releaseAll(uniqueClearanceSignals);
-      }
+      const executionResult = await trader.executeSignals(uniqueClearanceSignals);
+      submittedCount = executionResult.submittedCount;
 
       if (submittedCount === uniqueClearanceSignals.length) {
         lastState.cachedAccount = null;

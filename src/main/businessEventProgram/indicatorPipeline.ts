@@ -12,7 +12,6 @@ import {
   updateRuntimeForCandlestickSnapshot,
 } from '../../services/indicators/runtime/index.js';
 import { logger } from '../../utils/logger/index.js';
-import { releaseSnapshotObjects } from '../../utils/helpers/index.js';
 import { TRADING } from '../../constants/index.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { IndicatorPipelineParams } from './types.js';
@@ -64,10 +63,6 @@ export function runIndicatorPipeline(params: IndicatorPipelineParams): Indicator
       `[${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)}] 无法构建指标快照，跳过本次处理`,
     );
     return null;
-  }
-
-  if (state.lastMonitorSnapshot !== monitorSnapshot) {
-    releaseSnapshotObjects(state.lastMonitorSnapshot, state.monitorValues);
   }
 
   state.incrementalIndicatorRuntime = runtime;

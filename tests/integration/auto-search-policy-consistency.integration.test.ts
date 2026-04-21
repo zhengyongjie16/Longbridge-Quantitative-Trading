@@ -26,7 +26,6 @@ import { createSeatStateManager } from '../../src/services/autoSymbolManager/sea
 import { createSwitchStateMachine } from '../../src/services/autoSymbolManager/switchStateMachine.js';
 import { PENDING_ORDER_STATUSES } from '../../src/constants/index.js';
 import type { Logger } from '../../src/utils/logger/types.js';
-import { signalObjectPool } from '../../src/utils/objectPool/index.js';
 import { getHKDateKey } from '../../src/utils/time/index.js';
 import {
   createMarketDataClientDouble,
@@ -280,7 +279,7 @@ describe('auto search policy consistency integration', () => {
       logger: switchLogger.logger,
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const switchStateMachine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: monitorConfig.monitorSymbol,
@@ -325,7 +324,6 @@ describe('auto search policy consistency integration', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: switchLogger.logger,
@@ -531,7 +529,7 @@ describe('auto search policy consistency integration', () => {
       logger: switchLogger.logger,
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const switchStateMachine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: monitorConfig.monitorSymbol,
@@ -576,7 +574,6 @@ describe('auto search policy consistency integration', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: switchLogger.logger,
@@ -728,7 +725,7 @@ describe('auto search policy consistency integration', () => {
       logger: safeLogger.logger,
       getHKDateKey,
     });
-    const safeSignalBuilder = createSignalBuilder({ signalObjectPool });
+    const safeSignalBuilder = createSignalBuilder();
     const safeSwitchMachine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: monitorConfig.monitorSymbol,
@@ -773,7 +770,6 @@ describe('auto search policy consistency integration', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: safeSignalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: safeLogger.logger,
@@ -817,7 +813,7 @@ describe('auto search policy consistency integration', () => {
       logger: dangerLogger.logger,
       getHKDateKey,
     });
-    const dangerSignalBuilder = createSignalBuilder({ signalObjectPool });
+    const dangerSignalBuilder = createSignalBuilder();
     const dangerSwitchMachine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: monitorConfig.monitorSymbol,
@@ -862,7 +858,6 @@ describe('auto search policy consistency integration', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: dangerSignalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: dangerLogger.logger,

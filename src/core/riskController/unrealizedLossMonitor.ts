@@ -6,7 +6,6 @@
  * - 浮亏超过阈值时触发保护性清仓信号并提交交易执行链
  * - 保护性清仓的最终订单类型由 trader 层按全局配置解析
  */
-import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
 import { formatError } from '../../utils/error/index.js';
@@ -82,19 +81,17 @@ export const createUnrealizedLossMonitor = (
         : lossCheck.reason;
     logger.error(liquidationReason);
 
-    const liquidationSignal = signalObjectPool.acquire() as Signal;
-    liquidationSignal.symbol = symbol;
-    liquidationSignal.symbolName = quote.name ?? null;
-    liquidationSignal.action = isLong ? 'SELLCALL' : 'SELLPUT';
-    liquidationSignal.reason = lossCheck.reason ?? '';
-    liquidationSignal.isProtectiveLiquidation = true;
-    liquidationSignal.quantity = lossCheck.quantity ?? null;
-    liquidationSignal.price = currentPrice;
-    liquidationSignal.seatVersion = seatVersion;
-
-    if (quote.lotSize !== undefined) {
-      liquidationSignal.lotSize ??= quote.lotSize;
-    }
+    const liquidationSignal: Signal = {
+      symbol,
+      symbolName: quote.name ?? null,
+      action: isLong ? 'SELLCALL' : 'SELLPUT',
+      reason: lossCheck.reason ?? '',
+      isProtectiveLiquidation: true,
+      quantity: lossCheck.quantity ?? null,
+      price: currentPrice,
+      seatVersion,
+      lotSize: quote.lotSize ?? null,
+    };
 
     try {
       const { submittedCount } = await trader.executeSignals([liquidationSignal]);
@@ -116,8 +113,6 @@ export const createUnrealizedLossMonitor = (
       const symbolDisplay = formatSymbolDisplay(symbol, quote.name ?? null);
       logger.error(`[保护性清仓失败] ${direction} ${symbolDisplay}`, formatError(error));
       return false;
-    } finally {
-      signalObjectPool.release(liquidationSignal);
     }
   };
 

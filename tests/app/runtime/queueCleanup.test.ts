@@ -32,7 +32,6 @@ describe('app runtime queueCleanup', () => {
     let buyRemoveCalls = 0;
     let sellRemoveCalls = 0;
     let monitorRemoveCalls = 0;
-    let releaseCount = 0;
     const debugLogs: string[] = [];
 
     clearMonitorDirectionQueuesWithLog({
@@ -57,9 +56,6 @@ describe('app runtime queueCleanup', () => {
           return 0;
         },
       } as never,
-      releaseSignal: () => {
-        releaseCount += 1;
-      },
       logger: {
         debug: (message: string) => {
           debugLogs.push(message);
@@ -71,12 +67,10 @@ describe('app runtime queueCleanup', () => {
     expect(buyRemoveCalls).toBe(0);
     expect(sellRemoveCalls).toBe(0);
     expect(monitorRemoveCalls).toBe(0);
-    expect(releaseCount).toBe(0);
     expect(debugLogs).toHaveLength(0);
   });
 
   it('cleans only LONG direction tasks and writes one debug log when removals exist', () => {
-    const releasedSignals: Signal[] = [];
     const debugLogs: string[] = [];
     const longBuySignal = createSignal('BUYCALL', 'BULL.HK');
     const shortBuySignal = createSignal('BUYPUT', 'BEAR.HK');
@@ -159,9 +153,6 @@ describe('app runtime queueCleanup', () => {
           return removed;
         },
       } as never,
-      releaseSignal: (signal) => {
-        releasedSignals.push(signal);
-      },
       logger: {
         debug: (message: string) => {
           debugLogs.push(message);
@@ -170,9 +161,6 @@ describe('app runtime queueCleanup', () => {
     });
 
     expect(delayedDirections).toEqual(['LONG']);
-    expect(releasedSignals).toEqual([longBuySignal, longSellSignal]);
-    expect(releasedSignals).not.toContain(shortBuySignal);
-    expect(releasedSignals).not.toContain(shortSellSignal);
     expect(debugLogs).toHaveLength(1);
     expect(debugLogs[0]).toContain('HSI.HK LONG 清理待执行信号');
     expect(debugLogs[0]).toContain('延迟=2');
@@ -202,7 +190,6 @@ describe('app runtime queueCleanup', () => {
       monitorTaskQueue: {
         removeTasks: () => 0,
       } as never,
-      releaseSignal: () => {},
       logger: {
         debug: (message: string) => {
           debugLogs.push(message);

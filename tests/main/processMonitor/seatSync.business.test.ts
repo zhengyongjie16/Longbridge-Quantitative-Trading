@@ -13,7 +13,6 @@ import {
 } from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 
-import type { Signal } from '../../../src/types/signal.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import type { MonitorRuntimeContext } from '../../../src/main/processMonitor/types.js';
@@ -103,7 +102,6 @@ describe('seatSync business flow', () => {
     });
 
     let delayedCancelled = 0;
-    const releasedSignals: Signal[] = [];
 
     const monitorContext = {
       riskChecker,
@@ -156,14 +154,10 @@ describe('seatSync business flow', () => {
       quotesMap: new Map<string, ReturnType<typeof createQuoteDouble>>([
         ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9)],
       ]),
-      releaseSignal: (signal) => {
-        releasedSignals.push(signal);
-      },
     });
 
     expect(clearLongCalls).toBe(1);
     expect(delayedCancelled).toBe(2);
-    expect(releasedSignals).toEqual([longBuySignal, longSellSignal]);
 
     expect(buyTaskQueue.pop()?.data.action).toBe('BUYPUT');
     expect(buyTaskQueue.isEmpty()).toBeTrue();
@@ -258,7 +252,6 @@ describe('seatSync business flow', () => {
       monitorContext,
       mainContext,
       quotesMap,
-      releaseSignal: () => {},
     });
 
     expect(monitorTaskQueue.isEmpty()).toBeTrue();

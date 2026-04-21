@@ -4,7 +4,7 @@ import type { IndicatorCache } from '../indicatorCache/types.js';
 
 /**
  * 待验证信号条目（内部队列元素）。
- * 类型用途：DelayedSignalVerifier 内部待验证队列的一项，携带信号、验证时间与定时器 ID。
+ * 类型用途：DelayedSignalVerifier 内部待验证队列的一项，携带信号、初始指标与定时器 ID。
  * 数据来源：由 addSignal 创建并加入内部队列，验证完成或取消时移除。
  * 使用范围：仅 delayedSignalVerifier 模块内部使用。
  */
@@ -17,9 +17,6 @@ export type PendingSignalEntry = {
 
   /** 信号触发时间戳（毫秒） */
   readonly triggerTime: number;
-
-  /** 计划验证时间戳（毫秒） */
-  readonly verifyTime: number;
 
   /** 初始指标值（验证时与后续时间点比较） */
   readonly initialIndicators: Readonly<Record<string, number>>;

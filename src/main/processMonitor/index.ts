@@ -10,7 +10,6 @@
  * 执行流程：
  * - 提取行情数据 → 自动换标任务调度 → 席位同步 → 风险展示刷新 → 监控标的展示刷新
  */
-import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { scheduleAutoSymbolTasks } from './autoSymbolTasks.js';
 import { scheduleRiskTasks } from './riskTasks.js';
 import { syncSeatState } from './seatSync.js';
@@ -57,9 +56,6 @@ export function processMonitor(
     monitorContext,
     mainContext,
     quotesMap,
-    releaseSignal: (signal) => {
-      signalObjectPool.release(signal);
-    },
   });
 
   scheduleRiskTasks({

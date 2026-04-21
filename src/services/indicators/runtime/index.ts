@@ -3,10 +3,9 @@
  *
  * 职责：
  * - 提供增量 runtime 的 bootstrap / update / snapshot 构造能力
- * - 确保对象池对象仅在对外快照构造时创建，不在 runtime 内长期持有
+ * - 对外快照统一构造成普通值对象，不承载对象池生命周期
  */
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
-import { periodRecordPool } from '../../../utils/objectPool/index.js';
 import type { CandleData } from '../../../types/data.js';
 import type { IndicatorSnapshot } from '../../../types/quote.js';
 import type { IndicatorUsageProfile } from '../../../types/indicatorProfile.js';
@@ -193,7 +192,7 @@ function buildPeriodSnapshotRecord<T>(params: {
     return null;
   }
 
-  const periodRecord = periodRecordPool.acquire();
+  const periodRecord: Record<number, number> = {};
   let hasValue = false;
   for (const period of params.periods) {
     if (!params.isValidPeriod(period) || !Number.isInteger(period)) {
@@ -214,12 +213,11 @@ function buildPeriodSnapshotRecord<T>(params: {
     hasValue = true;
   }
 
-  if (hasValue) {
-    return periodRecord;
+  if (!hasValue) {
+    return null;
   }
 
-  periodRecordPool.release(periodRecord);
-  return null;
+  return periodRecord;
 }
 
 function buildSnapshotFromCommitted(params: {
@@ -330,16 +328,11 @@ export function bootstrapIndicatorRuntime(params: {
     commitCandleToCommittedState(committed, candle);
   }
 
-  const lastClosed = closedCandlesEnd > 0 ? cacheSnapshot.candles[closedCandlesEnd - 1] : undefined;
   return toIndicatorIncrementalRuntime(
     createIndicatorRuntimeState({
       symbol,
       profile: indicatorProfile,
       lastProcessedVersion: cacheSnapshot.version,
-      closedBarTimestamp:
-        lastClosed && typeof lastClosed.timestamp === 'number' ? lastClosed.timestamp : null,
-      activeBarTimestamp:
-        activeBar && typeof activeBar.timestamp === 'number' ? activeBar.timestamp : null,
       activeBarConfirmed: activeBar === null ? cacheSnapshot.lastBarConfirmed : false,
       activeBar,
       lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
@@ -394,19 +387,14 @@ function commitShiftedCandles(params: {
   }
 
   const nextCommitted = cloneCommittedState(runtime.committed);
-  let closedBarTimestamp = runtime.closedBarTimestamp;
   if (runtime.lastBarConfirmed === false) {
     const finalizedPrevious = cacheSnapshot.candles[previousIndex];
     if (finalizedPrevious) {
       commitCandleToCommittedState(nextCommitted, finalizedPrevious);
-      if (typeof finalizedPrevious.timestamp === 'number') {
-        closedBarTimestamp = finalizedPrevious.timestamp;
-      }
     }
   }
 
   let activeBar: CandleData | null = null;
-  let activeBarTimestamp: number | null = null;
   let activeBarConfirmed: boolean | null = cacheSnapshot.lastBarConfirmed;
   const lastIndex = cacheSnapshot.candles.length - 1;
   for (let index = previousIndex + 1; index < cacheSnapshot.candles.length; index += 1) {
@@ -418,26 +406,17 @@ function commitShiftedCandles(params: {
     const isLast = index === lastIndex;
     if (isLast && cacheSnapshot.lastBarConfirmed === false) {
       activeBar = candle;
-      activeBarTimestamp =
-        typeof candle.timestamp === 'number' && Number.isFinite(candle.timestamp)
-          ? candle.timestamp
-          : null;
       activeBarConfirmed = false;
       continue;
     }
 
     commitCandleToCommittedState(nextCommitted, candle);
-    if (typeof candle.timestamp === 'number' && Number.isFinite(candle.timestamp)) {
-      closedBarTimestamp = candle.timestamp;
-    }
   }
 
   return toIndicatorIncrementalRuntime(
     createIndicatorRuntimeState({
       ...runtime,
       lastProcessedVersion: cacheSnapshot.version,
-      closedBarTimestamp,
-      activeBarTimestamp,
       activeBarConfirmed,
       activeBar,
       lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
@@ -488,7 +467,6 @@ export function updateRuntimeForCandlestickSnapshot(params: {
         createIndicatorRuntimeState({
           ...runtimeState,
           lastProcessedVersion: cacheSnapshot.version,
-          activeBarTimestamp: nextLastTimestamp,
           activeBarConfirmed: false,
           activeBar: latestCandle,
           lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
@@ -504,8 +482,6 @@ export function updateRuntimeForCandlestickSnapshot(params: {
         createIndicatorRuntimeState({
           ...runtimeState,
           lastProcessedVersion: cacheSnapshot.version,
-          closedBarTimestamp: nextLastTimestamp,
-          activeBarTimestamp: null,
           activeBarConfirmed: true,
           activeBar: null,
           lastBarTimestamp: cacheSnapshot.lastBarTimestamp,

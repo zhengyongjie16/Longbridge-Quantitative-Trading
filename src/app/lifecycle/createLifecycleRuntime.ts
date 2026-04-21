@@ -15,7 +15,6 @@ import { createSeatDomain } from '../../main/lifecycle/cacheDomains/seatDomain.j
 import { createSignalRuntimeDomain } from '../../main/lifecycle/cacheDomains/signalRuntimeDomain.js';
 import { executeTradingDayOpenRebuild } from './rebuild.js';
 import { logger } from '../../utils/logger/index.js';
-import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { CacheDomain, DayLifecycleManager } from '../../main/lifecycle/types.js';
 import type { LifecycleRuntimeFactories, LifecycleRuntimeFactoryDeps } from '../types.js';
 
@@ -99,7 +98,6 @@ function createLifecycleCacheDomains(
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
-      releaseSignal: signalObjectPool.release,
     }),
     buildMarketDataDomain({
       marketDataClient,

@@ -15,7 +15,6 @@ import {
   resolveDirectionSymbols,
 } from '../../../src/services/autoSymbolManager/signalBuilder.js';
 import { calculateTradingDurationMsBetween, getHKDateKey } from '../../../src/utils/time/index.js';
-import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
 import type { Logger } from '../../../src/utils/logger/types.js';
 import type {
@@ -104,7 +103,7 @@ function createPeriodicHarness(params: HarnessParams): {
     logger: testLogger,
     getHKDateKey,
   });
-  const signalBuilder = createSignalBuilder({ signalObjectPool });
+  const signalBuilder = createSignalBuilder();
   const trader = createTraderDouble({
     executeSignals: async () => {
       params.executeSignalsHook?.();
@@ -169,7 +168,6 @@ function createPeriodicHarness(params: HarnessParams): {
     resolveDirectionSymbols,
     calculateBuyQuantityByNotional,
     buildOrderSignal: signalBuilder.buildOrderSignal,
-    signalObjectPool,
     pendingOrderStatuses: PENDING_ORDER_STATUSES,
     buySide: OrderSide.Buy,
     logger: testLogger,
@@ -851,7 +849,7 @@ describe('periodic auto-switch regression', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
@@ -923,7 +921,6 @@ describe('periodic auto-switch regression', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),

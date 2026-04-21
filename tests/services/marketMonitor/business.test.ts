@@ -170,6 +170,45 @@ describe('marketMonitor business flow', () => {
     expect(state.monitorValues?.macd?.macd).toBe(12);
   });
 
+  it('does not mutate detached monitorValues when indicator display cache refreshes', () => {
+    const monitor = createMarketMonitor();
+    const state = createMonitorState('HSI.HK');
+    const monitorQuote = createQuoteDouble('HSI.HK', 20_000);
+    const klineTimestamp = 1_708_000_000_000;
+    const indicatorProfile = createIndicatorUsageProfileDouble();
+
+    monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot(),
+      monitorQuote,
+      monitorSymbol: 'HSI.HK',
+      indicatorProfile,
+      klineTimestamp,
+      monitorState: state,
+    });
+
+    const detachedMonitorValues = state.monitorValues;
+    const detachedKdj = detachedMonitorValues?.kdj;
+    const detachedMacd = detachedMonitorValues?.macd;
+
+    const changed = monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot({
+        ema: { 7: 19_990 },
+        macd: { macd: 12, dif: 4, dea: 2.2 },
+      }),
+      monitorQuote,
+      monitorSymbol: 'HSI.HK',
+      indicatorProfile,
+      klineTimestamp,
+      monitorState: state,
+    });
+
+    expect(changed).toBe(true);
+    expect(state.monitorValues).not.toBe(detachedMonitorValues);
+    expect(detachedMonitorValues?.ema?.[7]).toBe(19_980);
+    expect(detachedKdj).toEqual({ k: 51, d: 49, j: 55 });
+    expect(detachedMacd).toEqual({ macd: 10, dif: 3, dea: 2 });
+  });
+
   it('detects ADX change and writes adx to monitorValues', () => {
     const monitor = createMarketMonitor();
     const state = createMonitorState('HSI.HK');

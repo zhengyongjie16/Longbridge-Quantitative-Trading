@@ -1,4 +1,3 @@
-import type { Signal } from '../../types/signal.js';
 import type { Task, TaskQueue } from './tradeTaskQueue/types.js';
 
 /**
@@ -24,7 +23,7 @@ export interface Processor {
 /**
  * 基础任务处理器配置（创建处理器时的参数）。
  * 类型用途：依赖注入用配置，供 createBuyProcessor / createSellProcessor / createMonitorTaskProcessor 等消费。
- * 数据来源：由主程序/启动流程根据 taskQueue、processTask、releaseAfterProcess 等组装传入。
+ * 数据来源：由主程序/启动流程根据 taskQueue、processTask 等组装传入。
  * 使用范围：仅 asyncProgram 子模块内部使用。
  */
 export type BaseProcessorConfig<TType extends string> = {
@@ -35,11 +34,8 @@ export type BaseProcessorConfig<TType extends string> = {
   readonly taskQueue: TaskQueue<TType>;
 
   /** 处理单个任务的异步函数 */
-  readonly processTask: (task: Task<TType>) => Promise<boolean>;
+  readonly processTask: (task: Task<TType>) => Promise<void>;
 
-  /** 任务完成后释放资源的回调（如释放信号到对象池） */
-  readonly releaseAfterProcess: (signal: Signal) => void;
-
-  /** 可选：是否可处理任务的门禁，false 时仅释放并跳过 */
+  /** 可选：是否可处理任务的门禁，false 时仅跳过 */
   readonly getCanProcessTask?: () => boolean;
 };

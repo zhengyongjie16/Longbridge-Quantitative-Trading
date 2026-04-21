@@ -27,6 +27,14 @@ import {
   waitUntil,
 } from '../utils.js';
 
+function requireSignal(signal: Signal | null): Signal {
+  if (signal === null) {
+    throw new Error('executed signal should exist');
+  }
+
+  return signal;
+}
+
 describe('sellProcessor business flow', () => {
   it('passes timeout and trading-calendar context into processSellSignals', async () => {
     const queue = createSellTaskQueue();
@@ -564,6 +572,72 @@ describe('sellProcessor business flow', () => {
 
     expect(processSellCalls).toBe(1);
     expect(clearedRetryHandles).toBe(1);
+  });
+
+  it('re-enqueues sell retry with detached indicators snapshot', async () => {
+    const queue = createSellTaskQueue();
+    let quoteReady = false;
+    let executedSignal: Signal | null = null;
+    const scheduledRetries: Array<() => void> = [];
+    const signalProcessor = {
+      applyRiskChecks: async () => [],
+      processSellSignals: ({ signals }: { signals: Signal[] }) => signals,
+      resetRiskCheckCooldown: () => {},
+    };
+    const trader = createTraderDouble({
+      executeSignals: async (signals) => {
+        executedSignal = signals[0] ?? null;
+        return { submittedCount: signals.length, submittedOrderIds: [] };
+      },
+    });
+    const processor = createSellProcessor({
+      taskQueue: queue,
+      getMonitorContext: () => createMonitorContext(),
+      signalProcessor: signalProcessor as never,
+      trader,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () =>
+          new Map([
+            ['BULL.HK', quoteReady ? createQuoteDouble('BULL.HK', 1.1, 100) : null],
+            ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+          ]),
+      }),
+      getLastState: () => createLastState(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+        onFreshReached: () => () => {},
+      },
+      getCanProcessTask: () => true,
+      scheduleRetry: (callback) => {
+        scheduledRetries.push(callback);
+        return setTimeout(() => {}, 0);
+      },
+      clearRetry: () => {},
+    });
+
+    const indicators1 = { K: 80 };
+    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal.seatVersion = 2;
+    signal.indicators1 = indicators1;
+
+    processor.start();
+    queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
+    await waitUntil(() => scheduledRetries.length === 1);
+
+    indicators1.K = 20;
+    quoteReady = true;
+    const retryCallback = scheduledRetries[0];
+    if (!retryCallback) {
+      throw new Error('retry callback should exist');
+    }
+
+    retryCallback();
+    await waitUntil(() => executedSignal !== null);
+    await processor.stopAndDrain();
+
+    const submittedSignal = requireSignal(executedSignal);
+    expect(submittedSignal.indicators1).toEqual({ K: 80 });
+    expect(submittedSignal.indicators1).not.toBe(indicators1);
   });
 
   it('does not register new sell retry after stopAndDrain begins while task is still in flight', async () => {

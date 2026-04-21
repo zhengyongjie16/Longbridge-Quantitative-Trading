@@ -6,8 +6,7 @@
  * - EMA 平滑周期：5（用于平滑 RSV 得到 K，平滑 K 得到 D）
  * - J = 3K - 2D
  */
-import { kdjObjectPool } from '../../../utils/objectPool/index.js';
-import { feedEmaStreamState, initEmaStreamState, isValidKDJ, toNumber } from './utils.js';
+import { feedEmaStreamState, initEmaStreamState, toNumber } from './utils.js';
 import type { KDJIndicator } from '../../../types/quote.js';
 import type { CandleData } from '../../../types/data.js';
 import type { KdjStreamState } from './types.js';
@@ -197,14 +196,9 @@ export function readKdjValue(state: KdjStreamState): KDJIndicator | null {
     return null;
   }
 
-  const kdjObj = kdjObjectPool.acquire();
-  kdjObj.k = state.lastK;
-  kdjObj.d = state.lastD;
-  kdjObj.j = jValue;
-  if (isValidKDJ(kdjObj)) {
-    return kdjObj;
-  }
-
-  kdjObjectPool.release(kdjObj);
-  return null;
+  return {
+    k: state.lastK,
+    d: state.lastD,
+    j: jValue,
+  };
 }

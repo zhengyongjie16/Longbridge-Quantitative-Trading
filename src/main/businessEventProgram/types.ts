@@ -1,7 +1,6 @@
 import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { MonitorContext, LastState } from '../../types/state.js';
-import type { Signal } from '../../types/signal.js';
 import type { MarketDataClient } from '../../types/services.js';
 import type { SignalSeatInfo } from '../processMonitor/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
@@ -61,7 +60,7 @@ export type BusinessEventRuntimeFlags = Readonly<{
   canTradeNow: boolean;
   openProtectionActive: boolean;
 
-  /** 交易门禁透传：false 时不入队，直接释放信号 */
+  /** 交易门禁透传：用于区分交易门禁与普通信号门禁的日志语义 */
   isTradingEnabled: boolean;
 }>;
 
@@ -81,7 +80,7 @@ export type IndicatorPipelineParams = Readonly<{
 
 /**
  * 信号流水线参数（执行信号生成、延迟验证入队等时的入参）。
- * 类型用途：封装信号流水线所需的监控标的、上下文、席位信息、指标快照与释放回调。
+ * 类型用途：封装信号流水线所需的监控标的、上下文、席位信息与指标快照。
  * 数据来源：由 businessEventProgram 从无行情席位同步结果、指标流水线输出等组装。
  * 使用范围：仅普通 K 线业务事件链路使用。
  */
@@ -95,5 +94,4 @@ export type SignalPipelineParams = Readonly<{
   runtimeFlags: BusinessEventRuntimeFlags;
   seatInfo: SignalSeatInfo;
   monitorSnapshot: IndicatorSnapshot;
-  releaseSignal: (signal: Signal) => void;
 }>;

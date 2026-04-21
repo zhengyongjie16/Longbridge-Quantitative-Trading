@@ -14,7 +14,6 @@ import {
   calculateBuyQuantityByNotional,
   resolveDirectionSymbols,
 } from '../../../src/services/autoSymbolManager/signalBuilder.js';
-import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import { calculateTradingDurationMsBetween, getHKDateKey } from '../../../src/utils/time/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
 import type {
@@ -138,7 +137,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       pendingSinceMs: nowMs - 5_000,
       blockedBy: 'ORDER_RECORDER',
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -166,7 +165,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger,
@@ -229,7 +227,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -260,7 +258,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -318,7 +315,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -349,7 +346,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -407,7 +403,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     seatStateManager.markSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
 
     let findBestCalls = 0;
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -441,7 +437,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -497,7 +492,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     let resolveCandidate!: (value: ReturnType<typeof createWarrantCandidate> | null) => void;
     const pendingCandidate = new Promise<ReturnType<typeof createWarrantCandidate> | null>(
       (resolve) => {
@@ -531,7 +526,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -597,7 +591,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     let executeCalls = 0;
     const trader = createTraderDouble({
       executeSignals: async () => {
@@ -633,7 +627,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -690,7 +683,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const executedActions: Array<{
       action: string | null;
       symbol: string | null;
@@ -754,7 +747,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -850,7 +842,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const executedActions: string[] = [];
     const quoteRequests: string[][] = [];
     const trader = createTraderDouble({
@@ -923,7 +915,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -985,7 +976,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const quoteRequests: string[][] = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
@@ -1063,7 +1054,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1136,7 +1126,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
@@ -1193,7 +1183,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1247,7 +1236,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
@@ -1313,7 +1302,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1386,7 +1374,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
@@ -1459,7 +1447,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1523,7 +1510,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
@@ -1589,7 +1576,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1653,7 +1639,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
@@ -1737,7 +1723,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1817,7 +1802,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     let executeCalls = 0;
     const trader = createTraderDouble({
       getPendingOrders: async () => [],
@@ -1867,7 +1852,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1938,7 +1922,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     let pendingOrderFetchCount = 0;
     let executeCalls = 0;
     const trader = createTraderDouble({
@@ -1991,7 +1975,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2080,7 +2063,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const executedActions: string[] = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
@@ -2130,7 +2113,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2230,7 +2212,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const executedActions: Array<string | null> = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
@@ -2285,7 +2267,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2331,7 +2312,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(seat.symbol).toBe('NEW_BULL.HK');
   });
 
-  it('releases rebuy signal when rebuy execution throws', async () => {
+  it('propagates rebuy execution error after sell stage succeeds', async () => {
     const monitorConfig = createMonitorConfigDouble({
       targetNotional: 5_000,
       autoSearchConfig: getDefaultAutoSearchConfig(),
@@ -2361,118 +2342,106 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const executedActions: Array<string | null> = [];
-    const originalRelease = signalObjectPool.release;
-    let releasedSignals = 0;
-    signalObjectPool.release = (signal) => {
-      releasedSignals += signal ? 1 : 0;
-      originalRelease.call(signalObjectPool, signal);
-    };
 
-    try {
-      const trader = createTraderDouble({
-        executeSignals: async (signals) => {
-          const action = signals[0]?.action ?? null;
-          executedActions.push(action);
-          if (action === 'SELLCALL') {
-            return { submittedCount: 1, submittedOrderIds: ['SELL-ORDER-REBUY-THROW'] };
-          }
+    const trader = createTraderDouble({
+      executeSignals: async (signals) => {
+        const action = signals[0]?.action ?? null;
+        executedActions.push(action);
+        if (action === 'SELLCALL') {
+          return { submittedCount: 1, submittedOrderIds: ['SELL-ORDER-REBUY-THROW'] };
+        }
 
-          throw new Error('rebuy submit failed');
+        throw new Error('rebuy submit failed');
+      },
+      getPendingOrders: async () => [],
+    });
+    const orderRecorder = createOrderRecorderDouble({
+      getSellRecordByOrderId: (orderId) =>
+        orderId === 'SELL-ORDER-REBUY-THROW'
+          ? {
+              orderId: 'SELL-ORDER-REBUY-THROW',
+              symbol: 'OLD_BULL.HK',
+              executedPrice: 2,
+              executedQuantity: 100,
+              executedTime: 9_999_999_999_999,
+              submittedAt: undefined,
+              updatedAt: undefined,
+            }
+          : null,
+    });
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader,
+      orderRecorder,
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+      }),
+    });
+
+    await runDistanceSwitch(machine, {
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [
+        {
+          symbol: 'OLD_BULL.HK',
+          quantity: 100,
+          availableQuantity: 100,
+          symbolName: 'OLD_BULL',
+          accountChannel: 'lb_papertrading',
+          currency: 'HKD',
+          costPrice: 1,
+          market: 'HK',
         },
-        getPendingOrders: async () => [],
-      });
-      const orderRecorder = createOrderRecorderDouble({
-        getSellRecordByOrderId: (orderId) =>
-          orderId === 'SELL-ORDER-REBUY-THROW'
-            ? {
-                orderId: 'SELL-ORDER-REBUY-THROW',
-                symbol: 'OLD_BULL.HK',
-                executedPrice: 2,
-                executedQuantity: 100,
-                executedTime: 9_999_999_999_999,
-                submittedAt: undefined,
-                updatedAt: undefined,
-              }
-            : null,
-      });
-      const machine = createSwitchStateMachine({
-        autoSearchConfig: monitorConfig.autoSearchConfig,
-        monitorSymbol: 'HSI.HK',
-        symbolRegistry,
-        trader,
-        orderRecorder,
-        riskChecker: createRiskCheckerDouble({
-          getWarrantDistanceInfo: () =>
-            createWarrantDistanceInfoDouble({
-              warrantType: 'BULL',
-              distanceToStrikePercent: 0.1,
-            }),
-        }),
-        now: () => new Date(nowMs),
-        switchStates,
-        periodicSwitchPending: createPeriodicSwitchPendingMap(),
-        resolveSuppression: seatStateManager.resolveSuppression,
-        markSuppression: seatStateManager.markSuppression,
-        enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
-        buildSeatState: seatStateManager.buildSeatState,
-        updateSeatState: seatStateManager.updateSeatState,
-        resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
-        buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
-        findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
-        resolveDirectionSymbols,
-        calculateBuyQuantityByNotional,
-        buildOrderSignal: signalBuilder.buildOrderSignal,
-        signalObjectPool,
-        pendingOrderStatuses: PENDING_ORDER_STATUSES,
-        buySide: OrderSide.Buy,
-        logger: createLoggerStub(),
-        maxSearchFailuresPerDay: 3,
-        getHKDateKey,
-        calculateTradingDurationMsBetween,
-        getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
-        marketDataClient: createMarketDataClientDouble({
-          getQuotes: async (symbols) =>
-            new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
-        }),
-      });
+      ],
+    });
 
+    nowMs += 1_000;
+    let caught: unknown = null;
+    try {
       await runDistanceSwitch(machine, {
         direction: 'LONG',
         monitorPrice: 20_000,
-        positions: [
-          {
-            symbol: 'OLD_BULL.HK',
-            quantity: 100,
-            availableQuantity: 100,
-            symbolName: 'OLD_BULL',
-            accountChannel: 'lb_papertrading',
-            currency: 'HKD',
-            costPrice: 1,
-            market: 'HK',
-          },
-        ],
+        positions: [],
       });
-
-      nowMs += 1_000;
-      let caught: unknown = null;
-      try {
-        await runDistanceSwitch(machine, {
-          direction: 'LONG',
-          monitorPrice: 20_000,
-          positions: [],
-        });
-      } catch (error) {
-        caught = error;
-      }
-
-      expect(caught).toMatchObject({ message: 'rebuy submit failed' });
-      expect(executedActions).toEqual(['SELLCALL', 'BUYCALL']);
-      expect(releasedSignals).toBe(2);
-    } finally {
-      signalObjectPool.release = originalRelease;
+    } catch (error) {
+      caught = error;
     }
+
+    expect(caught).toMatchObject({ message: 'rebuy submit failed' });
+    expect(executedActions).toEqual(['SELLCALL', 'BUYCALL']);
   });
 
   it('fails and clears seat when rebuy sell-notional is unavailable', async () => {
@@ -2504,7 +2473,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const executedActions: string[] = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
@@ -2543,7 +2512,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2614,7 +2582,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     let findCalls = 0;
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
@@ -2645,7 +2613,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2700,7 +2667,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     let executeCalls = 0;
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
@@ -2741,7 +2708,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2797,7 +2763,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -2829,7 +2795,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2886,7 +2851,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -2918,7 +2883,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),

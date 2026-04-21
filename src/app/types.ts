@@ -68,7 +68,6 @@ import type {
   DayLifecycleManager,
   DayLifecycleManagerDeps,
 } from '../main/lifecycle/types.js';
-import type { Signal } from '../types/signal.js';
 import type { Logger } from '../utils/logger/types.js';
 import type {
   GlobalStateDomainDeps,
@@ -345,7 +344,6 @@ export type RegisterDelayedSignalHandlersParams = Readonly<{
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
   logger: Pick<Logger, 'debug' | 'warn'>;
-  releaseSignal: (signal: Signal) => void;
   doomsdayProtectionEnabled?: boolean;
   now?: () => Date;
 }>;
@@ -471,7 +469,6 @@ export type ClearQueuesForDirectionWithLogParams = Readonly<{
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
-  releaseSignal: (signal: Signal) => void;
   logger: Pick<Logger, 'debug'>;
 }>;
 

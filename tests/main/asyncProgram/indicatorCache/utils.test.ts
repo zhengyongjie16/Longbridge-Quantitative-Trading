@@ -11,27 +11,66 @@ import type { IndicatorCacheEntry } from '../../../../src/main/asyncProgram/indi
 import {
   createRingBuffer,
   findClosestEntry,
+  projectVerificationSampleValues,
   pushToBuffer,
 } from '../../../../src/main/asyncProgram/indicatorCache/utils.js';
 
-function createEntry(timestamp: number, price: number): IndicatorCacheEntry {
+function createEntry(timestamp: number, value: number): IndicatorCacheEntry {
   return {
     timestamp,
-    snapshot: {
-      price,
-      changePercent: 0,
-      ema: null,
-      rsi: null,
-      psy: null,
-      mfi: null,
-      kdj: null,
-      macd: null,
-      adx: null,
+    values: {
+      K: {
+        kind: 'value',
+        value,
+      },
     },
   };
 }
 
 describe('indicatorCache utils', () => {
+  it('projects NaN indicator values to invalid sample points', () => {
+    const values = projectVerificationSampleValues(
+      {
+        price: 100,
+        changePercent: 0,
+        ema: {
+          5: Number.NaN,
+        },
+        rsi: null,
+        psy: null,
+        mfi: null,
+        kdj: null,
+        macd: null,
+        adx: null,
+      },
+      ['EMA:5'],
+    );
+
+    expect(values).toEqual({
+      'EMA:5': { kind: 'invalid' },
+    });
+  });
+
+  it('stores verification sample values instead of full snapshot', () => {
+    const buffer = createRingBuffer(5);
+    pushToBuffer(buffer, {
+      timestamp: 1000,
+      values: {
+        K: { kind: 'value', value: 81 },
+        ADX: { kind: 'invalid' },
+      },
+    });
+
+    const entry = findClosestEntry(buffer, 1000, 0);
+    expect(entry).toEqual({
+      timestamp: 1000,
+      values: {
+        K: { kind: 'value', value: 81 },
+        ADX: { kind: 'invalid' },
+      },
+    });
+  });
+
   it('returns the closest entry within tolerance from a partially filled buffer', () => {
     const buffer = createRingBuffer(5);
     pushToBuffer(buffer, createEntry(1000, 1));
@@ -39,8 +78,9 @@ describe('indicatorCache utils', () => {
     pushToBuffer(buffer, createEntry(3000, 3));
 
     const result = findClosestEntry(buffer, 2400, 500);
+    const resultK = result?.values.K;
     expect(result?.timestamp).toBe(2000);
-    expect(result?.snapshot.price).toBe(2);
+    expect(resultK?.kind === 'value' ? resultK.value : null).toBe(2);
   });
 
   it('returns null when every entry is outside tolerance', () => {
@@ -83,11 +123,13 @@ describe('indicatorCache utils', () => {
     pushToBuffer(buffer, createEntry(5000, 5));
 
     const nearOldestRetained = findClosestEntry(buffer, 3900, 200);
+    const nearOldestRetainedK = nearOldestRetained?.values.K;
     expect(nearOldestRetained?.timestamp).toBe(4000);
-    expect(nearOldestRetained?.snapshot.price).toBe(4);
+    expect(nearOldestRetainedK?.kind === 'value' ? nearOldestRetainedK.value : null).toBe(4);
 
     const nearNewest = findClosestEntry(buffer, 4900, 200);
+    const nearNewestK = nearNewest?.values.K;
     expect(nearNewest?.timestamp).toBe(5000);
-    expect(nearNewest?.snapshot.price).toBe(5);
+    expect(nearNewestK?.kind === 'value' ? nearNewestK.value : null).toBe(5);
   });
 });

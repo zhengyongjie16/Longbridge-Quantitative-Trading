@@ -22,7 +22,6 @@ import type {
   StartSwitchOnDistanceResult,
   SwitchDriveResult,
 } from '../../types/monitorContextPorts.js';
-import type { ObjectPool, PoolableSignal } from '../../utils/objectPool/types.js';
 import type {
   DirectionalAutoSearchPolicy,
   FindBestWarrantInput,
@@ -233,13 +232,6 @@ export type SwitchSuppression = {
 };
 
 /**
- * 信号对象池（内部类型）。
- * 类型用途：仅暴露 acquire/release 方法，供换标状态机使用。
- * 使用范围：仅 autoSymbolManager 模块内部使用。
- */
-type SignalObjectPool = Pick<ObjectPool<PoolableSignal>, 'acquire' | 'release'>;
-
-/**
  * 换标状态 Map（内部类型）。
  * 类型用途：以方向为键存储当前换标状态。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
@@ -378,12 +370,9 @@ export type OrderSignalBuilder = (params: BuildOrderSignalParams) => Signal;
 
 /**
  * 信号构建器工厂的依赖注入参数（内部类型）。
- * 类型用途：包含信号对象池，供 createSignalBuilder 消费。
+ * 类型用途：保留 createSignalBuilder 相关说明。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
-export type SignalBuilderDeps = {
-  readonly signalObjectPool: SignalObjectPool;
-};
 
 /**
  * 席位不可用原因枚举。
@@ -613,7 +602,6 @@ export type SwitchStateMachineDeps = {
     lotSize: number,
   ) => number | null;
   readonly buildOrderSignal: OrderSignalBuilder;
-  readonly signalObjectPool: SignalObjectPool;
   readonly pendingOrderStatuses: ReadonlySet<PendingOrder['status']>;
   readonly buySide: PendingOrder['side'];
   readonly logger: Logger;

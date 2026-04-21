@@ -1,5 +1,12 @@
+import { getIndicatorValue, parseIndicatorPeriod } from '../../../utils/indicatorHelpers/index.js';
 import type { IndicatorSnapshot } from '../../../types/quote.js';
-import type { IndicatorCacheEntry, _RingBuffer } from './types.js';
+import type { VerificationIndicator } from '../../../types/indicatorProfile.js';
+import type {
+  IndicatorCacheEntry,
+  VerificationSamplePoint,
+  VerificationSampleValues,
+  _RingBuffer,
+} from './types.js';
 
 /**
  * 创建环形缓冲区
@@ -87,39 +94,64 @@ export function findClosestEntry(
 }
 
 /**
- * 克隆指标快照
+ * 把完整指标快照投影为延迟验证最小样本。
  *
- * 创建 IndicatorSnapshot 的深拷贝，确保所有嵌套对象（kdj、macd、rsi、ema、psy）
- * 都是独立的副本，不受外部对象池操作的影响。
- *
- * 此函数用于解决对象生命周期管理问题：
- * - 主循环中的 snapshot 使用对象池管理 kdj/macd
- * - IndicatorCache 需要长期保存数据（至少 15-25 秒）供延迟验证查询
- * - 如果不克隆，主循环释放对象池对象后，IndicatorCache 中的数据会被破坏
- *
- * @param snapshot 原始指标快照
- * @returns 独立的快照副本
+ * @param snapshot 最新指标快照
+ * @param verificationIndicators 当前 monitor 需要保留的延迟验证指标集合
+ * @returns 仅包含延迟验证所需指标的三态样本值映射
  */
-export function cloneIndicatorSnapshot(snapshot: IndicatorSnapshot): IndicatorSnapshot {
-  const { kdj, macd, rsi, ema, psy } = snapshot;
+export function projectVerificationSampleValues(
+  snapshot: IndicatorSnapshot,
+  verificationIndicators: ReadonlyArray<VerificationIndicator>,
+): VerificationSampleValues {
+  const values: Partial<Record<VerificationIndicator, VerificationSamplePoint>> = {};
 
-  // 构建基础快照（不包含可选的 symbol）
-  const cloned: IndicatorSnapshot = {
-    price: snapshot.price,
-    changePercent: snapshot.changePercent,
-    mfi: snapshot.mfi,
-    adx: snapshot.adx,
-    kdj: kdj ? { k: kdj.k, d: kdj.d, j: kdj.j } : null,
-    macd: macd ? { macd: macd.macd, dif: macd.dif, dea: macd.dea } : null,
-    rsi: rsi ? { ...rsi } : null,
-    ema: ema ? { ...ema } : null,
-    psy: psy ? { ...psy } : null,
-  };
+  for (const indicator of verificationIndicators) {
+    const value = getIndicatorValue(snapshot, indicator);
+    if (value !== null) {
+      values[indicator] = {
+        kind: 'value',
+        value,
+      };
+      continue;
+    }
 
-  // 仅当 symbol 存在时才添加（满足 exactOptionalPropertyTypes）
-  if (snapshot.symbol !== undefined) {
-    return { ...cloned, symbol: snapshot.symbol };
+    values[indicator] = isIndicatorPresentInSnapshot(snapshot, indicator)
+      ? { kind: 'invalid' }
+      : { kind: 'missing' };
   }
 
-  return cloned;
+  return values;
+}
+
+/**
+ * 判断快照是否包含指定验证指标字段。
+ *
+ * @param snapshot 指标快照
+ * @param indicator 指标名称
+ * @returns 指标字段存在返回 true，否则返回 false
+ */
+function isIndicatorPresentInSnapshot(
+  snapshot: IndicatorSnapshot,
+  indicator: VerificationIndicator,
+): boolean {
+  if (indicator === 'ADX') {
+    return snapshot.adx !== null;
+  }
+
+  if (indicator === 'K' || indicator === 'D' || indicator === 'J') {
+    return snapshot.kdj !== null;
+  }
+
+  if (indicator === 'MACD' || indicator === 'DIF' || indicator === 'DEA') {
+    return snapshot.macd !== null;
+  }
+
+  if (indicator.startsWith('EMA:')) {
+    const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'EMA:' });
+    return period !== null && snapshot.ema?.[period] !== undefined;
+  }
+
+  const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'PSY:' });
+  return period !== null && snapshot.psy?.[period] !== undefined;
 }

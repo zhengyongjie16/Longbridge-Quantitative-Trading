@@ -162,7 +162,7 @@ describe('createDefaultTradingSignalStrategyFactory', () => {
     expect(result.delayedSignals).toHaveLength(0);
   });
 
-  it('releases pooled indicator records after delayed validation setup fails', () => {
+  it('drops delayed signals when delayed validation setup fails and keeps only indicators1 on success', () => {
     const strategy = createStrategy({
       signalConfig: {
         buycall: requireSignalConfig('(K>80)'),
@@ -214,8 +214,10 @@ describe('createDefaultTradingSignalStrategyFactory', () => {
       }),
     );
 
+    const delayedSignal = successfulResult.delayedSignals[0];
     expect(successfulResult.delayedSignals).toHaveLength(1);
-    expect(successfulResult.delayedSignals[0]?.indicators1).toEqual({ D: 60 });
+    expect(delayedSignal?.indicators1).toEqual({ D: 60 });
+    expect(Object.hasOwn(delayedSignal ?? {}, 'verificationHistory')).toBe(false);
   });
 
   it('does not generate signals for manually injected ADX signal conditions', () => {

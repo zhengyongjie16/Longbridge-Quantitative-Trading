@@ -208,7 +208,7 @@ function resolveDistanceTriggerSide(params: {
 
 /**
  * 创建换标状态机，管理从撤单到回补买入的完整换标流程，并提供周期换标触发能力。
- * @param deps - 依赖（trader、orderRecorder、riskChecker、switchStates、buildOrderSignal、signalObjectPool 等）
+ * @param deps - 依赖（trader、orderRecorder、riskChecker、switchStates、buildOrderSignal 等）
  * @returns SwitchStateMachine 实例（maybeSwitchOnInterval、startSwitchOnDistance、advancePendingSwitch、hasPendingSwitch）
  */
 export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchStateMachine {
@@ -234,7 +234,6 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     resolveDirectionSymbols,
     calculateBuyQuantityByNotional,
     buildOrderSignal,
-    signalObjectPool,
     pendingOrderStatuses,
     buySide,
     logger,
@@ -255,12 +254,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     signal: ReturnType<SwitchStateMachineDeps['buildOrderSignal']>,
     submitFailedMessage: string,
   ): Promise<Awaited<ReturnType<SwitchStateMachineDeps['trader']['executeSignals']>> | null> {
-    let executionResult: Awaited<ReturnType<SwitchStateMachineDeps['trader']['executeSignals']>>;
-    try {
-      executionResult = await trader.executeSignals([signal]);
-    } finally {
-      signalObjectPool.release(signal);
-    }
+    const executionResult = await trader.executeSignals([signal]);
 
     if (executionResult.submittedCount <= 0) {
       logger.warn(submitFailedMessage);

@@ -18,7 +18,7 @@ import {
   resolveMonitorContextRuntimeSnapshot,
   resolveMonitorContextSeatSnapshot,
 } from '../../utils/utils.js';
-import { clearMonitorDirectionQueues } from './utils.js';
+import { clearMonitorDirectionQueues, logDirectionQueueCleanup } from './utils.js';
 import type {
   SeatSyncParams,
   SeatSyncResult,
@@ -30,7 +30,7 @@ import type {
  * 清理指定方向的延迟验证与各类任务队列，并同步清空牛熊证距离缓存。
  * 这样可确保席位从 ACTIVE 退化后不会继续执行过期信号，避免状态漂移。
  *
- * @param params 清理所需的监控上下文、方向、队列与 release 回调
+ * @param params 清理所需的监控上下文、方向与队列
  * @returns 无返回值
  */
 function clearSignalDirectionRuntime(params: {
@@ -38,9 +38,8 @@ function clearSignalDirectionRuntime(params: {
   readonly monitorContext: SignalSeatSyncParams['monitorContext'];
   readonly direction: 'LONG' | 'SHORT';
   readonly mainContext: SignalSeatSyncParams['mainContext'];
-  readonly releaseSignal: SignalSeatSyncParams['releaseSignal'];
 }): void {
-  const { monitorSymbol, monitorContext, direction, mainContext, releaseSignal } = params;
+  const { monitorSymbol, monitorContext, direction, mainContext } = params;
   const { riskChecker, delayedSignalVerifier } = monitorContext;
   const { buyTaskQueue, sellTaskQueue, monitorTaskQueue } = mainContext;
 
@@ -57,26 +56,25 @@ function clearSignalDirectionRuntime(params: {
     buyTaskQueue,
     sellTaskQueue,
     monitorTaskQueue,
-    releaseSignal,
   });
-  const totalRemoved =
-    result.removedDelayed + result.removedBuy + result.removedSell + result.removedMonitorTasks;
-  if (totalRemoved > 0) {
-    logger.debug(
-      `[席位同步] ${monitorSymbol} ${direction} 清理待执行信号：延迟=${result.removedDelayed} 买入=${result.removedBuy} 卖出=${result.removedSell} 监控任务=${result.removedMonitorTasks}`,
-    );
-  }
+  logDirectionQueueCleanup({
+    source: '席位同步',
+    monitorSymbol,
+    direction,
+    result,
+    logger,
+  });
 }
 
 /**
  * 同步普通信号链路所需的席位身份。
  * 只读取 symbolRegistry，不读取行情；行情展示继续由时间循环基于 SDK realtime 状态负责。
  *
- * @param params 同步所需的监控上下文、队列依赖与 release 回调
+ * @param params 同步所需的监控上下文与队列依赖
  * @returns 普通信号入队所需的席位信息
  */
 export function syncSignalSeatState(params: SignalSeatSyncParams): SignalSeatInfo {
-  const { monitorSymbol, monitorContext, mainContext, releaseSignal } = params;
+  const { monitorSymbol, monitorContext, mainContext } = params;
   const previousLongSeatState = monitorContext.seatState.long;
   const previousShortSeatState = monitorContext.seatState.short;
   const seatSnapshot = resolveMonitorContextSeatSnapshot(
@@ -95,7 +93,6 @@ export function syncSignalSeatState(params: SignalSeatSyncParams): SignalSeatInf
       monitorContext,
       direction: 'LONG',
       mainContext,
-      releaseSignal,
     });
   }
 
@@ -105,7 +102,6 @@ export function syncSignalSeatState(params: SignalSeatSyncParams): SignalSeatInf
       monitorContext,
       direction: 'SHORT',
       mainContext,
-      releaseSignal,
     });
   }
 
@@ -128,13 +124,12 @@ export function syncSignalSeatState(params: SignalSeatSyncParams): SignalSeatInf
  * 随后使用时间循环已读取的 quotesMap 补充展示名称与风险展示行情。
  */
 export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
-  const { monitorSymbol, monitorContext, mainContext, quotesMap, releaseSignal } = params;
+  const { monitorSymbol, monitorContext, mainContext, quotesMap } = params;
   const { symbolRegistry } = monitorContext;
   const seatInfo = syncSignalSeatState({
     monitorSymbol,
     monitorContext,
     mainContext,
-    releaseSignal,
   });
   const runtimeSnapshot = resolveMonitorContextRuntimeSnapshot(
     monitorSymbol,

@@ -14,7 +14,6 @@ import { applyStartupSnapshotFailureState } from '../main/lifecycle/startupFailu
 import { sleep } from '../main/utils.js';
 import { displayAccountAndPositions } from '../services/accountDisplay/index.js';
 import { logger } from '../utils/logger/index.js';
-import { signalObjectPool } from '../utils/objectPool/index.js';
 import { formatError } from '../utils/error/index.js';
 import { getShushCow } from '../utils/asciiArt/shushCow.js';
 import { TRADING } from '../constants/index.js';
@@ -197,9 +196,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       buyTaskQueue: postGateRuntime.buyTaskQueue,
       sellTaskQueue: postGateRuntime.sellTaskQueue,
       logger: appLogger,
-      releaseSignal: (signal) => {
-        signalObjectPool.release(signal);
-      },
       doomsdayProtectionEnabled: preGateRuntime.tradingConfig.global.doomsdayProtection,
     });
 

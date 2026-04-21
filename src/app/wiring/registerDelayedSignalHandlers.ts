@@ -18,7 +18,7 @@ import type { RegisterDelayedSignalHandlersParams } from '../types.js';
 /**
  * 注册所有监控标的的延迟验证通过回调。
  *
- * @param params 注册回调所需的共享状态、任务队列与信号释放函数
+ * @param params 注册回调所需的共享状态与任务队列
  * @returns 无返回值
  */
 export function registerDelayedSignalHandlers(params: RegisterDelayedSignalHandlersParams): void {
@@ -28,7 +28,6 @@ export function registerDelayedSignalHandlers(params: RegisterDelayedSignalHandl
     buyTaskQueue,
     sellTaskQueue,
     logger,
-    releaseSignal,
     doomsdayProtectionEnabled = false,
     now = () => new Date(),
   } = params;
@@ -40,14 +39,12 @@ export function registerDelayedSignalHandlers(params: RegisterDelayedSignalHandl
         logger.warn(
           `[延迟验证通过] 未找到监控上下文，丢弃信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`,
         );
-        releaseSignal(signal);
         return;
       }
 
       const signalLabel = `${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`;
       const discardSignal = (prefix: string): void => {
         logger.debug(`${prefix}: ${signalLabel}`);
-        releaseSignal(signal);
       };
 
       if (

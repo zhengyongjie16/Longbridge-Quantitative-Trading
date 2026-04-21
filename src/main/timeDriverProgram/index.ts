@@ -18,6 +18,8 @@ import type { MonitorRuntimeContext } from '../processMonitor/types.js';
 import type { TimeDriverProgramContext } from './types.js';
 import { formatError } from '../../utils/error/index.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
+import type { VerificationIndicator } from '../../types/indicatorProfile.js';
+import { projectVerificationSampleValues } from '../asyncProgram/indicatorCache/utils.js';
 import {
   getHKDateKey,
   isInContinuousHKSession,
@@ -280,6 +282,15 @@ export async function timeDriverProgram({
       continue;
     }
 
-    indicatorCache.push(monitorSymbol, capturedSnapshot, sampleTimestampMs);
+    const verificationIndicators = new Set<VerificationIndicator>([
+      ...monitorContext.indicatorProfile.verificationIndicatorsBySide.buy,
+      ...monitorContext.indicatorProfile.verificationIndicatorsBySide.sell,
+    ]);
+
+    indicatorCache.push(
+      monitorSymbol,
+      projectVerificationSampleValues(capturedSnapshot, [...verificationIndicators]),
+      sampleTimestampMs,
+    );
   }
 }

@@ -20,7 +20,6 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { isBuyAction } from '../../utils/helpers/index.js';
-import { acquireSignal, indicatorRecordPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue } from '../../utils/indicatorHelpers/index.js';
 import { TIME } from '../../constants/index.js';
 import type { Signal } from '../../types/signal.js';
@@ -203,14 +202,14 @@ function createHangSengMultiIndicatorStrategy(
       // 生成立即执行信号（不需要延迟验证）
       const indicatorDisplayStr = buildIndicatorDisplayString(state);
 
-      // 对象池返回 PoolableSignal；立即信号会在此处完整填充后按 Signal 使用
-      const signal = acquireSignal();
-      signal.symbol = symbol;
-      signal.action = action;
-      signal.triggerTime = new Date(); // 立即信号的触发时间为当前时间
-      signal.indicators1 = null;
-      signal.verificationHistory = null;
-      signal.reason = `${reasonPrefix}（立即执行）：${evalResult.reason}，${indicatorDisplayStr}`;
+      const signal: Signal = {
+        symbol,
+        symbolName: null,
+        action,
+        triggerTime: new Date(),
+        indicators1: null,
+        reason: `${reasonPrefix}（立即执行）：${evalResult.reason}，${indicatorDisplayStr}`,
+      };
       return { signal, isImmediate: true };
     }
 
@@ -222,14 +221,12 @@ function createHangSengMultiIndicatorStrategy(
     }
 
     // 记录延迟验证指标的初始值（indicators1）
-    // 从对象池获取 indicators1 对象，减少内存分配
-    const indicators1 = indicatorRecordPool.acquire();
+    const indicators1: Record<string, number> = {};
     const indicatorsList = isBuySignal
       ? indicatorProfile.verificationIndicatorsBySide.buy
       : indicatorProfile.verificationIndicatorsBySide.sell;
     if (indicatorsList.length === 0) {
       logger.debug(`[策略] ${symbol} ${action} 延迟验证指标为空，不生成延迟信号`);
-      indicatorRecordPool.release(indicators1);
       return null;
     }
 
@@ -239,7 +236,6 @@ function createHangSengMultiIndicatorStrategy(
         logger.debug(
           `[策略] ${symbol} ${action} 延迟验证指标 ${indicatorName} 值无效，不生成延迟信号`,
         );
-        indicatorRecordPool.release(indicators1);
         return null;
       }
 
@@ -254,19 +250,19 @@ function createHangSengMultiIndicatorStrategy(
     // 构建指标状态显示字符串
     const indicatorDisplayStr = buildIndicatorDisplayString(state);
 
-    // 对象池返回 PoolableSignal；延迟验证信号会在此处完整填充后按 Signal 使用
-    const signal = acquireSignal();
-    signal.symbol = symbol;
-    signal.action = action;
-    signal.triggerTime = triggerTime;
-    signal.indicators1 = indicators1;
-    signal.verificationHistory = [];
-    signal.reason = `${reasonPrefix}：${
-      evalResult.reason
-    }，${indicatorDisplayStr}，${indicators1Str}，将在 ${triggerTime.toLocaleString('zh-CN', {
-      timeZone: 'Asia/Hong_Kong',
-      hour12: false,
-    })} 进行验证`;
+    const signal: Signal = {
+      symbol,
+      symbolName: null,
+      action,
+      triggerTime,
+      indicators1,
+      reason: `${reasonPrefix}：${
+        evalResult.reason
+      }，${indicatorDisplayStr}，${indicators1Str}，将在 ${triggerTime.toLocaleString('zh-CN', {
+        timeZone: 'Asia/Hong_Kong',
+        hour12: false,
+      })} 进行验证`,
+    };
     return { signal, isImmediate: false };
   };
   return {

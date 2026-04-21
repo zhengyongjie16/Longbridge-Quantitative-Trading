@@ -3,7 +3,6 @@
  * 职责：为监控工具和对拍测试提供旧全量口径的指标快照构造能力。
  */
 import { isValidPositiveNumber } from '../../src/utils/helpers/index.js';
-import { periodRecordPool } from '../../src/utils/objectPool/index.js';
 import type { CandleData } from '../../src/types/data.js';
 import type { IndicatorUsageProfile } from '../../src/types/indicatorProfile.js';
 import type { IndicatorSnapshot } from '../../src/types/quote.js';
@@ -139,7 +138,7 @@ function buildPeriodSnapshotRecord<T>(params: {
     return null;
   }
 
-  const periodRecord = periodRecordPool.acquire();
+  const periodRecord: Record<number, number> = {};
   let hasValue = false;
   for (const period of params.periods) {
     if (!params.isValidPeriod(period) || !Number.isInteger(period)) {
@@ -160,12 +159,7 @@ function buildPeriodSnapshotRecord<T>(params: {
     hasValue = true;
   }
 
-  if (hasValue) {
-    return periodRecord;
-  }
-
-  periodRecordPool.release(periodRecord);
-  return null;
+  return hasValue ? periodRecord : null;
 }
 
 function buildSnapshotFromCommitted(params: {

@@ -119,6 +119,32 @@ describe('cleanup business flow', () => {
     expect(monitorState.lastMonitorSnapshot).toBeNull();
   });
 
+  it('does not mutate detached snapshot objects during cleanup', async () => {
+    const steps: string[] = [];
+    const monitorState = createMonitorState('HSI.HK');
+    const detachedSnapshot = monitorState.lastMonitorSnapshot;
+    const monitorContexts = new Map([
+      [
+        'HSI.HK',
+        createMonitorContextDouble({
+          delayedSignalVerifier: createDelayedSignalVerifierDouble({
+            destroy: () => {
+              steps.push('destroyVerifier');
+            },
+          }),
+        }),
+      ],
+    ]);
+    const lastState = createLastState(new Map([['HSI.HK', monitorState]]));
+
+    const cleanup = createCleanup(createCleanupDeps(steps, { monitorContexts, lastState }));
+
+    await cleanup.execute();
+
+    expect(detachedSnapshot?.kdj).toEqual({ k: 50, d: 50, j: 50 });
+    expect(detachedSnapshot?.macd).toEqual({ macd: 0, dif: 0, dea: 0 });
+  });
+
   it('resets market data runtime at the end of cleanup', async () => {
     const steps: string[] = [];
     const cleanup = createCleanup(createCleanupDeps(steps));

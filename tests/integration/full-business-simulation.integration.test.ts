@@ -1214,7 +1214,6 @@ describe('full business simulation integration', () => {
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
-      releaseSignal: () => {},
     });
 
     const globalStateDomain = createGlobalStateDomain({

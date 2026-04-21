@@ -5,15 +5,17 @@
  * - 清理指定监控标的方向下的延迟/买卖/监控任务
  * - 统一输出队列清理统计日志
  */
-import { getQueueClearTotalRemoved } from '../../utils/utils.js';
-import { clearMonitorDirectionQueues } from '../../main/processMonitor/utils.js';
+import {
+  clearMonitorDirectionQueues,
+  logDirectionQueueCleanup,
+} from '../../main/processMonitor/utils.js';
 import type { ClearQueuesForDirectionWithLogParams } from '../types.js';
 
 /**
  * 清理指定监控标的方向下的所有待执行任务并按需输出统计日志。
  * 默认行为：monitorContext 不存在时直接返回；仅当存在移除任务时写 debug 日志。
  *
- * @param params 清理参数，包含 monitorSymbol、direction、队列实例、释放回调与 logger
+ * @param params 清理参数，包含 monitorSymbol、direction、队列实例与 logger
  * @returns 无返回值
  */
 export function clearMonitorDirectionQueuesWithLog(
@@ -26,7 +28,6 @@ export function clearMonitorDirectionQueuesWithLog(
     buyTaskQueue,
     sellTaskQueue,
     monitorTaskQueue,
-    releaseSignal,
     logger,
   } = params;
 
@@ -42,13 +43,13 @@ export function clearMonitorDirectionQueuesWithLog(
     buyTaskQueue,
     sellTaskQueue,
     monitorTaskQueue,
-    releaseSignal,
   });
 
-  const totalRemoved = getQueueClearTotalRemoved(result);
-  if (totalRemoved > 0) {
-    logger.debug(
-      `[自动换标] ${monitorSymbol} ${direction} 清理待执行信号：延迟=${result.removedDelayed} 买入=${result.removedBuy} 卖出=${result.removedSell} 监控任务=${result.removedMonitorTasks}`,
-    );
-  }
+  logDirectionQueueCleanup({
+    source: '自动换标',
+    monitorSymbol,
+    direction,
+    result,
+    logger,
+  });
 }

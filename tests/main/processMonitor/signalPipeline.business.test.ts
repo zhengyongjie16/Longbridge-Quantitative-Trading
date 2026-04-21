@@ -89,13 +89,11 @@ function createPipelineHarness(params: {
   buyTaskQueue: ReturnType<typeof createBuyTaskQueue>;
   sellTaskQueue: ReturnType<typeof createSellTaskQueue>;
   delayedAdded: Signal[];
-  releasedSignals: Signal[];
 } {
   const buyTaskQueue = createBuyTaskQueue();
   const sellTaskQueue = createSellTaskQueue();
 
   const delayedAdded: Signal[] = [];
-  const releasedSignals: Signal[] = [];
 
   const monitorContext = {
     strategy: {
@@ -146,16 +144,12 @@ function createPipelineHarness(params: {
       isTradingEnabled: params.isTradingEnabled ?? true,
     },
     seatInfo: params.seatInfo ?? createSeatInfo(),
-    releaseSignal: (signal) => {
-      releasedSignals.push(signal);
-    },
   });
 
   return {
     buyTaskQueue,
     sellTaskQueue,
     delayedAdded,
-    releasedSignals,
   };
 }
 
@@ -186,7 +180,6 @@ describe('signalPipeline business flow', () => {
 
     expect(harness.delayedAdded).toHaveLength(1);
     expect(harness.delayedAdded[0]?.seatVersion).toBe(11);
-    expect(harness.releasedSignals).toHaveLength(0);
   });
 
   it('does not require quote before routing buy and sell signals', () => {
@@ -201,15 +194,13 @@ describe('signalPipeline business flow', () => {
       }),
     });
 
-    expect(harness.releasedSignals).toHaveLength(0);
-
     const queuedBuy = harness.buyTaskQueue.pop();
     expect(queuedBuy?.data.action).toBe('BUYCALL');
     const queuedSell = harness.sellTaskQueue.pop();
     expect(queuedSell?.data.action).toBe('SELLCALL');
   });
 
-  it('releases valid signals instead of enqueue when trading gate is disabled', () => {
+  it('does not enqueue valid signals when trading gate is disabled', () => {
     const immediateBuy = createSignalDouble('BUYCALL', 'BULL.HK');
     const delayedBuy = createSignalDouble('BUYPUT', 'BEAR.HK');
 
@@ -222,10 +213,9 @@ describe('signalPipeline business flow', () => {
     expect(harness.buyTaskQueue.isEmpty()).toBeTrue();
     expect(harness.sellTaskQueue.isEmpty()).toBeTrue();
     expect(harness.delayedAdded).toHaveLength(0);
-    expect(harness.releasedSignals).toEqual([immediateBuy, delayedBuy]);
   });
 
-  it('returns early during opening protection and still releases pooled positions', () => {
+  it('returns early during opening protection without enqueuing signals', () => {
     const harness = createPipelineHarness({
       immediateSignals: [createSignalDouble('BUYCALL', 'BULL.HK')],
       delayedSignals: [createSignalDouble('BUYPUT', 'BEAR.HK')],
@@ -234,6 +224,5 @@ describe('signalPipeline business flow', () => {
 
     expect(harness.buyTaskQueue.isEmpty()).toBeTrue();
     expect(harness.sellTaskQueue.isEmpty()).toBeTrue();
-    expect(harness.releasedSignals).toHaveLength(0);
   });
 });

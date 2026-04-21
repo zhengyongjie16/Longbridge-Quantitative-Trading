@@ -1,8 +1,29 @@
-import type { IndicatorSnapshot } from '../../../types/quote.js';
+import type { VerificationIndicator } from '../../../types/indicatorProfile.js';
 
 /**
- * 指标缓存条目。
- * 类型用途：存储单个时间点的指标快照，供延迟验证时按时间点回溯历史指标值。
+ * 延迟验证样本点。
+ * 类型用途：表示单个验证指标在某个采样时刻的三态结果。
+ * 数据来源：由 timeDriverProgram 基于 lastMonitorSnapshot 投影生成。
+ * 使用范围：indicatorCache 与 delayedSignalVerifier 内部使用。
+ */
+export type VerificationSamplePoint =
+  | Readonly<{ kind: 'value'; value: number }>
+  | Readonly<{ kind: 'missing' }>
+  | Readonly<{ kind: 'invalid' }>;
+
+/**
+ * 延迟验证样本值映射。
+ * 类型用途：按验证指标名保存单个采样时刻的三态值，供延迟验证直接消费。
+ * 数据来源：由 timeDriverProgram 基于 lastMonitorSnapshot 和 verificationIndicators 投影生成。
+ * 使用范围：indicatorCache 与 delayedSignalVerifier 内部使用。
+ */
+export type VerificationSampleValues = Readonly<
+  Partial<Record<VerificationIndicator, VerificationSamplePoint>>
+>;
+
+/**
+ * 延迟验证样本条目。
+ * 类型用途：存储单个时间点的延迟验证最小样本，供延迟验证按时间点回溯历史值。
  * 数据来源：由 IndicatorCache.push() 创建并存入环形缓冲区。
  * 使用范围：仅 indicatorCache 模块内部使用。
  */
@@ -10,8 +31,8 @@ export type IndicatorCacheEntry = {
   /** 记录时间戳（毫秒） */
   readonly timestamp: number;
 
-  /** 指标快照（深拷贝，独立于对象池） */
-  readonly snapshot: IndicatorSnapshot;
+  /** 延迟验证样本值 */
+  readonly values: VerificationSampleValues;
 };
 
 /**
@@ -53,19 +74,23 @@ export type IndicatorCacheOptions = {
  */
 export interface IndicatorCache {
   /**
-   * 推送新的指标快照
+   * 推送新的延迟验证样本。
    * @param monitorSymbol 监控标的代码
-   * @param snapshot 指标快照
+   * @param values 延迟验证三态样本
    * @param sampleTimestampMs 采样时间戳（毫秒）
    */
-  push: (monitorSymbol: string, snapshot: IndicatorSnapshot, sampleTimestampMs: number) => void;
+  push: (
+    monitorSymbol: string,
+    values: VerificationSampleValues,
+    sampleTimestampMs: number,
+  ) => void;
 
   /**
-   * 获取最接近目标时间的缓存条目
+   * 获取最接近目标时间的延迟验证样本条目。
    * @param monitorSymbol 监控标的代码
    * @param targetTime 目标时间戳（毫秒）
    * @param toleranceMs 容忍度（毫秒）
-   * @returns 最接近的缓存条目，若无匹配则返回 null
+   * @returns 最接近的样本条目，若无匹配则返回 null
    */
   getAt: (
     monitorSymbol: string,

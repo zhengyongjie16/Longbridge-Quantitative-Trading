@@ -3,8 +3,7 @@
  *
  * 指标参数：DIF=EMA12-EMA26，DEA=EMA9(DIF)，MACD柱=2*(DIF-DEA)
  */
-import { macdObjectPool } from '../../../utils/objectPool/index.js';
-import { isValidMACD, initEmaStreamState, feedEmaStreamState } from './utils.js';
+import { initEmaStreamState, feedEmaStreamState } from './utils.js';
 import type { MACDIndicator } from '../../../types/quote.js';
 import type { MacdStreamState } from './types.js';
 
@@ -125,14 +124,9 @@ export function readMacdValue(state: MacdStreamState): MACDIndicator | null {
     return null;
   }
 
-  const macdObj = macdObjectPool.acquire();
-  macdObj.dif = state.lastDif;
-  macdObj.dea = state.lastSignal;
-  macdObj.macd = macdValue;
-  if (isValidMACD(macdObj)) {
-    return macdObj;
-  }
-
-  macdObjectPool.release(macdObj);
-  return null;
+  return {
+    dif: state.lastDif,
+    dea: state.lastSignal,
+    macd: macdValue,
+  };
 }

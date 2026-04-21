@@ -14,7 +14,6 @@ import {
   isWithinMorningOpenProtection,
 } from '../../utils/time/index.js';
 import { logger } from '../../utils/logger/index.js';
-import { signalObjectPool } from '../../utils/objectPool/index.js';
 import {
   AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
   AUTO_SYMBOL_SEARCH_COOLDOWN_MS,
@@ -75,7 +74,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
     ...(warrantListCacheConfig ? { warrantListCacheConfig } : {}),
   });
-  const signalBuilder = createSignalBuilder({ signalObjectPool });
+  const signalBuilder = createSignalBuilder();
   const seatStateManager = createSeatStateManager({
     monitorSymbol,
     symbolRegistry,
@@ -125,7 +124,6 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     resolveDirectionSymbols,
     calculateBuyQuantityByNotional,
     buildOrderSignal: signalBuilder.buildOrderSignal,
-    signalObjectPool,
     pendingOrderStatuses: PENDING_ORDER_STATUSES,
     buySide: OrderSide.Buy,
     logger,

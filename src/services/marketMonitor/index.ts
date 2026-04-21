@@ -4,16 +4,16 @@
  * 功能：
  * - 监控做多/做空标的价格变化
  * - 监控监控标的的技术指标变化
- * - 将监控标的的指标快照复制到本地 MonitorValues 缓存（通过对象池管理），格式化显示价格和指标信息
+ * - 将监控标的的指标快照复制到本地 MonitorValues 缓存，格式化显示价格和指标信息
  *
  * 变化检测阈值（定义在 constants/index.ts 的 MONITOR 常量中）：
  * - 价格变化：MONITOR.PRICE_CHANGE_THRESHOLD
  * - 技术指标变化（EMA/RSI/PSY/MFI/KDJ/MACD/ADX）：MONITOR.INDICATOR_CHANGE_THRESHOLD
  *
- * 对象池与快照解耦：
- * - monitorSnapshot 由指标流水线缓存管理，可能被对象池复用或回收
- * - monitorValues 持有的是 monitorSnapshot 的一份深拷贝（通过 periodRecordPool/kdjObjectPool/macdObjectPool 等），避免引用被回收的对象
- * - 每次检测到指标变化时，会先释放旧的 monitorValues，再从对象池获取新对象并复制当前快照
+ * 快照与展示缓存解耦：
+ * - monitorSnapshot 由指标流水线缓存管理
+ * - monitorValues 持有的是 monitorSnapshot 的一份值对象副本，用于变化检测
+ * - 每次检测到指标变化时，直接用新的普通对象替换旧 monitorValues
  *
  * 显示内容：
  * - 做多/做空标的的现价和涨跌幅
@@ -30,13 +30,6 @@ import {
   formatWarrantDistanceDisplay,
   hasChanged,
 } from './utils.js';
-import {
-  acquireMonitorValues,
-  kdjObjectPool,
-  macdObjectPool,
-  monitorValuesObjectPool,
-  periodRecordPool,
-} from '../../utils/objectPool/index.js';
 import { LOG_COLORS, MONITOR } from '../../constants/index.js';
 import type { DisplayIndicatorItem, IndicatorUsageProfile } from '../../types/indicatorProfile.js';
 import type { MonitorState } from '../../types/state.js';
@@ -234,7 +227,7 @@ function copyDisplayPeriodRecord(params: {
     return null;
   }
 
-  const filteredRecord = periodRecordPool.acquire();
+  const filteredRecord: Record<number, number> = {};
   let hasValue = false;
   for (const period of periods) {
     const value = snapshot[period];
@@ -246,12 +239,11 @@ function copyDisplayPeriodRecord(params: {
     hasValue = true;
   }
 
-  if (hasValue) {
-    return filteredRecord;
+  if (!hasValue) {
+    return null;
   }
 
-  periodRecordPool.release(filteredRecord);
-  return null;
+  return filteredRecord;
 }
 
 /**
@@ -265,16 +257,11 @@ function copyDisplayKdj(needsKdj: boolean, kdjData: IndicatorSnapshot['kdj']): K
     return null;
   }
 
-  const kdjRecord = kdjObjectPool.acquire();
-  kdjRecord.k = kdjData.k;
-  kdjRecord.d = kdjData.d;
-  kdjRecord.j = kdjData.j;
-  if (isValidPooledKdj(kdjRecord)) {
-    return kdjRecord;
-  }
-
-  kdjObjectPool.release(kdjRecord);
-  return null;
+  return {
+    k: kdjData.k,
+    d: kdjData.d,
+    j: kdjData.j,
+  };
 }
 
 /**
@@ -291,16 +278,11 @@ function copyDisplayMacd(
     return null;
   }
 
-  const macdRecord = macdObjectPool.acquire();
-  macdRecord.dif = macdData.dif;
-  macdRecord.dea = macdData.dea;
-  macdRecord.macd = macdData.macd;
-  if (isValidPooledMacd(macdRecord)) {
-    return macdRecord;
-  }
-
-  macdObjectPool.release(macdRecord);
-  return null;
+  return {
+    dif: macdData.dif,
+    dea: macdData.dea,
+    macd: macdData.macd,
+  };
 }
 
 /**
@@ -315,28 +297,26 @@ function buildMonitorValuesFromDisplayPlan(params: {
   readonly changePercent: number | null;
 }): MonitorValues {
   const { compiledPlan, monitorSnapshot, currentPrice, changePercent } = params;
-  const monitorValues = acquireMonitorValues();
-  monitorValues.price = currentPrice;
-  monitorValues.changePercent = changePercent;
-  monitorValues.ema = copyDisplayPeriodRecord({
-    periods: compiledPlan.emaPeriods,
-    snapshot: monitorSnapshot.ema,
-  });
-
-  monitorValues.rsi = copyDisplayPeriodRecord({
-    periods: compiledPlan.rsiPeriods,
-    snapshot: monitorSnapshot.rsi,
-  });
-
-  monitorValues.psy = copyDisplayPeriodRecord({
-    periods: compiledPlan.psyPeriods,
-    snapshot: monitorSnapshot.psy,
-  });
-  monitorValues.mfi = compiledPlan.needsMfi ? monitorSnapshot.mfi : null;
-  monitorValues.adx = compiledPlan.needsAdx ? monitorSnapshot.adx : null;
-  monitorValues.kdj = copyDisplayKdj(compiledPlan.needsKdj, monitorSnapshot.kdj);
-  monitorValues.macd = copyDisplayMacd(compiledPlan.needsMacd, monitorSnapshot.macd);
-  return monitorValues;
+  return {
+    price: currentPrice,
+    changePercent,
+    ema: copyDisplayPeriodRecord({
+      periods: compiledPlan.emaPeriods,
+      snapshot: monitorSnapshot.ema,
+    }),
+    rsi: copyDisplayPeriodRecord({
+      periods: compiledPlan.rsiPeriods,
+      snapshot: monitorSnapshot.rsi,
+    }),
+    psy: copyDisplayPeriodRecord({
+      periods: compiledPlan.psyPeriods,
+      snapshot: monitorSnapshot.psy,
+    }),
+    mfi: compiledPlan.needsMfi ? monitorSnapshot.mfi : null,
+    adx: compiledPlan.needsAdx ? monitorSnapshot.adx : null,
+    kdj: copyDisplayKdj(compiledPlan.needsKdj, monitorSnapshot.kdj),
+    macd: copyDisplayMacd(compiledPlan.needsMacd, monitorSnapshot.macd),
+  };
 }
 
 /**
@@ -510,37 +490,6 @@ function displayQuoteInfo(
 }
 
 /**
- * 将监控值对象及其嵌套的 ema/rsi/psy/kdj/macd 归还对象池，避免泄漏。
- * @param monitorValues - 当前缓存的 MonitorValues，可为 null
- * @returns void
- */
-function releaseMonitorValuesObjects(monitorValues: MonitorValues | null): void {
-  if (!monitorValues) return;
-
-  if (monitorValues.ema) {
-    periodRecordPool.release(monitorValues.ema);
-  }
-
-  if (monitorValues.rsi) {
-    periodRecordPool.release(monitorValues.rsi);
-  }
-
-  if (monitorValues.psy) {
-    periodRecordPool.release(monitorValues.psy);
-  }
-
-  if (monitorValues.kdj) {
-    kdjObjectPool.release(monitorValues.kdj);
-  }
-
-  if (monitorValues.macd) {
-    macdObjectPool.release(monitorValues.macd);
-  }
-
-  monitorValuesObjectPool.release(monitorValues);
-}
-
-/**
  * 将指标数值格式化为固定小数位字符串，无效值返回 '-'。
  * @param value - 指标值
  * @param decimals - 小数位数，默认 2
@@ -552,32 +501,6 @@ function formatIndicator(value: number | null | undefined, decimals: number = 2)
   }
 
   return '-';
-}
-
-/**
- * 类型守卫：判断对象池 KDJ 记录是否具备有效数值（用于安全写入到 MonitorValues）。
- * @param record 对象池获取的 KDJ 记录
- * @returns 具备有效 k/d/j 时返回 true
- */
-function isValidPooledKdj(record: {
-  readonly k: number | null;
-  readonly d: number | null;
-  readonly j: number | null;
-}): record is KDJIndicator {
-  return isValidNumber(record.k) && isValidNumber(record.d) && isValidNumber(record.j);
-}
-
-/**
- * 类型守卫：判断对象池 MACD 记录是否具备有效数值（用于安全写入到 MonitorValues）。
- * @param record 对象池获取的 MACD 记录
- * @returns 具备有效 macd/dif/dea 时返回 true
- */
-function isValidPooledMacd(record: {
-  readonly macd: number | null;
-  readonly dif: number | null;
-  readonly dea: number | null;
-}): record is MACDIndicator {
-  return isValidNumber(record.macd) && isValidNumber(record.dif) && isValidNumber(record.dea);
 }
 
 /**
@@ -741,7 +664,7 @@ export function createMarketMonitor(): MarketMonitor {
     },
 
     /**
-     * 检测监控标的技术指标变化，变化时打印全量指标并通过对象池更新状态缓存。
+     * 检测监控标的技术指标变化，变化时打印全量指标并更新状态缓存。
      * 任意指标（价格、涨跌幅、EMA/RSI/PSY/MFI/KDJ/MACD）超过阈值即触发显示与状态更新。
      */
     monitorIndicatorChanges: (params: MonitorIndicatorChangesParams): boolean => {
@@ -832,8 +755,6 @@ export function createMarketMonitor(): MarketMonitor {
           compiledPlan,
           klineTimestamp,
         });
-
-        releaseMonitorValuesObjects(monitorState.monitorValues);
 
         monitorState.monitorValues = buildMonitorValuesFromDisplayPlan({
           compiledPlan,

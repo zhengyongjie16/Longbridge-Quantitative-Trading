@@ -8,19 +8,17 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { formatError } from '../../utils/error/index.js';
-import { releaseSnapshotObjects } from '../../utils/helpers/index.js';
 import type { MonitorState } from '../../types/state.js';
 import type { CleanupContext, CleanupController, CleanupFailure } from '../types.js';
 
 /**
- * 释放所有监控标的的最后一个快照对象，并将最后快照指针清空，避免退出后残留对象池引用。
+ * 清空所有监控标的的最后快照引用。
  *
  * @param monitorStates 监控状态 Map，键为监控标的代码
  * @returns void
  */
-function releaseAllMonitorSnapshots(monitorStates: ReadonlyMap<string, MonitorState>): void {
+function clearAllMonitorSnapshots(monitorStates: ReadonlyMap<string, MonitorState>): void {
   for (const monitorState of monitorStates.values()) {
-    releaseSnapshotObjects(monitorState.lastMonitorSnapshot, monitorState.monitorValues);
     monitorState.lastMonitorSnapshot = null;
   }
 }
@@ -131,8 +129,8 @@ export function createCleanup(context: CleanupContext): CleanupController {
       indicatorCache.clearAll();
     });
 
-    await runStep('释放监控快照对象', () => {
-      releaseAllMonitorSnapshots(lastState.monitorStates);
+    await runStep('清空监控快照引用', () => {
+      clearAllMonitorSnapshots(lastState.monitorStates);
     });
 
     await runStep('重置行情运行态订阅与缓存', async () => {

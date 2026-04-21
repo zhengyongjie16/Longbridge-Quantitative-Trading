@@ -10,7 +10,6 @@ import { validateSignalSeat } from '../../services/autoSymbolManager/utils.js';
 import type { Signal } from '../../types/signal.js';
 import type { MonitorContext, LastState } from '../../types/state.js';
 import type { MarketDataClient, QuoteUpdatedEvent, Trader } from '../../types/services.js';
-import { acquireSignal, signalObjectPool } from '../../utils/objectPool/index.js';
 import { isSeatActive } from '../../utils/seat/guards.js';
 import type { StaticLiquidationRuntimeResult } from './types.js';
 
@@ -138,23 +137,24 @@ function createStaticLiquidationCandidate(params: {
     return { kind: 'SKIP' };
   }
 
-  const signal = acquireSignal();
-  signal.symbol = seatState.symbol;
-  signal.symbolName = isLongDirection
-    ? monitorContext.longSymbolName || seatState.symbol
-    : monitorContext.shortSymbolName || seatState.symbol;
-  signal.action = isLongDirection ? 'SELLCALL' : 'SELLPUT';
-  signal.reason = liquidationResult.reason ?? '牛熊证距回收价触发清仓';
-  signal.price = tradingQuote.price;
-  signal.lotSize = tradingQuote.lotSize ?? null;
-  signal.quantity = availableQuantity;
-  signal.triggerTime = new Date();
-  signal.orderTypeOverride = WARRANT_LIQUIDATION_ORDER_TYPE;
-  signal.isProtectiveLiquidation = false;
-  signal.seatVersion = monitorContext.symbolRegistry.getSeatVersion(
-    monitorContext.config.monitorSymbol,
-    direction,
-  );
+  const signal: Signal = {
+    symbol: seatState.symbol,
+    symbolName: isLongDirection
+      ? monitorContext.longSymbolName || seatState.symbol
+      : monitorContext.shortSymbolName || seatState.symbol,
+    action: isLongDirection ? 'SELLCALL' : 'SELLPUT',
+    reason: liquidationResult.reason ?? '牛熊证距回收价触发清仓',
+    price: tradingQuote.price,
+    lotSize: tradingQuote.lotSize ?? null,
+    quantity: availableQuantity,
+    triggerTime: new Date(),
+    orderTypeOverride: WARRANT_LIQUIDATION_ORDER_TYPE,
+    isProtectiveLiquidation: false,
+    seatVersion: monitorContext.symbolRegistry.getSeatVersion(
+      monitorContext.config.monitorSymbol,
+      direction,
+    ),
+  };
 
   return {
     kind: 'CANDIDATE',
@@ -164,19 +164,6 @@ function createStaticLiquidationCandidate(params: {
       quote: tradingQuote,
     },
   };
-}
-
-/**
- * 释放静态清仓候选持有的 signal 对象。
- *
- * @param candidates 待释放候选
- */
-function releaseStaticLiquidationCandidates(
-  candidates: ReadonlyArray<StaticLiquidationCandidate>,
-): void {
-  for (const candidate of candidates) {
-    signalObjectPool.release(candidate.signal);
-  }
 }
 
 /**
@@ -269,55 +256,45 @@ export function createStaticLiquidationExecutor(
       return seatValidation.valid;
     });
     if (executableCandidates.length === 0) {
-      releaseStaticLiquidationCandidates(candidates);
       return { kind: 'NOOP' };
     }
 
-    const releasedSignals = new Set(executableCandidates.map((candidate) => candidate.signal));
-
-    try {
-      const executionResult = await trader.executeSignals(
-        executableCandidates.map((candidate) => candidate.signal),
-      );
-      if (executionResult.submittedCount !== executableCandidates.length) {
-        return { kind: 'NOOP' };
-      }
-
-      for (const candidate of executableCandidates) {
-        const isLongDirection = candidate.direction === 'LONG';
-        const seatValidation = validateSignalSeat({
-          monitorSymbol,
-          signal: candidate.signal,
-          symbolRegistry: monitorContext.symbolRegistry,
-        });
-        if (!seatValidation.valid) {
-          continue;
-        }
-
-        monitorContext.orderRecorder.clearBuyOrders(
-          candidate.signal.symbol,
-          isLongDirection,
-          candidate.quote,
-        );
-        const dailyLossOffset = monitorContext.dailyLossTracker.getLossOffset(
-          monitorSymbol,
-          isLongDirection,
-        );
-        await monitorContext.riskChecker.refreshUnrealizedLossData(
-          monitorContext.orderRecorder,
-          candidate.signal.symbol,
-          isLongDirection,
-          candidate.quote,
-          dailyLossOffset,
-        );
-      }
-
-      return { kind: 'COMPLETED' };
-    } finally {
-      releaseStaticLiquidationCandidates(
-        candidates.filter((candidate) => !releasedSignals.has(candidate.signal)),
-      );
-      releaseStaticLiquidationCandidates(executableCandidates);
+    const executionResult = await trader.executeSignals(
+      executableCandidates.map((candidate) => candidate.signal),
+    );
+    if (executionResult.submittedCount !== executableCandidates.length) {
+      return { kind: 'NOOP' };
     }
+
+    for (const candidate of executableCandidates) {
+      const isLongDirection = candidate.direction === 'LONG';
+      const seatValidation = validateSignalSeat({
+        monitorSymbol,
+        signal: candidate.signal,
+        symbolRegistry: monitorContext.symbolRegistry,
+      });
+      if (!seatValidation.valid) {
+        continue;
+      }
+
+      monitorContext.orderRecorder.clearBuyOrders(
+        candidate.signal.symbol,
+        isLongDirection,
+        candidate.quote,
+      );
+      const dailyLossOffset = monitorContext.dailyLossTracker.getLossOffset(
+        monitorSymbol,
+        isLongDirection,
+      );
+      await monitorContext.riskChecker.refreshUnrealizedLossData(
+        monitorContext.orderRecorder,
+        candidate.signal.symbol,
+        isLongDirection,
+        candidate.quote,
+        dailyLossOffset,
+      );
+    }
+
+    return { kind: 'COMPLETED' };
   };
 }

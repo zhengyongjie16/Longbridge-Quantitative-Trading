@@ -10,7 +10,6 @@ import { createMonitorTaskProcessor } from '../../main/asyncProgram/monitorTaskP
 import { createSellProcessor } from '../../main/asyncProgram/sellProcessor/index.js';
 import { clearMonitorDirectionQueuesWithLog } from './queueCleanup.js';
 import { logger } from '../../utils/logger/index.js';
-import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { AsyncRuntime, AsyncRuntimeFactoryDeps } from '../types.js';
 
 /**
@@ -46,9 +45,6 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
         buyTaskQueue,
         sellTaskQueue,
         monitorTaskQueue,
-        releaseSignal: (signal) => {
-          signalObjectPool.release(signal);
-        },
         logger,
       });
     },
@@ -79,12 +75,6 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     marketDataClient: preGateRuntime.marketDataClient,
     getLastState: () => lastState,
     postTradeConsistencyRuntime,
-    scheduleRetry: (callback, delayMs) => {
-      return setTimeout(callback, delayMs);
-    },
-    clearRetry: (handle) => {
-      clearTimeout(handle);
-    },
     getCanProcessTask: () => lastState.isTradingEnabled,
   });
 

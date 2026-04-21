@@ -8,7 +8,6 @@ import { describe, expect, it } from 'bun:test';
 import { OrderSide } from 'longbridge';
 
 import { createDoomsdayProtection } from '../../src/core/doomsdayProtection/index.js';
-import { signalObjectPool } from '../../src/utils/objectPool/index.js';
 
 import type { AutoSymbolManagerPort } from '../../src/types/monitorContextPorts.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
@@ -714,75 +713,54 @@ describe('doomsday integration', () => {
     expect(submittedSymbols).toEqual(['BULL.HK']);
   });
 
-  it('releases duplicate and unique clearance signals even when execution throws', async () => {
+  it('propagates clearance execution error even when duplicate signals are deduplicated', async () => {
     const doomsday = createDoomsdayProtection();
     const primaryMonitor = createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' });
     const secondaryMonitor = createMonitorConfigDouble({ monitorSymbol: 'HSCEI.HK' });
 
-    const originalRelease = signalObjectPool.release;
-    const originalReleaseAll = signalObjectPool.releaseAll;
-    let releasedSignals = 0;
+    const trader = createTraderDouble({
+      executeSignals: async () => {
+        throw new Error('submit failed');
+      },
+    });
 
-    signalObjectPool.release = (signal) => {
-      releasedSignals += signal ? 1 : 0;
-      originalRelease.call(signalObjectPool, signal);
-    };
-
-    signalObjectPool.releaseAll = (signals) => {
-      releasedSignals += signals?.length ?? 0;
-      originalReleaseAll.call(signalObjectPool, signals);
-    };
-
+    let caught: unknown = null;
     try {
-      const trader = createTraderDouble({
-        executeSignals: async () => {
-          throw new Error('submit failed');
+      await doomsday.executeClearance({
+        currentTime: new Date('2026-02-16T07:56:00.000Z'),
+        isHalfDay: false,
+        positions: createLastState().cachedPositions,
+        monitorConfigs: [primaryMonitor, secondaryMonitor],
+        monitorContexts: new Map([
+          [primaryMonitor.monitorSymbol, createMonitorContext(primaryMonitor)],
+          [secondaryMonitor.monitorSymbol, createMonitorContext(secondaryMonitor)],
+        ]),
+        trader,
+        marketDataClient: {
+          getQuoteContext: async () => ({}) as never,
+          getQuotes: async () =>
+            new Map([
+              ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+              ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+            ]),
+          subscribeSymbols: async () => {},
+          unsubscribeSymbols: async () => {},
+          onQuoteUpdated: () => () => {},
+          onCandlestickUpdated: () => () => {},
+          subscribeCandlesticks: async () => [],
+          getRealtimeCandlesticks: async () => [],
+          getCandlestickSnapshot: () => null,
+          isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+          resetRuntimeSubscriptionsAndCaches: async () => {},
         },
+        lastState: createLastState(),
       });
-
-      let caught: unknown = null;
-      try {
-        await doomsday.executeClearance({
-          currentTime: new Date('2026-02-16T07:56:00.000Z'),
-          isHalfDay: false,
-          positions: createLastState().cachedPositions,
-          monitorConfigs: [primaryMonitor, secondaryMonitor],
-          monitorContexts: new Map([
-            [primaryMonitor.monitorSymbol, createMonitorContext(primaryMonitor)],
-            [secondaryMonitor.monitorSymbol, createMonitorContext(secondaryMonitor)],
-          ]),
-          trader,
-          marketDataClient: {
-            getQuoteContext: async () => ({}) as never,
-            getQuotes: async () =>
-              new Map([
-                ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
-                ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
-              ]),
-            subscribeSymbols: async () => {},
-            unsubscribeSymbols: async () => {},
-            onQuoteUpdated: () => () => {},
-            onCandlestickUpdated: () => () => {},
-            subscribeCandlesticks: async () => [],
-            getRealtimeCandlesticks: async () => [],
-            getCandlestickSnapshot: () => null,
-            isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-            resetRuntimeSubscriptionsAndCaches: async () => {},
-          },
-          lastState: createLastState(),
-        });
-      } catch (error) {
-        caught = error;
-      }
-
-      expect(caught).toMatchObject({
-        message: 'submit failed',
-      });
-
-      expect(releasedSignals).toBe(4);
-    } finally {
-      signalObjectPool.release = originalRelease;
-      signalObjectPool.releaseAll = originalReleaseAll;
+    } catch (error) {
+      caught = error;
     }
+
+    expect(caught).toMatchObject({
+      message: 'submit failed',
+    });
   });
 });

@@ -128,7 +128,6 @@ describe('createSignalRuntimeDomain', () => {
     const tradingRiskEventRuntime = createOrderedRuntime('tradingRiskEventRuntime', globalCalls);
     const monitorQuoteEventRuntime = createOrderedRuntime('monitorQuoteEventRuntime', globalCalls);
     const switchWakeupRuntime = createOrderedRuntime('switchWakeupRuntime', globalCalls);
-    let releaseSignalCount = 0;
     let cancelAllCount = 0;
 
     const buyTaskQueue = createTaskQueueDouble<BuyTaskType>(
@@ -261,10 +260,6 @@ describe('createSignalRuntimeDomain', () => {
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
-      releaseSignal: () => {
-        releaseSignalCount += 1;
-        globalCalls.push('releaseSignal');
-      },
     };
 
     const domain = createSignalRuntimeDomain(deps);
@@ -288,17 +283,13 @@ describe('createSignalRuntimeDomain', () => {
       'quoteSubscriptionRuntime.stopAndDrain',
       'postTradeConsistencyRuntime.stopAndDrain',
       'buyTaskQueue.clearAll',
-      'releaseSignal',
-      'releaseSignal',
       'sellTaskQueue.clearAll',
-      'releaseSignal',
       'monitorTaskQueue.clearAll',
       'delayedSignalVerifier.cancelAll',
       'postTradeConsistencyRuntime.midnightClear',
       'indicatorCache.clearAll',
     ]);
     expect(cancelAllCount).toBe(1);
-    expect(releaseSignalCount).toBe(3);
   });
 
   it('openRebuild 按全局顺序先恢复 postTradeConsistencyRuntime，再启动 runtime 与处理器', async () => {
@@ -423,9 +414,6 @@ describe('createSignalRuntimeDomain', () => {
       monitorTaskQueue: createMonitorTaskQueueDouble(() => {
         globalCalls.push('monitorTaskQueue.clearAll');
       }),
-      releaseSignal: () => {
-        globalCalls.push('releaseSignal');
-      },
     };
 
     const domain = createSignalRuntimeDomain(deps);

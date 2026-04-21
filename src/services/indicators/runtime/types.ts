@@ -166,8 +166,6 @@ export type IndicatorRuntimeStateFields = {
   readonly symbol: string;
   readonly profile: IndicatorUsageProfile;
   lastProcessedVersion: number;
-  closedBarTimestamp: number | null;
-  activeBarTimestamp: number | null;
   activeBarConfirmed: boolean | null;
   activeBar: CandleData | null;
   lastBarTimestamp: number | null;

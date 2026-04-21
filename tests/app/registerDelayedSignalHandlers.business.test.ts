@@ -2,7 +2,7 @@
  * registerDelayedSignalHandlers 业务测试
  *
  * 功能：
- * - 验证延迟验证通过后的信号分流边界与释放行为。
+ * - 验证延迟验证通过后的信号分流边界。
  */
 import { describe, expect, it } from 'bun:test';
 
@@ -28,7 +28,7 @@ function createTaskQueueDouble<TType extends string>(): TaskQueue<TType> {
 }
 
 describe('registerDelayedSignalHandlers business flow', () => {
-  it('releases HOLD signal without enqueuing buy or sell tasks', () => {
+  it('drops HOLD signal without enqueuing buy or sell tasks', () => {
     const callbackRef: { current: (signal: Signal, monitorSymbol: string) => void } = {
       current: () => {
         throw new Error('verified callback not registered');
@@ -36,7 +36,6 @@ describe('registerDelayedSignalHandlers business flow', () => {
     };
     const buyTasks: Signal[] = [];
     const sellTasks: Signal[] = [];
-    const releasedSignals: Signal[] = [];
 
     const buyTaskQueue = createTaskQueueDouble<BuyTaskType>();
     buyTaskQueue.push = (task) => {
@@ -77,15 +76,11 @@ describe('registerDelayedSignalHandlers business flow', () => {
         debug: () => {},
         warn: () => {},
       },
-      releaseSignal: (signal) => {
-        releasedSignals.push(signal);
-      },
     });
 
     const signal = createSignalDouble('HOLD', 'BULL.HK');
     callbackRef.current(signal, monitorSymbol);
 
-    expect(releasedSignals).toEqual([signal]);
     expect(buyTasks).toHaveLength(0);
     expect(sellTasks).toHaveLength(0);
   });

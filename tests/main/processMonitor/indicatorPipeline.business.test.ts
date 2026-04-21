@@ -162,6 +162,44 @@ describe('processMonitor indicatorPipeline business flow', () => {
     expect(result).not.toBe(previousSnapshot);
   });
 
+  it('does not mutate detached previous snapshot when pipeline replaces lastMonitorSnapshot', async () => {
+    const runIndicatorPipeline = await loadRunIndicatorPipeline();
+    const cacheSnapshot = createCacheSnapshot({
+      candles: createCandles(60, 100, 0.2),
+      version: 8,
+    });
+    const previousSnapshot = createSnapshot(111);
+
+    const monitorContext = createMonitorContext({
+      state: {
+        monitorSymbol: 'HSI.HK',
+        longPrice: null,
+        shortPrice: null,
+        signal: null,
+        pendingDelayedSignals: [],
+        monitorValues: null,
+        lastMonitorSnapshot: previousSnapshot,
+        incrementalIndicatorRuntime: null,
+      },
+    });
+
+    await runIndicatorPipeline({
+      monitorSymbol: 'HSI.HK',
+      monitorContext,
+      mainContext: {
+        marketDataClient: {
+          getCandlestickSnapshot: () => cacheSnapshot,
+        },
+      } as never,
+    });
+
+    expect(previousSnapshot.ema?.[7]).toBe(110);
+    expect(previousSnapshot.rsi?.[6]).toBe(55);
+    expect(previousSnapshot.psy?.[13]).toBe(52);
+    expect(previousSnapshot.kdj).toEqual({ k: 50, d: 49, j: 52 });
+    expect(previousSnapshot.macd).toEqual({ macd: 1, dif: 0.5, dea: 0.4 });
+  });
+
   it('rebuilds snapshot from candlestick cache and更新 state', async () => {
     const runIndicatorPipeline = await loadRunIndicatorPipeline();
     const cacheSnapshot = createCacheSnapshot({

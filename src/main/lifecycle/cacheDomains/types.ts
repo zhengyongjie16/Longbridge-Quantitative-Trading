@@ -1,5 +1,4 @@
 import type { LastState, MonitorContext } from '../../../types/state.js';
-import type { Signal } from '../../../types/signal.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { SymbolRegistry } from '../../../types/seat.js';
 import type { MarketDataClient, Trader } from '../../../types/services.js';
@@ -47,7 +46,7 @@ interface SignalRuntimePostTradeConsistencyRuntime {
 
 /**
  * 信号运行时域依赖。
- * 类型用途：createSignalRuntimeDomain 的入参，提供监控上下文、订单监控 runtime、买卖/监控处理器、runtime 所有权与队列、releaseSignal 等。
+ * 类型用途：createSignalRuntimeDomain 的入参，提供监控上下文、订单监控 runtime、买卖/监控处理器、runtime 所有权与队列等。
  * 数据来源：由 lifecycle 或主程序在注册 cacheDomains 时组装传入。
  * 使用范围：仅 lifecycle 模块使用。
  */
@@ -72,7 +71,6 @@ export type SignalRuntimeDomainDeps = Readonly<{
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
-  releaseSignal: (signal: Signal) => void;
 }>;
 
 /**

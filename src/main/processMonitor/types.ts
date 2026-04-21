@@ -1,7 +1,6 @@
 import type { LastState, MonitorContext } from '../../types/state.js';
 import type { Quote } from '../../types/quote.js';
 import type { SeatState } from '../../types/seat.js';
-import type { Signal } from '../../types/signal.js';
 import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { MarketDataClient } from '../../types/services.js';
 import type { MarketMonitor } from '../../services/marketMonitor/types.js';
@@ -40,7 +39,7 @@ export type ProcessMonitorParams = {
     readonly canTradeNow: boolean;
     readonly openProtectionActive: boolean;
 
-    /** 交易门禁透传：false 时不入队，直接释放信号 */
+    /** 交易门禁透传：仅保留运行时门禁快照，不表达 release 语义 */
     readonly isTradingEnabled: boolean;
   };
 };
@@ -63,7 +62,7 @@ export type AutoSymbolTasksParams = Readonly<{
 
 /**
  * 席位同步参数（同步席位状态函数的入参）。
- * 类型用途：封装 syncSeatState 所需的监控标的、行情、主上下文及信号释放回调。
+ * 类型用途：封装 syncSeatState 所需的监控标的、行情与主上下文。
  * 数据来源：由 processMonitor 从当前上下文与行情等组装传入。
  * 使用范围：仅 processMonitor 内部使用。
  */
@@ -72,12 +71,11 @@ export type SeatSyncParams = Readonly<{
   monitorContext: MonitorContext;
   mainContext: MonitorRuntimeContext;
   quotesMap: ReadonlyMap<string, Quote | null>;
-  releaseSignal: (signal: Signal) => void;
 }>;
 
 /**
  * 无行情席位同步参数。
- * 类型用途：封装 syncSignalSeatState 所需的监控标的、队列上下文及信号释放回调。
+ * 类型用途：封装 syncSignalSeatState 所需的监控标的与队列上下文。
  * 数据来源：由 businessEventProgram 或 syncSeatState 按当前 monitor 组装。
  * 使用范围：仅 K 线信号链路与 timeDriverProgram 席位同步入口使用。
  */
@@ -85,7 +83,6 @@ export type SignalSeatSyncParams = Readonly<{
   monitorSymbol: string;
   monitorContext: MonitorContext;
   mainContext: Pick<MonitorRuntimeContext, 'buyTaskQueue' | 'sellTaskQueue' | 'monitorTaskQueue'>;
-  releaseSignal: (signal: Signal) => void;
 }>;
 
 /**

@@ -5,7 +5,6 @@
  * - 消费 SellTaskQueue 中的卖出任务
  * - 使用 setImmediate 异步执行，不阻塞主循环
  * - 卖出信号不经过风险检查，直接计算卖出数量并执行
- * - 统一管理信号对象的生命周期（释放到对象池）
  *
  * 设计原因：
  * - 卖出操作的优先级高于买入，应优先允许执行
@@ -23,10 +22,8 @@
  * 2. 获取监控上下文（行情、持仓数据）
  * 3. 调用 signalProcessor.processSellSignals() 计算卖出数量
  * 4. 如果信号未被转为 HOLD，执行 trader.executeSignals()
- * 5. 释放信号对象到对象池
  */
 import { ORDER_QUOTE_RETRY } from '../../../constants/index.js';
-import { acquireSignal, signalObjectPool } from '../../../utils/objectPool/index.js';
 import {
   createBaseProcessor,
   executeSignalsWithLifecycleGate,
@@ -49,28 +46,18 @@ import { formatSymbolDisplay } from '../../../utils/display/index.js';
 import type { Signal } from '../../../types/signal.js';
 
 /**
- * 复制卖出信号到新的对象池实例，用于 quote retry 的 delayed re-enqueue。
+ * 复制卖出信号，用于 quote retry 的 delayed re-enqueue。
  *
  * @param signal 原始卖出信号
  * @returns 可重新入队的卖出信号副本
  */
 function cloneSellSignal(signal: Signal): Signal {
-  const clonedSignal = acquireSignal();
-  clonedSignal.symbol = signal.symbol;
-  clonedSignal.symbolName = signal.symbolName ?? null;
-  clonedSignal.action = signal.action;
-  clonedSignal.reason = signal.reason ?? null;
-  clonedSignal.orderTypeOverride = signal.orderTypeOverride ?? null;
-  clonedSignal.isProtectiveLiquidation = signal.isProtectiveLiquidation ?? null;
-  clonedSignal.price = signal.price ?? null;
-  clonedSignal.lotSize = signal.lotSize ?? null;
-  clonedSignal.quantity = signal.quantity ?? null;
-  clonedSignal.triggerTime = signal.triggerTime ?? null;
-  clonedSignal.seatVersion = signal.seatVersion ?? null;
-  clonedSignal.indicators1 = signal.indicators1 ?? null;
-  clonedSignal.verificationHistory = signal.verificationHistory ?? null;
-  clonedSignal.relatedBuyOrderIds = signal.relatedBuyOrderIds ?? null;
-  return clonedSignal;
+  return {
+    ...signal,
+    triggerTime: signal.triggerTime ? new Date(signal.triggerTime) : null,
+    indicators1: signal.indicators1 ? { ...signal.indicators1 } : null,
+    relatedBuyOrderIds: signal.relatedBuyOrderIds ? [...signal.relatedBuyOrderIds] : null,
+  };
 }
 
 /**
@@ -143,10 +130,6 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       clear(retryState.handle);
     }
 
-    if (retryState.retrySignal) {
-      signalObjectPool.release(retryState.retrySignal);
-    }
-
     retryStates.delete(retryKey);
   }
 
@@ -159,7 +142,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
   /**
    * 处理单个卖出任务
    */
-  async function processTask(task: Task<SellTaskType>): Promise<boolean> {
+  async function processTask(task: Task<SellTaskType>): Promise<void> {
     const { data: signal, monitorSymbol } = task;
     const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
     try {
@@ -171,7 +154,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         logger.warn(
           `[SellProcessor] 无法获取监控上下文: ${formatSymbolDisplay(monitorSymbol, null)}`,
         );
-        return false;
+        return;
       }
 
       const { config, orderRecorder, symbolRegistry } = ctx;
@@ -185,7 +168,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         logger.debug(
           `[SellProcessor] ${describeSignalSeatValidationFailure(seatValidation)}，跳过信号: ${symbolDisplay} ${signal.action}`,
         );
-        return true;
+        return;
       }
 
       // 获取持仓数据（从 positionCache 获取）
@@ -219,7 +202,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       const quoteReady = isQuoteReadyForRequirement({ quote: targetQuote, requirement: 'PRICE' });
       if (!quoteReady) {
         if (!lifecycleActive) {
-          return true;
+          return;
         }
 
         if (retryState?.retrySignal === null || !retryState) {
@@ -260,7 +243,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
           }
         }
 
-        return true;
+        return;
       }
 
       clearRetryState(retryKey);
@@ -288,7 +271,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       const firstSignal = processedSignals[0];
       if (!firstSignal || firstSignal.action === 'HOLD') {
         logger.debug(`[SellProcessor] 卖出信号被跳过: ${symbolDisplay} ${signal.action}`);
-        return true; // 处理成功（虽然跳过了）
+        return; // 处理成功（虽然跳过了）
       }
 
       const executionSeatValidation = validateSignalSeat({
@@ -300,10 +283,10 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         logger.debug(
           `[SellProcessor] ${describeSignalSeatValidationFailure(executionSeatValidation)}，执行前复核失败，跳过信号: ${symbolDisplay} ${signal.action}`,
         );
-        return true;
+        return;
       }
 
-      return await executeSignalsWithLifecycleGate({
+      await executeSignalsWithLifecycleGate({
         getCanProcessTask,
         trader,
         signal,
@@ -311,18 +294,16 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         loggerPrefix: 'SellProcessor',
         successMessage: '卖出订单执行完成',
       });
+      return;
     } catch (err) {
       logProcessorTaskFailure('SellProcessor', symbolDisplay, signal.action, err);
-      return false;
+      return;
     }
   }
   const baseProcessor = createBaseProcessor({
     loggerPrefix: 'SellProcessor',
     taskQueue,
     processTask,
-    releaseAfterProcess: (signal) => {
-      signalObjectPool.release(signal);
-    },
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
 

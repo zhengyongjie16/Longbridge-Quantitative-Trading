@@ -8,7 +8,6 @@
  * - 不负责生命周期 tick、末日保护、周期换标 tick 和 indicatorCache 时间轴采样
  */
 import { TRADING } from '../../constants/index.js';
-import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { formatError } from '../../utils/error/index.js';
 import { runIndicatorPipeline } from './indicatorPipeline.js';
@@ -129,9 +128,6 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
             sellTaskQueue,
             monitorTaskQueue,
           },
-          releaseSignal: (signal) => {
-            signalObjectPool.release(signal);
-          },
         });
 
         runSignalPipeline({
@@ -147,9 +143,6 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
           },
           seatInfo,
           monitorSnapshot,
-          releaseSignal: (signal) => {
-            signalObjectPool.release(signal);
-          },
         });
       }
     } finally {

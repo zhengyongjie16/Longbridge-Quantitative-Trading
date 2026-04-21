@@ -384,6 +384,115 @@ describe('timeDriverProgram strict-mode integration', () => {
     expect(callSequence.slice(0, 2)).toEqual(['cancelPendingBuyOrders', 'executeClearance']);
   });
 
+  it('projects only verification sample values into indicatorCache on tick', async () => {
+    tradingTimeOverrides.dayKey = '2026-02-16';
+    tradingTimeOverrides.isInContinuousSession = true;
+
+    const pushes: Array<{
+      readonly monitorSymbol: string;
+      readonly values: Record<string, { readonly kind: string; readonly value?: number }>;
+      readonly sampleTimestampMs: number;
+    }> = [];
+
+    const monitorContext = createMonitorContext('HSI.HK', 0, () => {});
+    monitorContext.state.lastMonitorSnapshot = {
+      price: 100,
+      changePercent: 0,
+      ema: { 5: 105 },
+      rsi: { 6: 60 },
+      psy: { 12: 70 },
+      mfi: 50,
+      kdj: { k: 80, d: 70, j: 90 },
+      macd: { macd: 1, dif: 2, dea: 3 },
+      adx: null,
+    };
+
+    Object.assign(monitorContext.indicatorProfile, {
+      requiredFamilies: { mfi: true, kdj: true, macd: true, adx: false },
+      requiredPeriods: { rsi: [6], ema: [5], psy: [12] },
+      actionSignalIndicators: {
+        BUYCALL: ['K'],
+        SELLCALL: ['K'],
+        BUYPUT: ['K'],
+        SELLPUT: ['K'],
+      },
+      verificationIndicatorsBySide: {
+        buy: ['K', 'EMA:5'],
+        sell: ['ADX', 'PSY:12'],
+      },
+      displayPlan: ['price'],
+    });
+    const monitorContexts = new Map<string, MonitorContext>([['HSI.HK', monitorContext]]);
+    const lastState = createLastState({
+      cachedTradingDayInfo: { isTradingDay: true, isHalfDay: false },
+      allTradingSymbols: new Set(['HSI.HK']),
+    });
+
+    const queues = createQueues();
+    const loadedTimeDriverProgram = await loadTimeDriverProgram();
+    const { timeDriverProgram } = loadedTimeDriverProgram;
+    await timeDriverProgram({
+      marketDataClient: {
+        getQuoteContext: async () => ({}) as never,
+        getQuotes: async () =>
+          new Map<string, Quote | null>([['HSI.HK', createQuoteDouble('HSI.HK', 1, 100)]]),
+        subscribeSymbols: async () => {},
+        unsubscribeSymbols: async () => {},
+        onQuoteUpdated: () => () => {},
+        onCandlestickUpdated: () => () => {},
+        subscribeCandlesticks: async () => [],
+        getRealtimeCandlesticks: async () => [],
+        getCandlestickSnapshot: () => null,
+        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+        resetRuntimeSubscriptionsAndCaches: async () => {},
+      },
+      trader: createTraderDouble(),
+      lastState,
+      marketMonitor: {
+        monitorPriceChanges: () => false,
+        monitorIndicatorChanges: () => false,
+      },
+      doomsdayProtection: createDoomsdayProtectionDouble(),
+      tradingConfig: createTradingConfig({
+        monitors: [createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' })],
+        global: {
+          ...createTradingConfig().global,
+          doomsdayProtection: false,
+        },
+      }),
+      monitorContexts,
+      buyTaskQueue: queues.buyTaskQueue,
+      sellTaskQueue: queues.sellTaskQueue,
+      monitorTaskQueue: queues.monitorTaskQueue,
+      indicatorCache: {
+        push: (monitorSymbol, values, sampleTimestampMs) => {
+          pushes.push({
+            monitorSymbol,
+            values: values as Record<string, { readonly kind: string; readonly value?: number }>,
+            sampleTimestampMs,
+          });
+        },
+        getAt: () => null,
+        clearAll: () => {},
+      },
+      runtimeGateMode: 'strict',
+      tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
+      dayLifecycleManager: {
+        tick: async () => {},
+      },
+    });
+
+    expect(pushes).toHaveLength(1);
+    expect(pushes[0]?.monitorSymbol).toBe('HSI.HK');
+    expect(pushes[0]?.values).toEqual({
+      K: { kind: 'value', value: 80 },
+      'EMA:5': { kind: 'value', value: 105 },
+      ADX: { kind: 'missing' },
+      'PSY:12': { kind: 'value', value: 70 },
+    });
+  });
+
   it('keeps held symbols from unsubscribe and propagates strict open-protection flag', async () => {
     tradingTimeOverrides.dayKey = '2026-02-16';
     tradingTimeOverrides.isInContinuousSession = true;

@@ -1,20 +1,25 @@
-import { getIndicatorValue, parseIndicatorPeriod } from '../../../utils/indicatorHelpers/index.js';
 import { TIME, VERIFICATION } from '../../../constants/index.js';
 import type { Signal } from '../../../types/signal.js';
-import type { IndicatorSnapshot } from '../../../types/quote.js';
 import type { VerificationIndicator } from '../../../types/indicatorProfile.js';
-import type { IndicatorCache, IndicatorCacheEntry } from '../indicatorCache/types.js';
+import type {
+  IndicatorCache,
+  IndicatorCacheEntry,
+  VerificationSamplePoint,
+} from '../indicatorCache/types.js';
 import type { PendingSignalEntry, VerificationResult } from './types.js';
 
 /**
- * 生成延迟验证信号的唯一 ID。triggerTime 缺失时用 0，保证同一标的、动作、触发时刻仅对应一个 ID。
+ * 生成延迟验证信号的唯一 ID。
  *
- * @param signal 信号对象（需含 symbol、action、triggerTime）
+ * @param params 信号标识参数（symbol、action、triggerTimeMs）
  * @returns 格式为 "symbol:action:triggerTime" 的唯一标识
  */
-export const generateSignalId = (signal: Signal): string => {
-  const triggerTime = signal.triggerTime?.getTime() ?? 0;
-  return `${signal.symbol}:${signal.action}:${triggerTime}`;
+export const generateSignalId = (params: {
+  readonly symbol: Signal['symbol'];
+  readonly action: Signal['action'];
+  readonly triggerTimeMs: number;
+}): string => {
+  return `${params.symbol}:${params.action}:${params.triggerTimeMs}`;
 };
 
 /**
@@ -47,16 +52,16 @@ export const extractInitialIndicators = (
 };
 
 /**
- * 验证单个时间点的指标值
+ * 验证单个时间点的指标值。
  *
  * 检查该时间点的所有指标是否满足趋势条件：
- * - 上涨趋势：当前值 > 初始值
- * - 下跌趋势：当前值 < 初始值
+ * - 普通指标按趋势方向比较：上涨要求当前值 > 初始值，下跌要求当前值 < 初始值
+ * - ADX 使用独立口径：无论动作方向，业务目标都要求当前值 < 初始值
  *
  * @param entry 指标缓存条目，为 null 时视为不通过
  * @param initialIndicators 信号触发时的初始指标名到值的映射
  * @param indicatorNames 待校验的指标名称列表
- * @param isUptrend 是否为上涨趋势（true 则要求当前值 > 初始值）
+ * @param isUptrend 是否为上涨趋势（普通指标上涨时要求当前值 > 初始值）
  * @returns 校验结果，含 passed、details、failedIndicators
  */
 const verifyTimePoint = (
@@ -79,7 +84,7 @@ const verifyTimePoint = (
 
   for (const name of indicatorNames) {
     const initialValue = initialIndicators[name];
-    const currentValueRaw = getIndicatorValue(entry.snapshot, name);
+    const samplePoint = entry.values[name];
 
     if (initialValue === undefined) {
       details.push(`${name}: 初始值缺失`);
@@ -88,15 +93,21 @@ const verifyTimePoint = (
       continue;
     }
 
-    if (currentValueRaw === null || !Number.isFinite(currentValueRaw)) {
-      const missingReason = isIndicatorPresentInSnapshot(entry.snapshot, name)
-        ? '值无效'
-        : '快照缺失';
-      details.push(`${name}: ${missingReason}`);
+    if (!samplePoint || samplePoint.kind === 'missing') {
+      details.push(`${name}: 快照缺失`);
       failedIndicators.push(name);
       allPassed = false;
       continue;
     }
+
+    if (samplePoint.kind === 'invalid') {
+      details.push(`${name}: 值无效`);
+      failedIndicators.push(name);
+      allPassed = false;
+      continue;
+    }
+
+    const currentValueRaw = resolveSampleValue(samplePoint);
 
     // ADX 动作感知的正负值映射：ADX 无方向性，业务目标统一为 ADX_t < ADX_0
     // 对 BUYCALL/SELLPUT（上涨比较），将 ADX 取负使 (-current) > (-initial) 等价于 current < initial
@@ -138,7 +149,6 @@ const verifyTimePoint = (
  * - 时间容忍度为 ±5 秒
  *
  * @param indicatorCache 指标缓存
- * @param entry 待验证信号条目
  * @param entry 待验证信号条目（包含 triggerTime、初始指标与验证指标列表）
  * @returns 验证结果
  */
@@ -218,36 +228,12 @@ export const performVerification = (
 };
 
 /**
- * 判断快照是否包含指定指标字段（不校验数值有效性）。
- * @param snapshot 指标快照
- * @param indicator 指标名称
- * @returns 指标字段存在返回 true，否则 false
+ * 读取样本点中的数值。
+ * @param samplePoint 延迟验证样本点
+ * @returns 样本数值
  */
-function isIndicatorPresentInSnapshot(
-  snapshot: IndicatorSnapshot,
-  indicator: VerificationIndicator,
-): boolean {
-  if (indicator === 'ADX') {
-    return snapshot.adx !== null;
-  }
-
-  if (indicator === 'K' || indicator === 'D' || indicator === 'J') {
-    return snapshot.kdj !== null;
-  }
-
-  if (indicator === 'MACD' || indicator === 'DIF' || indicator === 'DEA') {
-    return snapshot.macd !== null;
-  }
-
-  if (indicator.startsWith('EMA:')) {
-    const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'EMA:' });
-    return period !== null && snapshot.ema?.[period] !== undefined;
-  }
-
-  if (indicator.startsWith('PSY:')) {
-    const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'PSY:' });
-    return period !== null && snapshot.psy?.[period] !== undefined;
-  }
-
-  return false;
+function resolveSampleValue(
+  samplePoint: VerificationSamplePoint & Readonly<{ kind: 'value' }>,
+): number {
+  return samplePoint.value;
 }
