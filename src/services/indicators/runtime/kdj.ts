@@ -3,10 +3,10 @@
  *
  * 指标参数：
  * - RSV 窗口周期：默认 9（计算最高价、最低价的窗口大小）
- * - EMA 平滑周期：5（用于平滑 RSV 得到 K，平滑 K 得到 D）
+ * - K/D 平滑周期：3（对 RSV 与 K 分别做 rolling SMA）
  * - J = 3K - 2D
  */
-import { feedEmaStreamState, initEmaStreamState, toNumber } from './utils.js';
+import { roundToFixed3, toNumber } from './utils.js';
 import type { KDJIndicator } from '../../../types/quote.js';
 import type { CandleData } from '../../../types/data.js';
 import type { KdjStreamState } from './types.js';
@@ -15,27 +15,25 @@ import type { KdjStreamState } from './types.js';
  * 创建 KDJ 流式状态。
  *
  * @param period RSV 窗口周期
- * @param emaPeriod K/D 平滑周期
+ * @param signalPeriod K/D 平滑周期
  * @returns 初始化状态
  */
-export function createKdjState(period: number = 9, emaPeriod: number = 5): KdjStreamState {
-  const emaKState = initEmaStreamState(emaPeriod);
-  const emaDState = initEmaStreamState(emaPeriod);
-  feedEmaStreamState(emaKState, 50);
-  feedEmaStreamState(emaDState, 50);
+export function createKdjState(period: number = 9, signalPeriod: number = 3): KdjStreamState {
   return {
     period,
-    emaPeriod,
+    signalPeriod,
     index: 0,
     maxIndexDeque: [],
     maxValueDeque: [],
     minIndexDeque: [],
     minValueDeque: [],
-    emaKState,
-    emaDState,
+    rsvWindow: [],
+    rsvWindowSum: 0,
+    kWindow: [],
+    kWindowSum: 0,
     hasKdjValue: false,
-    lastK: 50,
-    lastD: 50,
+    lastK: 0,
+    lastD: 0,
   };
 }
 
@@ -48,26 +46,16 @@ export function createKdjState(period: number = 9, emaPeriod: number = 5): KdjSt
 export function cloneKdjState(state: KdjStreamState): KdjStreamState {
   return {
     period: state.period,
-    emaPeriod: state.emaPeriod,
+    signalPeriod: state.signalPeriod,
     index: state.index,
     maxIndexDeque: [...state.maxIndexDeque],
     maxValueDeque: [...state.maxValueDeque],
     minIndexDeque: [...state.minIndexDeque],
     minValueDeque: [...state.minValueDeque],
-    emaKState: {
-      period: state.emaKState.period,
-      per: state.emaKState.per,
-      seedCount: state.emaKState.seedCount,
-      seedSum: state.emaKState.seedSum,
-      emaValue: state.emaKState.emaValue,
-    },
-    emaDState: {
-      period: state.emaDState.period,
-      per: state.emaDState.per,
-      seedCount: state.emaDState.seedCount,
-      seedSum: state.emaDState.seedSum,
-      emaValue: state.emaDState.emaValue,
-    },
+    rsvWindow: [...state.rsvWindow],
+    rsvWindowSum: state.rsvWindowSum,
+    kWindow: [...state.kWindow],
+    kWindowSum: state.kWindowSum,
     hasKdjValue: state.hasKdjValue,
     lastK: state.lastK,
     lastD: state.lastD,
@@ -96,6 +84,15 @@ function dropOutdatedEntries(state: KdjStreamState, windowStart: number): void {
 
     break;
   }
+}
+
+function pushRollingWindow(window: number[], nextValue: number, size: number): number {
+  window.push(nextValue);
+  if (window.length > size) {
+    return window.shift() ?? 0;
+  }
+
+  return 0;
 }
 
 /**
@@ -167,16 +164,19 @@ export function commitKdjCandle(state: KdjStreamState, candle: CandleData): void
   }
 
   const rsv = ((close - lowestLow) / range) * 100;
-  const kValue = feedEmaStreamState(state.emaKState, rsv);
-  if (kValue !== null) {
-    state.lastK = kValue;
+  state.rsvWindowSum += rsv - pushRollingWindow(state.rsvWindow, rsv, state.signalPeriod);
+  if (state.rsvWindow.length < state.signalPeriod) {
+    return;
   }
 
-  const dValue = feedEmaStreamState(state.emaDState, state.lastK);
-  if (dValue !== null) {
-    state.lastD = dValue;
+  const kValue = state.rsvWindowSum / state.signalPeriod;
+  state.lastK = kValue;
+  state.kWindowSum += kValue - pushRollingWindow(state.kWindow, kValue, state.signalPeriod);
+  if (state.kWindow.length < state.signalPeriod) {
+    return;
   }
 
+  state.lastD = state.kWindowSum / state.signalPeriod;
   state.hasKdjValue = true;
 }
 
@@ -197,8 +197,8 @@ export function readKdjValue(state: KdjStreamState): KDJIndicator | null {
   }
 
   return {
-    k: state.lastK,
-    d: state.lastD,
-    j: jValue,
+    k: roundToFixed3(state.lastK),
+    d: roundToFixed3(state.lastD),
+    j: roundToFixed3(jValue),
   };
 }

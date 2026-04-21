@@ -117,7 +117,7 @@ function buildCommittedState(profile: IndicatorUsageProfile): IndicatorCommitted
       createState: (period) => createPsyState(period),
     }),
     mfiState: profile.requiredFamilies.mfi ? createMfiState(14) : null,
-    kdjState: profile.requiredFamilies.kdj ? createKdjState(9, 5) : null,
+    kdjState: profile.requiredFamilies.kdj ? createKdjState(9, 3) : null,
     macdState: profile.requiredFamilies.macd ? createMacdState(12, 26, 9) : null,
     adxState: profile.requiredFamilies.adx ? createAdxState(14) : null,
   };

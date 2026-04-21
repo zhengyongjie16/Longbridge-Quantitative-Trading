@@ -5,7 +5,7 @@
  * - 赋予近期数据更高权重，对价格变化更敏感
  * - 周期范围：1-250
  */
-import { initEmaStreamState, feedEmaStreamState } from './utils.js';
+import { initEmaStreamState, feedEmaStreamState, roundToFixed3 } from './utils.js';
 import type { EmaStreamState } from './types.js';
 
 /**
@@ -57,5 +57,5 @@ export function readEmaValue(state: EmaStreamState): number | null {
     return null;
   }
 
-  return ema;
+  return roundToFixed3(ema);
 }

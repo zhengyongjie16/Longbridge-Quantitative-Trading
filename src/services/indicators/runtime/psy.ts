@@ -9,6 +9,7 @@
  * - 高于 75：市场过热，可能回调
  * - 低于 25：市场过冷，可能反弹
  */
+import { roundToFixed3 } from './utils.js';
 import type { PsyStreamState } from './types.js';
 
 /**
@@ -93,5 +94,9 @@ export function readPsyValue(state: PsyStreamState): number | null {
   }
 
   const psy = (state.upCount / state.period) * 100;
-  return Number.isFinite(psy) ? psy : null;
+  if (!Number.isFinite(psy)) {
+    return null;
+  }
+
+  return roundToFixed3(psy);
 }

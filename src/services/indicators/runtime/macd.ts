@@ -3,7 +3,7 @@
  *
  * 指标参数：DIF=EMA12-EMA26，DEA=EMA9(DIF)，MACD柱=2*(DIF-DEA)
  */
-import { initEmaStreamState, feedEmaStreamState } from './utils.js';
+import { initEmaStreamState, feedEmaStreamState, roundToFixed3 } from './utils.js';
 import type { MACDIndicator } from '../../../types/quote.js';
 import type { MacdStreamState } from './types.js';
 
@@ -125,8 +125,8 @@ export function readMacdValue(state: MacdStreamState): MACDIndicator | null {
   }
 
   return {
-    dif: state.lastDif,
-    dea: state.lastSignal,
-    macd: macdValue,
+    dif: roundToFixed3(state.lastDif),
+    dea: roundToFixed3(state.lastSignal),
+    macd: roundToFixed3(macdValue),
   };
 }

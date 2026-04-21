@@ -1,6 +1,6 @@
 /**
  * dailyKlineMonitor 工具全量指标快照模块。
- * 职责：为监控工具和对拍测试提供旧全量口径的指标快照构造能力。
+ * 职责：为监控工具和对拍测试提供全量重算 oracle 的指标快照构造能力。
  */
 import { isValidPositiveNumber } from '../../src/utils/helpers/index.js';
 import type { CandleData } from '../../src/types/data.js';
@@ -86,7 +86,7 @@ function buildCommittedState(profile: IndicatorUsageProfile): IndicatorCommitted
       createState: (period) => createPsyState(period),
     }),
     mfiState: profile.requiredFamilies.mfi ? createMfiState(14) : null,
-    kdjState: profile.requiredFamilies.kdj ? createKdjState(9, 5) : null,
+    kdjState: profile.requiredFamilies.kdj ? createKdjState(9, 3) : null,
     macdState: profile.requiredFamilies.macd ? createMacdState(12, 26, 9) : null,
     adxState: profile.requiredFamilies.adx ? createAdxState(14) : null,
   };
@@ -228,7 +228,7 @@ function buildSnapshotFromCommitted(params: {
 }
 
 /**
- * 构建指标快照（工具侧旧全量路径 oracle）。默认行为：无有效价格时返回 null。
+ * 构建指标快照（工具侧全量重算 oracle）。默认行为：无有效价格时返回 null。
  *
  * @param symbol 标的代码
  * @param candles K 线数据数组

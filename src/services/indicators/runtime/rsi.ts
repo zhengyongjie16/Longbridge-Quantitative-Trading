@@ -6,7 +6,7 @@
  * - 使用本地算法计算并输出稳定数值
  * - 返回值范围 0-100
  */
-import { roundToFixed2 } from './utils.js';
+import { roundToFixed3 } from './utils.js';
 import type { RsiStreamState } from './types.js';
 
 /**
@@ -81,7 +81,7 @@ export function readRsiValue(state: RsiStreamState): number | null {
     return 100;
   }
 
-  return roundToFixed2(state.lastRawValue);
+  return roundToFixed3(state.lastRawValue);
 }
 
 /**

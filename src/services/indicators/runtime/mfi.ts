@@ -5,7 +5,7 @@
  * - MFI：周期 14，结合价格和成交量
  */
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
-import { toNumber, roundToFixed2, validatePercentage } from './utils.js';
+import { toNumber, roundToFixed3, validatePercentage } from './utils.js';
 import type { CandleData } from '../../../types/data.js';
 import type { BufferNewPush, MfiStreamState } from './types.js';
 
@@ -154,7 +154,7 @@ export function readMfiValue(state: MfiStreamState): number | null {
     return null;
   }
 
-  const mfi = roundToFixed2(state.lastRawValue);
+  const mfi = roundToFixed3(state.lastRawValue);
   if (!validatePercentage(mfi)) {
     return null;
   }

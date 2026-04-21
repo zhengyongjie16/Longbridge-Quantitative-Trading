@@ -24,13 +24,13 @@ export function toNumber(value: CandleData['close']): number {
 }
 
 /**
- * 将数值按技术指标展示精度保留两位小数。
+ * 将数值按技术指标展示精度保留三位小数。
  *
  * @param value 原始数值
- * @returns 保留两位小数后的 number
+ * @returns 保留三位小数后的 number
  */
-export function roundToFixed2(value: number): number {
-  return Number.parseFloat(value.toFixed(2));
+export function roundToFixed3(value: number): number {
+  return Number.parseFloat(value.toFixed(3));
 }
 
 /**
@@ -47,7 +47,7 @@ export function validatePercentage(value: unknown): boolean {
  * 初始化 EMA 流式计算状态。
  *
  * 前 period 个值累加作为 SMA seed，之后切换为 EMA 递推。
- * 供 RSI/EMA/MACD 等指标的流式计算共用。
+ * 供 EMA 与 MACD 等指标的流式计算共用。
  *
  * @param period EMA 周期
  * @returns 初始化后的 EmaStreamState

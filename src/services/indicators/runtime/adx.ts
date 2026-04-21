@@ -10,7 +10,7 @@
  * 默认周期 14，输出 number | null
  */
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
-import { toNumber, roundToFixed2 } from './utils.js';
+import { toNumber, roundToFixed3 } from './utils.js';
 import type { CandleData } from '../../../types/data.js';
 import type { AdxStreamState } from './types.js';
 
@@ -138,7 +138,7 @@ export function readAdxValue(state: AdxStreamState): number | null {
     return null;
   }
 
-  return roundToFixed2(state.adx);
+  return roundToFixed3(state.adx);
 }
 
 /**
