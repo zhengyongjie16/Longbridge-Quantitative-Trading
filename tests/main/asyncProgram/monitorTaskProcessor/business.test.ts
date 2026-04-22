@@ -7,6 +7,10 @@
 import { describe, expect, it } from 'bun:test';
 
 import { createMonitorTaskProcessor } from '../../../../src/main/asyncProgram/monitorTaskProcessor/index.js';
+import { createPositionLimitChecker } from '../../../../src/core/riskController/positionLimitChecker.js';
+import { createRiskChecker } from '../../../../src/core/riskController/index.js';
+import { createUnrealizedLossChecker } from '../../../../src/core/riskController/unrealizedLossChecker.js';
+import { createWarrantRiskChecker } from '../../../../src/core/riskController/warrantRiskChecker.js';
 import type {
   MonitorTaskDataMap,
   MonitorTaskProcessorDeps,
@@ -29,7 +33,12 @@ import {
   createRiskCheckerDouble,
   createTraderDouble,
 } from '../../../helpers/testDoubles.js';
-import { createLastState, createMonitorTaskContext, runProcessorFlow } from '../utils.js';
+import {
+  createLastState,
+  createMonitorTaskContext,
+  runProcessorFlow,
+  waitUntil,
+} from '../utils.js';
 import type { CreateBusinessProcessorParams } from '../types.js';
 
 function createTradingConfig(): MultiMonitorTradingConfig {
@@ -58,6 +67,7 @@ function createBusinessProcessor(
     lastState = createLastState(),
     trader = createTraderDouble(),
     marketDataClient = createMarketDataClientDouble(),
+    quoteSubscriptionRuntime = createQuoteSubscriptionRuntimeDouble(),
     onProcessed,
     getCanProcessTask,
   } = params;
@@ -68,7 +78,7 @@ function createBusinessProcessor(
     clearMonitorDirectionQueues: () => {},
     trader,
     marketDataClient,
-    quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
+    quoteSubscriptionRuntime,
     switchWakeupRuntime: {
       handoffPendingSwitch: () => {},
     },
@@ -82,6 +92,7 @@ function createBusinessProcessor(
 function scheduleSeatRefreshTask(
   queue: MonitorTaskProcessorDeps['monitorTaskQueue'],
   dedupeKey: string,
+  overrides: Partial<MonitorTaskDataMap['SEAT_REFRESH']> = {},
 ): void {
   queue.scheduleLatest({
     type: 'SEAT_REFRESH',
@@ -95,8 +106,28 @@ function scheduleSeatRefreshTask(
       nextSymbol: 'BULL.HK',
       callPrice: 20_000,
       symbolName: 'BULL.HK',
+      ...overrides,
     },
   });
+}
+
+function createDeferred<T>(): {
+  readonly promise: Promise<T>;
+  readonly resolve: (value: T | PromiseLike<T>) => void;
+  readonly reject: (reason?: unknown) => void;
+} {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return {
+    promise,
+    resolve,
+    reject,
+  };
 }
 
 describe('monitorTaskProcessor business flow', () => {
@@ -342,6 +373,58 @@ describe('monitorTaskProcessor business flow', () => {
     expect(statuses).toEqual(['skipped']);
   });
 
+  it('skips stale SEAT_REFRESH when seatVersion no longer matches', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const statuses: MonitorTaskStatus[] = [];
+    let getQuotesCalls = 0;
+    let clearLongWarrantCalls = 0;
+
+    const context = createMonitorTaskContext({
+      riskChecker: createRiskCheckerDouble({
+        clearLongWarrantInfo: () => {
+          clearLongWarrantCalls += 1;
+        },
+      }),
+    });
+    context.symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+      ...context.symbolRegistry.getSeatState('HSI.HK', 'LONG'),
+      symbol: 'BULL.HK',
+      status: 'ACTIVATING',
+      callPrice: 20_000,
+    } as never);
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () => {
+          getQuotesCalls += 1;
+          return new Map();
+        },
+      }),
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        scheduleSeatRefreshTask(queue, 'HSI.HK:SEAT_REFRESH:LONG:STALE_VERSION', {
+          seatVersion: 1,
+        });
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(statuses).toEqual(['skipped']);
+    expect(getQuotesCalls).toBe(0);
+    expect(clearLongWarrantCalls).toBe(0);
+    expect(context.symbolRegistry.getSeatState('HSI.HK', 'LONG')).toMatchObject({
+      symbol: 'BULL.HK',
+      status: 'ACTIVATING',
+    });
+  });
+
   it('skips AUTO_SYMBOL_TICK when lifecycle gate denies processing', async () => {
     const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     let maybeSearchCalls = 0;
@@ -515,6 +598,159 @@ describe('monitorTaskProcessor business flow', () => {
     expect(context.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
     expect(lastState.cachedAccount?.totalCash).toBe(200_000);
     expect(lastState.positionCache.get('BULL.HK')?.quantity).toBe(100);
+  });
+
+  it('waits for quote admission to resolve before rebuilding SEAT_REFRESH caches', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const statuses: MonitorTaskStatus[] = [];
+    const admissionDeferred = createDeferred<null>();
+    let waitForAdmissionStarted = false;
+    let getQuotesCalls = 0;
+    let fetchAllOrdersCalls = 0;
+    let refreshOrdersCalls = 0;
+    let refreshUnrealizedCalls = 0;
+    const context = createMonitorTaskContext({
+      orderRecorder: createOrderRecorderDouble({
+        fetchAllOrdersFromAPI: async () => {
+          fetchAllOrdersCalls += 1;
+          return [];
+        },
+        refreshOrdersFromAllOrdersForLong: async () => {
+          refreshOrdersCalls += 1;
+          return [];
+        },
+      }),
+      riskChecker: createRiskCheckerDouble({
+        refreshUnrealizedLossData: async () => {
+          refreshUnrealizedCalls += 1;
+          return { r1: 100, n1: 100 };
+        },
+      }),
+    });
+    context.symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+      ...context.symbolRegistry.getSeatState('HSI.HK', 'LONG'),
+      symbol: 'BULL.HK',
+      status: 'ACTIVATING',
+      callPrice: 20_000,
+    } as never);
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () => {
+          getQuotesCalls += 1;
+          return new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)]]);
+        },
+      }),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble({
+        waitForAdmission: async () => {
+          waitForAdmissionStarted = true;
+          await admissionDeferred.promise;
+        },
+      }),
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    processor.start();
+    scheduleSeatRefreshTask(queue, 'HSI.HK:SEAT_REFRESH:LONG:ADMISSION');
+
+    await waitUntil(() => waitForAdmissionStarted, 500);
+    await Bun.sleep(30);
+
+    expect(statuses).toEqual([]);
+    expect(getQuotesCalls).toBe(0);
+    expect(fetchAllOrdersCalls).toBe(0);
+    expect(refreshOrdersCalls).toBe(0);
+    expect(refreshUnrealizedCalls).toBe(0);
+    expect(context.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVATING');
+
+    admissionDeferred.resolve(null);
+    await waitUntil(() => statuses.length === 1, 500);
+    await processor.stopAndDrain();
+
+    expect(statuses).toEqual(['processed']);
+    expect(getQuotesCalls).toBe(1);
+    expect(fetchAllOrdersCalls).toBe(1);
+    expect(refreshOrdersCalls).toBe(1);
+    expect(refreshUnrealizedCalls).toBe(1);
+    expect(context.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
+  });
+
+  it('does not leave stale warrant risk cache after SEAT_REFRESH skips on changed seat', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const statuses: MonitorTaskStatus[] = [];
+    const baseRiskChecker = createRiskChecker({
+      warrantRiskChecker: createWarrantRiskChecker(),
+      positionLimitChecker: createPositionLimitChecker({
+        maxPositionNotional: null,
+      }),
+      unrealizedLossChecker: createUnrealizedLossChecker({
+        maxUnrealizedLossPerSymbol: null,
+      }),
+    });
+    const context = createMonitorTaskContext({
+      riskChecker: {
+        ...baseRiskChecker,
+        refreshUnrealizedLossData: async (
+          orderRecorder,
+          symbol,
+          isLongSymbol,
+          quote,
+          dailyLossOffset,
+        ) => {
+          const result = await baseRiskChecker.refreshUnrealizedLossData(
+            orderRecorder,
+            symbol,
+            isLongSymbol,
+            quote,
+            dailyLossOffset,
+          );
+          const latestSeat = context.symbolRegistry.getSeatState('HSI.HK', 'LONG');
+          context.symbolRegistry.bumpSeatVersion('HSI.HK', 'LONG');
+          context.symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+            ...latestSeat,
+            symbol: 'NEXT_BULL.HK',
+            status: 'SWITCHING',
+            lastSwitchAt: Date.now(),
+            callPrice: null,
+          } as never);
+          return result;
+        },
+      },
+    });
+    context.symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+      ...context.symbolRegistry.getSeatState('HSI.HK', 'LONG'),
+      symbol: 'BULL.HK',
+      status: 'ACTIVATING',
+      callPrice: 20_000,
+    } as never);
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () =>
+          new Map([
+            ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+            ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
+          ]),
+      }),
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        scheduleSeatRefreshTask(queue, 'HSI.HK:SEAT_REFRESH:LONG:STALE_CACHE_LEAK');
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(statuses).toEqual(['skipped']);
+    const riskCheckResult = context.riskChecker.checkWarrantRisk('NEXT_BULL.HK', 'BUYCALL', 20_010);
+    expect(riskCheckResult.allowed).toBeTrue();
   });
 
   it('marks SEAT_REFRESH as processed when order refresh throws', async () => {

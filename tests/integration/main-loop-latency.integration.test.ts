@@ -18,7 +18,6 @@ import type {
 } from './types.js';
 import { TRADING } from '../../src/constants/index.js';
 import { timeDriverProgram } from '../../src/main/timeDriverProgram/index.js';
-import { createMonitorContext } from '../../src/app/context/createMonitorContexts.js';
 import { createDefaultTradingSignalStrategyFactory } from '../../src/core/strategy/index.js';
 import {
   createBuyTaskQueue,
@@ -37,6 +36,7 @@ import {
   createRiskCheckerDouble,
   createTradingGateEventRuntimeDouble,
   createTraderDouble,
+  createMonitorContextDouble,
 } from '../helpers/testDoubles.js';
 
 import type { CandleData } from '../../src/types/data.js';
@@ -408,11 +408,10 @@ describe('main loop latency full-chain integration', () => {
 
       monitorContexts.set(
         monitorConfig.monitorSymbol,
-        createMonitorContext({
+        createMonitorContextDouble({
           config: monitorConfig,
           state: monitorState,
           symbolRegistry,
-          quotesMap: initialQuotes,
           strategy: createStrategy({
             signalConfig: monitorConfig.signalConfig,
             verificationConfig: monitorConfig.verificationConfig,

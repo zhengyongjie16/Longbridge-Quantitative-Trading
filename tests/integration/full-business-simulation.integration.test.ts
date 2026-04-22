@@ -6,7 +6,6 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { createSignalProcessor } from '../../src/core/signalProcessor/index.js';
-import { createMonitorContext } from '../../src/app/context/createMonitorContexts.js';
 import { timeDriverProgram } from '../../src/main/timeDriverProgram/index.js';
 import type { TimeDriverProgramContext } from '../../src/main/timeDriverProgram/types.js';
 import { processMonitor } from '../../src/main/processMonitor/index.js';
@@ -64,6 +63,7 @@ import {
   createTradingGateEventRuntimeDouble,
   createTraderDouble,
   createWarrantDistanceInfoDouble,
+  createMonitorContextDouble,
 } from '../helpers/testDoubles.js';
 import { waitUntil } from '../main/asyncProgram/utils.js';
 import { createWarrantCandidateWithOverrides } from '../services/autoSymbolManager/utils.js';
@@ -299,15 +299,10 @@ describe('full business simulation integration', () => {
       }),
     };
 
-    const monitorContext = createMonitorContext({
+    const monitorContext = createMonitorContextDouble({
       config: monitorConfig,
       state: monitorState,
       symbolRegistry,
-      quotesMap: new Map([
-        ['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 1)],
-        ['BULL.HK', createQuoteDouble('BULL.HK', 1.05, 100)],
-        ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.95, 100)],
-      ]),
       strategy,
       orderRecorder,
       dailyLossTracker: createNoopDailyLossTracker(),
@@ -624,11 +619,10 @@ describe('full business simulation integration', () => {
     const delayedSignalVerifier = createDelayedSignalVerifier({
       indicatorCache,
     });
-    const monitorContext = createMonitorContext({
+    const monitorContext = createMonitorContextDouble({
       config: monitorConfig,
       state: monitorState,
       symbolRegistry,
-      quotesMap: new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 1)]]),
       strategy: {
         generateSignals: () => ({
           immediateSignals: [],
@@ -1024,15 +1018,10 @@ describe('full business simulation integration', () => {
       destroy: () => {},
     };
 
-    const monitorContext = createMonitorContext({
+    const monitorContext = createMonitorContextDouble({
       config: monitorConfig,
       state: monitorState,
       symbolRegistry,
-      quotesMap: new Map([
-        ['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 1)],
-        ['BULL.HK', createQuoteDouble('BULL.HK', 1.05, 100)],
-        ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.95, 100)],
-      ]),
       strategy: {
         generateSignals: () => ({
           immediateSignals: [],

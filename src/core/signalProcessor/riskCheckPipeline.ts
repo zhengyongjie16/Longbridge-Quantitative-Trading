@@ -280,7 +280,6 @@ export const createRiskCheckPipeline = ({
           positions: realtimePositions,
           signal: sig,
           orderNotional,
-          currentPrice,
         });
         if (buyRiskResult.allowed) {
           finalSignals.push(sig);
@@ -300,7 +299,6 @@ export const createRiskCheckPipeline = ({
         positions: context.positions,
         signal: sig,
         orderNotional,
-        currentPrice,
       });
       if (sellRiskResult.allowed) {
         finalSignals.push(sig);

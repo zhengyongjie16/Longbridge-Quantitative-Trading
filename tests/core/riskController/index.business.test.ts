@@ -63,7 +63,6 @@ describe('riskController(index) business flow', () => {
       positions: [],
       signal: createSignalDouble('BUYCALL', 'BULL.HK'),
       orderNotional: 5_000,
-      currentPrice: 5,
     });
 
     expect(result.allowed).toBeFalse();
@@ -88,7 +87,6 @@ describe('riskController(index) business flow', () => {
       positions: [],
       signal: createSignalDouble('SELLCALL', 'BULL.HK'),
       orderNotional: 5_000,
-      currentPrice: 10,
     });
 
     expect(result.allowed).toBeTrue();
@@ -114,7 +112,6 @@ describe('riskController(index) business flow', () => {
       positions: [],
       signal: createSignalDouble('BUYCALL', 'BULL.HK'),
       orderNotional: 5_000,
-      currentPrice: 10,
     });
 
     expect(result.allowed).toBeFalse();

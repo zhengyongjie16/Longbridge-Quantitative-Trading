@@ -6,6 +6,7 @@
  * - 立即调度 SEAT_REFRESH，保留现有激活屏障语义
  * - 仅缓存 SWITCHING -> ACTIVATING 之间所需的旧标的，不持有 seat 真相
  */
+import { logger } from '../../utils/logger/index.js';
 import type { SeatState, SeatStateChangedEvent } from '../../types/seat.js';
 import type { SeatActivationDispatcher, SeatActivationDispatcherDeps } from './types.js';
 
@@ -44,9 +45,10 @@ function scheduleSeatRefresh(params: {
     return;
   }
 
+  const dedupeKey = `${params.monitorSymbol}:SEAT_REFRESH:${params.direction}`;
   params.deps.monitorTaskQueue.scheduleLatest({
     type: 'SEAT_REFRESH',
-    dedupeKey: `${params.monitorSymbol}:SEAT_REFRESH:${params.direction}`,
+    dedupeKey,
     monitorSymbol: params.monitorSymbol,
     data: {
       monitorSymbol: params.monitorSymbol,
@@ -58,6 +60,10 @@ function scheduleSeatRefresh(params: {
       symbolName: null,
     },
   });
+
+  logger.debug(
+    `[SEAT_REFRESH scheduled] monitorSymbol=${params.monitorSymbol} direction=${params.direction} seatVersion=${params.seatVersion} previousSymbol=${params.previousSymbol ?? 'null'} nextSymbol=${nextSymbol} dedupeKey=${dedupeKey}`,
+  );
 }
 
 /**

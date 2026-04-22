@@ -203,26 +203,6 @@ export interface OrderAPIManager {
 // ==================== 依赖类型定义 ====================
 
 /**
- * 订单存储依赖。
- * 类型用途：创建 OrderStorage 时的依赖注入（当前无外部依赖，空对象）。
- * 数据来源：如适用。
- * 使用范围：仅 orderRecorder 模块内部使用。
- */
-export type OrderStorageDeps = {
-  readonly [key: string]: never;
-};
-
-/**
- * 订单过滤引擎依赖。
- * 类型用途：创建 OrderFilteringEngine 时的依赖注入（当前无外部依赖，空对象）。
- * 数据来源：如适用。
- * 使用范围：仅 orderRecorder 模块内部使用。
- */
-export type OrderFilteringEngineDeps = {
-  readonly [key: string]: never;
-};
-
-/**
  * 订单 API 管理器依赖。
  * 类型用途：用于创建 OrderAPIManager 时的依赖注入。
  * 数据来源：如适用。

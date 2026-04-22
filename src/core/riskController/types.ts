@@ -81,7 +81,6 @@ export interface PositionLimitChecker {
     signal: Signal,
     positions: ReadonlyArray<Position> | null,
     orderNotional: number,
-    currentPrice: number | null,
   ) => RiskCheckResult;
 }
 

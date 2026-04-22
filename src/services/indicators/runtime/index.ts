@@ -221,11 +221,10 @@ function buildPeriodSnapshotRecord<T>(params: {
 }
 
 function buildSnapshotFromCommitted(params: {
-  readonly symbol: string;
   readonly profile: IndicatorUsageProfile;
   readonly committed: IndicatorCommittedState;
 }): IndicatorSnapshot | null {
-  const { symbol, profile, committed } = params;
+  const { profile, committed } = params;
   const price = committed.lastValidClose;
   if (price === null) {
     return null;
@@ -272,7 +271,6 @@ function buildSnapshotFromCommitted(params: {
       : null;
 
   return {
-    symbol,
     price,
     changePercent,
     ema,
@@ -518,14 +516,12 @@ export function buildSnapshotFromRuntime(
     const previewCommitted = cloneCommittedState(runtimeState.committed);
     commitCandleToCommittedState(previewCommitted, runtimeState.activeBar);
     return buildSnapshotFromCommitted({
-      symbol: runtimeState.symbol,
       profile: runtimeState.profile,
       committed: previewCommitted,
     });
   }
 
   return buildSnapshotFromCommitted({
-    symbol: runtimeState.symbol,
     profile: runtimeState.profile,
     committed: runtimeState.committed,
   });

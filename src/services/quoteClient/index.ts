@@ -115,88 +115,6 @@ function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string>
   return [...uniqueSymbols];
 }
 
-/**
- * 将 unknown 静态信息标准化为 Quote.staticInfo 可接受的结构；字段类型不匹配时返回 null。
- *
- * @param staticInfo 原始静态信息
- * @returns 标准化后的静态信息或 null
- */
-function normalizeQuoteStaticInfo(staticInfo: unknown): Exclude<Quote['staticInfo'], undefined> {
-  if (!isRecord(staticInfo)) {
-    return null;
-  }
-
-  const staticInfoRecord = staticInfo;
-  function readNullableString(key: string): string | null | undefined {
-    const fieldValue: unknown = staticInfoRecord[key];
-    if (fieldValue === undefined || fieldValue === null || typeof fieldValue === 'string') {
-      return fieldValue;
-    }
-
-    return undefined;
-  }
-
-  function readNullableNumber(key: string): number | null | undefined {
-    const fieldValue: unknown = staticInfoRecord[key];
-    if (fieldValue === undefined || fieldValue === null || typeof fieldValue === 'number') {
-      return fieldValue;
-    }
-
-    return undefined;
-  }
-
-  function readWarrantType(): 'BULL' | 'BEAR' | null | undefined {
-    const warrantTypeValue: unknown = staticInfoRecord['warrantType'];
-    if (
-      warrantTypeValue === undefined ||
-      warrantTypeValue === null ||
-      warrantTypeValue === 'BULL' ||
-      warrantTypeValue === 'BEAR'
-    ) {
-      return warrantTypeValue;
-    }
-
-    return undefined;
-  }
-  const nameHk = readNullableString('nameHk');
-  const nameCn = readNullableString('nameCn');
-  const nameEn = readNullableString('nameEn');
-  const lotSize = readNullableNumber('lotSize');
-  const callPrice = readNullableNumber('callPrice');
-  const expiryDate = readNullableString('expiryDate');
-  const issuePrice = readNullableNumber('issuePrice');
-  const conversionRatio = readNullableNumber('conversionRatio');
-  const warrantType = readWarrantType();
-  const underlyingSymbol = readNullableString('underlyingSymbol');
-  if (
-    nameHk === undefined ||
-    nameCn === undefined ||
-    nameEn === undefined ||
-    lotSize === undefined ||
-    callPrice === undefined ||
-    expiryDate === undefined ||
-    issuePrice === undefined ||
-    conversionRatio === undefined ||
-    warrantType === undefined ||
-    underlyingSymbol === undefined
-  ) {
-    return null;
-  }
-
-  return {
-    nameHk,
-    nameCn,
-    nameEn,
-    lotSize,
-    callPrice,
-    expiryDate,
-    issuePrice,
-    conversionRatio,
-    warrantType,
-    underlyingSymbol,
-  };
-}
-
 function isDecimalLikeValue(value: unknown): value is DecimalLike {
   return isRecord(value) && typeof value['toNumber'] === 'function';
 }
@@ -331,8 +249,6 @@ function buildQuoteFromRealtime(params: {
     prevClose,
     timestamp,
     ...(lotSize === undefined ? {} : { lotSize }),
-    raw: realtimeQuote,
-    staticInfo: normalizeQuoteStaticInfo(staticInfo),
   };
 }
 
@@ -367,8 +283,6 @@ function buildQuoteFromPushEvent(params: {
     prevClose,
     timestamp,
     ...(lotSize === undefined ? {} : { lotSize }),
-    raw: pushEvent,
-    staticInfo: normalizeQuoteStaticInfo(staticInfo),
   };
 }
 

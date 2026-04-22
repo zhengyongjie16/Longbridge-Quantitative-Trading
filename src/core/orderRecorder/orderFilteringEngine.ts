@@ -24,7 +24,7 @@
  */
 import type { OrderFilteringEngine } from '../../types/orderRecorder.js';
 import type { OrderRecord } from '../../types/services.js';
-import type { FilteringState, OrderFilteringEngineDeps } from './types.js';
+import type { FilteringState } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
 import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
@@ -157,12 +157,9 @@ function applyFilteringAlgorithm(
 
 /**
  * 创建订单过滤引擎（无状态，封装智能清仓决策算法）
- * @param _deps 可选依赖，当前未使用
  * @returns OrderFilteringEngine 接口实例（applyFilteringAlgorithm）
  */
-export function createOrderFilteringEngine(
-  _deps: OrderFilteringEngineDeps = {},
-): OrderFilteringEngine {
+export function createOrderFilteringEngine(): OrderFilteringEngine {
   return {
     applyFilteringAlgorithm,
   };

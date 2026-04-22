@@ -25,7 +25,7 @@ import {
 } from '../../helpers/testDoubles.js';
 
 describe('seatSync business flow', () => {
-  it('clears long-side runtime queues when LONG seat leaves ACTIVE', () => {
+  it('clears long-side runtime queues but preserves pending SEAT_REFRESH when LONG seat leaves ACTIVE', () => {
     const monitorSymbol = 'HSI.HK';
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol,
@@ -83,6 +83,21 @@ describe('seatSync business flow', () => {
         currentTimeMs: Date.now(),
         canTradeNow: true,
         openProtectionActive: false,
+      },
+    });
+
+    monitorTaskQueue.scheduleLatest({
+      type: 'SEAT_REFRESH',
+      dedupeKey: `${monitorSymbol}:SEAT_REFRESH:LONG`,
+      monitorSymbol,
+      data: {
+        monitorSymbol,
+        direction: 'LONG',
+        seatVersion: 1,
+        previousSymbol: 'OLD_BULL.HK',
+        nextSymbol: 'BULL.HK',
+        callPrice: 20_000,
+        symbolName: 'BULL.HK',
       },
     });
 
@@ -163,8 +178,19 @@ describe('seatSync business flow', () => {
     expect(buyTaskQueue.isEmpty()).toBeTrue();
     expect(sellTaskQueue.isEmpty()).toBeTrue();
 
-    const remainingMonitorTask = monitorTaskQueue.pop();
-    expect(remainingMonitorTask?.dedupeKey).toContain(':SHORT');
+    const remainingSeatRefreshTask = monitorTaskQueue.pop();
+    expect(remainingSeatRefreshTask?.type).toBe('SEAT_REFRESH');
+    expect(remainingSeatRefreshTask?.data).toMatchObject({
+      direction: 'LONG',
+      nextSymbol: 'BULL.HK',
+    });
+
+    const remainingShortTask = monitorTaskQueue.pop();
+    expect(remainingShortTask?.type).toBe('AUTO_SYMBOL_TICK');
+    expect(remainingShortTask?.data).toMatchObject({
+      direction: 'SHORT',
+      symbol: 'BEAR.HK',
+    });
     expect(monitorTaskQueue.isEmpty()).toBeTrue();
   });
 

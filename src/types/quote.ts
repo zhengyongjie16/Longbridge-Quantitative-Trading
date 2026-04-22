@@ -1,23 +1,4 @@
 /**
- * 行情静态信息。
- * 类型用途：标的静态元数据（名称、每手股数、回收价、到期日、牛熊证类型等），作为 Quote.staticInfo 的类型。
- * 数据来源：Longbridge 行情 API（如 getQuotes 返回的静态字段）。
- * 使用范围：Quote.staticInfo 字段内部复用，不作为跨模块公共类型导出。
- */
-type QuoteStaticInfo = {
-  readonly nameHk?: string | null;
-  readonly nameCn?: string | null;
-  readonly nameEn?: string | null;
-  readonly lotSize?: number | null;
-  readonly callPrice?: number | null;
-  readonly expiryDate?: string | null;
-  readonly issuePrice?: number | null;
-  readonly conversionRatio?: number | null;
-  readonly warrantType?: 'BULL' | 'BEAR' | null;
-  readonly underlyingSymbol?: string | null;
-};
-
-/**
  * 行情数据。
  * 类型用途：单标的实时行情快照，作为 getQuotes 返回值、策略与风控的行情入参。
  * 数据来源：Longbridge 行情推送或 getQuotes。
@@ -41,12 +22,6 @@ export type Quote = {
 
   /** 每手股数 */
   readonly lotSize?: number;
-
-  /** 原始行情数据 */
-  readonly raw?: unknown;
-
-  /** 静态信息（如回收价、每手股数等） */
-  readonly staticInfo?: QuoteStaticInfo | null;
 };
 
 /**
@@ -90,9 +65,6 @@ export type MACDIndicator = {
  * 使用范围：策略、DelayedSignalVerifier、RiskCheckContext 等；全项目可引用。
  */
 export type IndicatorSnapshot = {
-  /** 标的代码（可选，因为 Quote 已包含） */
-  readonly symbol?: string;
-
   /** 当前价格 */
   readonly price: number;
 

@@ -536,7 +536,6 @@ export type LifecycleRuntimeFactoryDeps = Readonly<{
  * 使用范围：仅 app 顶层入口装配与相关测试使用。
  */
 export type RunAppDeps = Readonly<{
-  getShushCow: () => void;
   createPreGateRuntime: (params: AppEnvironmentParams) => Promise<PreGateRuntime>;
   createPostGateRuntime: (
     params: CreatePostGateRuntimeParams,

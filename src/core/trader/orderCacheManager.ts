@@ -155,7 +155,6 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
           executedQuantity: toOrderNumber(order.executedQuantity),
           status: order.status,
           orderType: order.orderType,
-          _rawOrder: order,
         });
       }
 

@@ -17,10 +17,38 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { logger } from '../../../utils/logger/index.js';
 import type { TaskAddedCallback } from '../tradeTaskQueue/types.js';
 import { notifyTaskAddedCallbacks, registerTaskAddedCallback } from '../utils.js';
 import type { MonitorTask, MonitorTaskInput, MonitorTaskQueue } from './types.js';
 import { removeTasksFromQueue } from './utils.js';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function readStringField(record: Record<string, unknown>, key: string): string {
+  const value = record[key];
+  return typeof value === 'string' ? value : 'null';
+}
+
+function readNumberField(record: Record<string, unknown>, key: string): string {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : 'null';
+}
+
+function logSeatRefreshReplaced<TDataMap extends Readonly<Record<string, unknown>>>(
+  task: MonitorTaskInput<TDataMap>,
+  removedCount: number,
+): void {
+  if (task.type !== 'SEAT_REFRESH' || removedCount <= 0 || !isRecord(task.data)) {
+    return;
+  }
+
+  logger.debug(
+    `[SEAT_REFRESH replaced] monitorSymbol=${task.monitorSymbol} direction=${readStringField(task.data, 'direction')} seatVersion=${readNumberField(task.data, 'seatVersion')} nextSymbol=${readStringField(task.data, 'nextSymbol')} dedupeKey=${task.dedupeKey} replacedCount=${removedCount}`,
+  );
+}
 
 /**
  * 创建监控任务队列
@@ -37,7 +65,11 @@ export function createMonitorTaskQueue<
   function scheduleLatest<TType extends keyof TDataMap>(
     task: MonitorTaskInput<TDataMap, TType>,
   ): void {
-    removeTasksFromQueue(queue, (queued) => queued.dedupeKey === task.dedupeKey);
+    const removedCount = removeTasksFromQueue(
+      queue,
+      (queued) => queued.dedupeKey === task.dedupeKey,
+    );
+    logSeatRefreshReplaced(task, removedCount);
 
     const fullTask = {
       id: randomUUID(),

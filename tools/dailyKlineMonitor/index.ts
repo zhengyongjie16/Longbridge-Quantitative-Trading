@@ -144,9 +144,7 @@ async function runMonitorCycle(
   ]);
 
   const snapshot =
-    dailyCandles.length > 0
-      ? buildIndicatorSnapshot(context.monitorSymbol, dailyCandles, INDICATOR_PROFILE)
-      : null;
+    dailyCandles.length > 0 ? buildIndicatorSnapshot(dailyCandles, INDICATOR_PROFILE) : null;
   if (snapshot === null) {
     return;
   }

@@ -62,7 +62,7 @@ export type BusinessEventProgramDeps = Readonly<{
  * 数据来源：由 businessEventProgram 在事件处理时按 lastState 组装。
  * 使用范围：仅 businessEventProgram 信号流水线使用。
  */
-export type BusinessEventRuntimeFlags = Readonly<{
+type BusinessEventRuntimeFlags = Readonly<{
   currentTime: Date;
   isHalfDay: boolean;
   canTradeNow: boolean;

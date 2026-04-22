@@ -21,6 +21,7 @@ import {
   createMonitorConfigDouble,
   createPositionCacheDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
+  createQuoteDouble,
   createQuoteSubscriptionRuntimeDouble,
   createSdkConfigDouble,
   createSeatActivationDispatcherDouble,
@@ -83,15 +84,16 @@ function createTradingConfig(monitors: ReadonlyArray<MonitorConfig>): MultiMonit
   };
 }
 
-function createRuntime(monitors: ReadonlyArray<MonitorConfig>): {
+function createRuntime(
+  monitors: ReadonlyArray<MonitorConfig>,
+  symbolRegistry = createSymbolRegistryDouble({
+    monitorSymbol: monitors[0]?.monitorSymbol ?? 'HSI.HK',
+  }),
+): {
   preGateRuntime: PreGateRuntime;
   postGateRuntime: MutableMonitorContextsPostGateRuntime;
   quotesMap: ReadonlyMap<string, Quote | null>;
 } {
-  const symbolRegistry = createSymbolRegistryDouble({
-    monitorSymbol: monitors[0]?.monitorSymbol ?? 'HSI.HK',
-  });
-
   const monitorStates = new Map<string, MonitorState>();
   for (const monitor of monitors) {
     monitorStates.set(monitor.monitorSymbol, createMonitorState(monitor.monitorSymbol));
@@ -256,6 +258,140 @@ function createRuntime(monitors: ReadonlyArray<MonitorConfig>): {
 }
 
 describe('createMonitorContexts strategy factory behavior', () => {
+  it('hydrates seat names, seat versions and normalized monitor symbol for ACTIVE seats', () => {
+    const monitorConfig = createMonitorConfigDouble({
+      monitorSymbol: 'HSI.HK',
+      signalConfig: {
+        buycall: null,
+        sellcall: null,
+        buyput: null,
+        sellput: null,
+      },
+      verificationConfig: {
+        buy: {
+          delaySeconds: 60,
+          indicators: ['K'],
+        },
+        sell: {
+          delaySeconds: 60,
+          indicators: ['K'],
+        },
+      },
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'LONG_READY.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: 'SHORT_READY.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 3,
+      shortVersion: 4,
+    });
+    const { preGateRuntime, postGateRuntime } = createRuntime([monitorConfig], symbolRegistry);
+
+    createMonitorContexts({
+      preGateRuntime,
+      postGateRuntime,
+      quotesMap: new Map<string, Quote | null>([
+        ['LONG_READY.HK', { ...createQuoteDouble('LONG_READY.HK', 1.01), name: 'LongReady' }],
+        ['SHORT_READY.HK', { ...createQuoteDouble('SHORT_READY.HK', 1.02), name: 'ShortReady' }],
+        ['HSI.HK', { ...createQuoteDouble('HSI.HK', 20_001), name: 'HangSeng' }],
+      ]),
+    });
+
+    const context = postGateRuntime.monitorContexts.get('HSI.HK');
+    expect(context).toBeDefined();
+    if (!context) {
+      throw new Error('expected monitor context to be created');
+    }
+
+    expect(context.longSymbolName).toBe('LongReady');
+    expect(context.shortSymbolName).toBe('ShortReady');
+    expect(context.monitorSymbolName).toBe('HangSeng');
+    expect(context.seatVersion.long).toBe(3);
+    expect(context.seatVersion.short).toBe(4);
+    expect(context.normalizedMonitorSymbol).toBe('HSI.HK');
+  });
+
+  it('keeps inactive seat name empty, falls back to symbol names and compiles indicatorProfile', () => {
+    const monitorConfig = createMonitorConfigDouble({
+      monitorSymbol: 'HSI.HK',
+      signalConfig: {
+        buycall: null,
+        sellcall: null,
+        buyput: null,
+        sellput: null,
+      },
+      verificationConfig: {
+        buy: {
+          delaySeconds: 60,
+          indicators: ['K'],
+        },
+        sell: {
+          delaySeconds: 60,
+          indicators: ['K'],
+        },
+      },
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: 'SHORT_READY.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    const { preGateRuntime, postGateRuntime } = createRuntime([monitorConfig], symbolRegistry);
+
+    createMonitorContexts({
+      preGateRuntime,
+      postGateRuntime,
+      quotesMap: new Map<string, Quote | null>(),
+    });
+
+    const context = postGateRuntime.monitorContexts.get('HSI.HK');
+    expect(context).toBeDefined();
+    if (!context) {
+      throw new Error('expected monitor context to be created');
+    }
+
+    expect(context.longSymbolName).toBe('');
+    expect(context.shortSymbolName).toBe('SHORT_READY.HK');
+    expect(context.monitorSymbolName).toBe('HSI.HK');
+    expect(context.indicatorProfile.requiredFamilies.kdj).toBe(true);
+    expect(context.indicatorProfile.requiredPeriods.ema).toEqual([]);
+    expect(context.indicatorProfile.requiredPeriods.rsi).toEqual([]);
+    expect(context.indicatorProfile.requiredPeriods.psy).toEqual([]);
+    expect(context.indicatorProfile.displayPlan).toEqual(['price', 'changePercent', 'K', 'D', 'J']);
+  });
+
   it('uses the default strategy factory and wires per-monitor verification config into strategy output', () => {
     const monitors: ReadonlyArray<MonitorConfig> = [
       createMonitorConfigDouble({

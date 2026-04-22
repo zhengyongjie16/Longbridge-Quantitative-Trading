@@ -28,7 +28,7 @@ const DEFAULT_STRATEGY_FACTORY = createDefaultTradingSignalStrategyFactory();
  * @param deps 工厂依赖（config、state、symbolRegistry、quotesMap、strategy、orderRecorder 等）
  * @returns 该监控标的的 MonitorContext 实例
  */
-export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorContext {
+function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorContext {
   const {
     config,
     state,

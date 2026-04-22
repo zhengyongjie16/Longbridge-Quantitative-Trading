@@ -275,9 +275,6 @@ export type PendingOrder = {
   readonly executedQuantity: number;
   readonly status: OrderStatus;
   readonly orderType: RawOrderFromAPI['orderType'];
-
-  /** 订单原始响应（仅用于问题排查与调试日志） */
-  readonly _rawOrder?: unknown;
 };
 
 /**
@@ -415,12 +412,6 @@ export type TradeCheckResult = {
 
   /** 需等待秒数（频率限制） */
   readonly waitSeconds?: number;
-
-  /** 交易方向 */
-  readonly direction?: 'LONG' | 'SHORT';
-
-  /** 不可交易原因 */
-  readonly reason?: string;
 };
 
 /**
@@ -982,7 +973,6 @@ export interface RiskChecker {
     readonly positions: ReadonlyArray<Position> | null;
     readonly signal: Signal | null;
     readonly orderNotional: number;
-    readonly currentPrice?: number | null;
   }) => RiskCheckResult;
 
   /** 牛熊证风险检查（距离回收价阈值） */

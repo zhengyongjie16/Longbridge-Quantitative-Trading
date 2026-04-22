@@ -80,7 +80,7 @@ export function createAutoSearchWakeupRuntime(
     const delayMs = Math.max(0, params.atMs - deps.now().getTime());
     const timer = deps.scheduleTimer(() => {
       timers.delete(routeKey);
-      triggerSeat(params.monitorSymbol, params.direction, params.kind, params.seatVersion);
+      triggerSeat(params.monitorSymbol, params.direction, params.seatVersion);
     }, delayMs);
     timers.set(routeKey, timer);
   }
@@ -95,14 +95,13 @@ export function createAutoSearchWakeupRuntime(
   function triggerSeat(
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
-    kind: AutoSearchWakeupKind,
     expectedSeatVersion?: number,
   ): void {
     if (!running) {
       return;
     }
 
-    const promise = processSeat(monitorSymbol, direction, kind, expectedSeatVersion);
+    const promise = processSeat(monitorSymbol, direction, expectedSeatVersion);
     registerActivePromise(promise);
   }
 
@@ -113,7 +112,6 @@ export function createAutoSearchWakeupRuntime(
   async function processSeat(
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
-    _kind: AutoSearchWakeupKind,
     expectedSeatVersion: number | undefined,
   ): Promise<void> {
     if (!deps.lastState.isTradingEnabled || deps.lastState.canTrade !== true) {
@@ -188,7 +186,7 @@ export function createAutoSearchWakeupRuntime(
       return;
     }
 
-    triggerSeat(event.monitorSymbol, event.direction, 'SEAT_EMPTY');
+    triggerSeat(event.monitorSymbol, event.direction);
   }
 
   function handleGateStateChanged(event: TradingGateStateChangedEvent): void {
@@ -205,7 +203,7 @@ export function createAutoSearchWakeupRuntime(
 
         const seatState = deps.symbolRegistry.getSeatState(monitorConfig.monitorSymbol, direction);
         if (seatState.status === 'EMPTY') {
-          triggerSeat(monitorConfig.monitorSymbol, direction, 'GATE_OPEN');
+          triggerSeat(monitorConfig.monitorSymbol, direction);
         }
       }
     }
@@ -221,7 +219,7 @@ export function createAutoSearchWakeupRuntime(
 
         const seatState = deps.symbolRegistry.getSeatState(monitorConfig.monitorSymbol, direction);
         if (seatState.status === 'EMPTY') {
-          triggerSeat(monitorConfig.monitorSymbol, direction, 'START_SEED');
+          triggerSeat(monitorConfig.monitorSymbol, direction);
         }
       }
     }

@@ -15,7 +15,6 @@ import { sleep } from '../main/utils.js';
 import { displayAccountAndPositions } from '../services/accountDisplay/index.js';
 import { logger } from '../utils/logger/index.js';
 import { formatError } from '../utils/error/index.js';
-import { getShushCow } from '../utils/asciiArt/shushCow.js';
 import { TRADING } from '../constants/index.js';
 import { createCleanup } from './shutdown/createCleanup.js';
 import { createLifecycleRuntime } from './lifecycle/createLifecycleRuntime.js';
@@ -29,7 +28,6 @@ import { createPreGateRuntime } from './runtime/createPreGateRuntime.js';
 import type { AppEnvironmentParams, RunAppDeps } from './types.js';
 
 const DEFAULT_RUN_APP_DEPS: RunAppDeps = {
-  getShushCow,
   createPreGateRuntime,
   createPostGateRuntime,
   loadStartupSnapshot,
@@ -70,9 +68,8 @@ function buildAppRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
  * @param deps app 组装链路依赖；生产环境使用默认依赖，测试可注入受控替身
  * @returns runApp 函数
  */
-export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) => Promise<void> {
+function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) => Promise<void> {
   const {
-    getShushCow: runShushCow,
     createPreGateRuntime: buildPreGateRuntime,
     createPostGateRuntime: buildPostGateRuntime,
     loadStartupSnapshot: loadStartupRuntimeSnapshot,
@@ -95,7 +92,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
 
   return async function runApp(params: AppEnvironmentParams): Promise<void> {
     const runtimeEnv = buildAppRuntimeEnv(params.env);
-    runShushCow();
 
     const preGateRuntime = await buildPreGateRuntime({ env: runtimeEnv });
     const startupNow = new Date();

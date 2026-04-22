@@ -163,11 +163,10 @@ function buildPeriodSnapshotRecord<T>(params: {
 }
 
 function buildSnapshotFromCommitted(params: {
-  readonly symbol: string;
   readonly profile: IndicatorUsageProfile;
   readonly committed: IndicatorCommittedState;
 }): IndicatorSnapshot | null {
-  const { symbol, profile, committed } = params;
+  const { profile, committed } = params;
   const price = committed.lastValidClose;
   if (price === null) {
     return null;
@@ -214,7 +213,6 @@ function buildSnapshotFromCommitted(params: {
       : null;
 
   return {
-    symbol,
     price,
     changePercent,
     ema,
@@ -236,7 +234,6 @@ function buildSnapshotFromCommitted(params: {
  * @returns 指标快照，无有效价格时返回 null
  */
 export function buildIndicatorSnapshot(
-  symbol: string,
   candles: ReadonlyArray<CandleData>,
   indicatorProfile: IndicatorUsageProfile,
 ): IndicatorSnapshot | null {
@@ -250,7 +247,6 @@ export function buildIndicatorSnapshot(
   }
 
   return buildSnapshotFromCommitted({
-    symbol,
     profile: indicatorProfile,
     committed,
   });

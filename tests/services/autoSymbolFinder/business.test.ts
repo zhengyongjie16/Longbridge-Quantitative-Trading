@@ -65,11 +65,9 @@ function createWarrantListItem(params: {
   return {
     symbol: params.symbol,
     name: params.name ?? params.symbol,
-    lastDone: toMockDecimal(0.1),
     toCallPrice: toMockDecimal(params.apiDistanceRatio),
     callPrice: toMockDecimal(params.callPrice ?? 20_000),
     turnover: toMockDecimal(params.turnover),
-    warrantType: WarrantType.Bull,
     status: params.status ?? WarrantStatus.Normal,
   };
 }
@@ -81,7 +79,9 @@ function toApiDistanceRatio(percentValue: number): number {
 function toWarrantInfo(
   item: WarrantListItem,
 ): Parameters<ReturnType<typeof createQuoteContextMock>['seedWarrantList']>[1][number] {
-  const normalizeDecimalField = (value: WarrantListItem['lastDone']): number | null | undefined => {
+  const normalizeDecimalField = (
+    value: WarrantListItem['toCallPrice'],
+  ): number | null | undefined => {
     if (value === undefined || value === null) {
       return value;
     }
@@ -93,15 +93,13 @@ function toWarrantInfo(
     return value.toNumber();
   };
 
-  const lastDone = normalizeDecimalField(item.lastDone);
   const toCallPrice = normalizeDecimalField(item.toCallPrice);
   const callPrice = normalizeDecimalField(item.callPrice);
   const turnover = normalizeDecimalField(item.turnover);
   return {
-    warrantType: item.warrantType ?? 'Bull',
+    warrantType: WarrantType.Bull,
     symbol: item.symbol,
     ...(item.name === undefined ? {} : { name: item.name }),
-    ...(lastDone === undefined ? {} : { lastDone }),
     ...(toCallPrice === undefined ? {} : { toCallPrice }),
     ...(callPrice === undefined ? {} : { callPrice }),
     ...(turnover === undefined ? {} : { turnover }),

@@ -21,6 +21,34 @@ import type {
   SeatRefreshTaskData,
 } from '../types.js';
 
+function logSeatRefreshSkipped(params: {
+  readonly context: MonitorTaskContext;
+  readonly data: SeatRefreshTaskData;
+  readonly reason: string;
+}): void {
+  const { context, data, reason } = params;
+  const currentSeat = context.symbolRegistry.getSeatState(data.monitorSymbol, data.direction);
+  const currentSeatVersion = context.symbolRegistry.getSeatVersion(
+    data.monitorSymbol,
+    data.direction,
+  );
+  logger.debug(
+    `[SEAT_REFRESH skipped] monitorSymbol=${data.monitorSymbol} direction=${data.direction} taskSeatVersion=${data.seatVersion} currentSeatVersion=${currentSeatVersion} currentStatus=${currentSeat.status} currentSymbol=${currentSeat.symbol ?? 'null'} reason=${reason}`,
+  );
+}
+
+function logSeatRefreshProcessed(params: {
+  readonly data: SeatRefreshTaskData;
+  readonly result: 'activated' | 'marked_empty';
+  readonly reason?: string;
+}): void {
+  const { data, result, reason } = params;
+  const reasonSuffix = reason ? ` reason=${reason}` : '';
+  logger.debug(
+    `[SEAT_REFRESH processed] monitorSymbol=${data.monitorSymbol} direction=${data.direction} seatVersion=${data.seatVersion} previousSymbol=${data.previousSymbol ?? 'null'} nextSymbol=${data.nextSymbol} result=${result}${reasonSuffix}`,
+  );
+}
+
 /**
  * 创建席位刷新任务处理器。
  * 在 seat 进入 ACTIVATING 后执行 admission、订单/风控缓存初始化与旧标的清理；仅当全部成功时才把 seat 推进到 ACTIVE。
@@ -130,6 +158,11 @@ export function createSeatRefreshHandler({
 
     const entrySeatState = resolveActivatingSeatSnapshot(context, data);
     if (!entrySeatState) {
+      logSeatRefreshSkipped({
+        context,
+        data,
+        reason: 'entry seat snapshot mismatch',
+      });
       return 'skipped';
     }
 
@@ -147,12 +180,13 @@ export function createSeatRefreshHandler({
       data.callPrice > 0;
 
     if (!callPriceValid) {
-      markSeatAsEmpty(
-        data.monitorSymbol,
-        data.direction,
-        '未提供有效回收价(callPrice)，无法刷新牛熊证信息',
-        context,
-      );
+      const reason = '未提供有效回收价(callPrice)，无法刷新牛熊证信息';
+      markSeatAsEmpty(data.monitorSymbol, data.direction, reason, context);
+      logSeatRefreshProcessed({
+        data,
+        result: 'marked_empty',
+        reason,
+      });
       return 'processed';
     }
 
@@ -203,22 +237,6 @@ export function createSeatRefreshHandler({
         dailyLossOffset,
       );
 
-      const warrantRefreshResult = context.riskChecker.setWarrantInfoFromCallPrice(
-        data.nextSymbol,
-        data.callPrice,
-        isLong,
-        nextExecutionQuote?.name ?? data.symbolName,
-      );
-      if (warrantRefreshResult.status === 'error') {
-        markSeatAsEmpty(
-          data.monitorSymbol,
-          data.direction,
-          `设置牛熊证信息失败：${warrantRefreshResult.reason}`,
-          context,
-        );
-        return 'processed';
-      }
-
       if (data.previousSymbol && data.previousSymbol !== data.nextSymbol) {
         const previousExecutionQuote = executionQuotes.get(data.previousSymbol) ?? null;
         const existingSeat = context.symbolRegistry.resolveSeatBySymbol(data.previousSymbol);
@@ -230,7 +248,29 @@ export function createSeatRefreshHandler({
 
       const latestSeatState = resolveActivatingSeatSnapshot(context, data);
       if (!latestSeatState) {
+        logSeatRefreshSkipped({
+          context,
+          data,
+          reason: 'seat snapshot changed during refresh',
+        });
         return 'skipped';
+      }
+
+      const warrantRefreshResult = context.riskChecker.setWarrantInfoFromCallPrice(
+        data.nextSymbol,
+        data.callPrice,
+        isLong,
+        nextExecutionQuote?.name ?? data.symbolName,
+      );
+      if (warrantRefreshResult.status === 'error') {
+        const reason = `设置牛熊证信息失败：${warrantRefreshResult.reason}`;
+        markSeatAsEmpty(data.monitorSymbol, data.direction, reason, context);
+        logSeatRefreshProcessed({
+          data,
+          result: 'marked_empty',
+          reason,
+        });
+        return 'processed';
       }
 
       context.symbolRegistry.updateSeatState(data.monitorSymbol, data.direction, {
@@ -240,14 +280,20 @@ export function createSeatRefreshHandler({
         callPrice: data.callPrice,
       });
 
+      logSeatRefreshProcessed({
+        data,
+        result: 'activated',
+      });
+
       return 'processed';
     } catch (error) {
-      markSeatAsEmpty(
-        data.monitorSymbol,
-        data.direction,
-        error instanceof Error ? error.message : String(error),
-        context,
-      );
+      const reason = error instanceof Error ? error.message : String(error);
+      markSeatAsEmpty(data.monitorSymbol, data.direction, reason, context);
+      logSeatRefreshProcessed({
+        data,
+        result: 'marked_empty',
+        reason,
+      });
       return 'processed';
     } finally {
       releaseSeatRefreshRetain?.();

@@ -54,10 +54,9 @@ describe('indicators/runtime business flow', () => {
         psy: [13, 0, 101],
       },
     });
-    const snapshot = buildIndicatorSnapshot('HSI.HK', candles, indicatorProfile);
+    const snapshot = buildIndicatorSnapshot(candles, indicatorProfile);
 
     expect(snapshot).not.toBeNull();
-    expect(snapshot?.symbol).toBe('HSI.HK');
     expect(snapshot?.price).toBe(139.5);
     expect(snapshot?.changePercent).toBeCloseTo((0.5 / 139) * 100, 8);
     expect(snapshot?.rsi?.[6]).toBeFinite();
@@ -74,10 +73,9 @@ describe('indicators/runtime business flow', () => {
   });
 
   it('returns null when candles are empty or no valid close exists', () => {
-    expect(buildIndicatorSnapshot('HSI.HK', [], createIndicatorUsageProfileDouble())).toBeNull();
+    expect(buildIndicatorSnapshot([], createIndicatorUsageProfileDouble())).toBeNull();
     expect(
       buildIndicatorSnapshot(
-        'HSI.HK',
         [
           { close: 0, high: 1, low: 1, volume: 1 },
           { close: null, high: 1, low: 1, volume: 1 },
@@ -103,7 +101,6 @@ describe('indicators/runtime business flow', () => {
   it('keeps psy as null when configured periods are all invalid', () => {
     const candles = createTrendCandles(40, 90, 0.2);
     const snapshot = buildIndicatorSnapshot(
-      'HSI.HK',
       candles,
       createIndicatorUsageProfileDouble({
         requiredPeriods: {
@@ -135,7 +132,7 @@ describe('indicators/runtime business flow', () => {
 
   it('includes ADX in full indicator snapshot', () => {
     const candles = createTrendCandles(80, 100, 0.5);
-    const snapshot = buildIndicatorSnapshot('HSI.HK', candles, createIndicatorUsageProfileDouble());
+    const snapshot = buildIndicatorSnapshot(candles, createIndicatorUsageProfileDouble());
 
     expect(snapshot).not.toBeNull();
     expect(snapshot?.adx).toBeFinite();
@@ -172,7 +169,7 @@ describe('indicators/runtime business flow', () => {
       displayPlan: ['price', 'changePercent', 'K', 'D', 'J'],
     });
 
-    const snapshot = buildIndicatorSnapshot('HSI.HK', candles, profile);
+    const snapshot = buildIndicatorSnapshot(candles, profile);
     const calculated = calculateKDJ(candles, 9);
 
     expect(snapshot?.kdj).toEqual({
@@ -233,7 +230,6 @@ describe('indicators/runtime business flow', () => {
     ];
 
     const snapshot = buildIndicatorSnapshot(
-      'HSI.HK',
       candles,
       createIndicatorUsageProfileDouble({
         requiredFamilies: {

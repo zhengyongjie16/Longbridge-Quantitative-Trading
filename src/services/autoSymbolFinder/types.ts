@@ -83,13 +83,11 @@ export type FindBestWarrantInput = {
 export type WarrantListItem = {
   readonly symbol: string;
   readonly name?: string | null;
-  readonly lastDone?: DecimalLike | number | string | null | undefined;
 
   /** Longbridge warrantList 原始小数比值；0.0036 表示 0.36% */
   readonly toCallPrice?: DecimalLike | number | string | null | undefined;
   readonly callPrice?: DecimalLike | number | string | null | undefined;
   readonly turnover?: DecimalLike | number | string | null | undefined;
-  readonly warrantType?: WarrantType | number | string | null | undefined;
   readonly status?: WarrantStatus | number | string | null | undefined;
 };
 

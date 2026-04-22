@@ -35,9 +35,13 @@ function isDirectionAction(
  * @returns 方向匹配或为共享任务时返回 true
  */
 function isMonitorTaskForDirection(
-  task: { readonly data: unknown },
+  task: { readonly type?: unknown; readonly data: unknown },
   direction: 'LONG' | 'SHORT',
 ): boolean {
+  if (task.type === 'SEAT_REFRESH') {
+    return false;
+  }
+
   if (!isRecord(task.data)) {
     return false;
   }

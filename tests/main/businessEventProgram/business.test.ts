@@ -15,24 +15,32 @@ import {
   createSellTaskQueue,
 } from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
+import type { MonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/types.js';
 import { projectVerificationSampleValues } from '../../../src/main/asyncProgram/indicatorCache/utils.js';
 import type { BusinessEventProgramDeps } from '../../../src/main/businessEventProgram/types.js';
 import type { CandlestickUpdatedEvent } from '../../../src/types/services.js';
 import type { CandleData } from '../../../src/types/data.js';
+import type { Signal } from '../../../src/types/signal.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type {
   IndicatorCache,
   VerificationSampleValues,
 } from '../../../src/main/asyncProgram/indicatorCache/types.js';
+import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import {
+  createDelayedSignalVerifierDouble,
   createIndicatorUsageProfileDouble,
   createMarketDataClientDouble,
   createMonitorContextDouble,
   createQuoteDouble,
   createSignalDouble,
   createStrategyDouble,
+  createTraderDouble,
+  createQuoteSubscriptionRuntimeDouble,
 } from '../../helpers/testDoubles.js';
 import { createLastState, waitUntil } from '../asyncProgram/utils.js';
+import { createMonitorTaskProcessor } from '../../../src/main/asyncProgram/monitorTaskProcessor/index.js';
+import { createSeatActivationDispatcher } from '../../../src/main/seatActivationDispatcher/index.js';
 
 function createCandles(length: number, start: number, step: number): ReadonlyArray<CandleData> {
   const candles: CandleData[] = [];
@@ -453,5 +461,150 @@ describe('businessEventProgram business flow', () => {
     expect(queuedTask?.monitorSymbol).toBe('HSI.HK');
 
     await program.stopAndDrain();
+  });
+
+  it('adds delayed signal again after SEAT_REFRESH restores LONG seat to ACTIVE', async () => {
+    let listener: (event: CandlestickUpdatedEvent) => void = (_event: CandlestickUpdatedEvent) => {
+      throw new Error('expected candlestick listener');
+    };
+    let snapshotVersion = 7;
+    const marketDataClientDouble = createMarketDataClientDouble({
+      getCandlestickSnapshot: () => ({
+        symbol: 'HSI.HK',
+        period: Period.Min_1,
+        version: snapshotVersion,
+        candles: createCandles(90, 120, 0.2),
+        lastBarTimestamp: 1_708_005_340_000 + snapshotVersion * 60_000,
+        lastBarConfirmed: true,
+        initialized: true,
+      }),
+      getQuotes: async () =>
+        new Map([
+          ['BULL.HK', createQuoteDouble('BULL.HK', 1.2, 100)],
+          ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1.1, 100)],
+        ]),
+      onCandlestickUpdated: (nextListener) => {
+        listener = nextListener;
+        return () => {
+          listener = (_event: CandlestickUpdatedEvent) => {
+            throw new Error('candlestick listener already unsubscribed');
+          };
+        };
+      },
+    });
+    const marketDataClient = requireCandlestickEventClient(marketDataClientDouble);
+
+    const delayedSignals = [createSignalDouble('BUYCALL', 'BULL.HK')];
+    const addedSignals: Signal[] = [];
+    const scheduledMonitorTaskTypes: string[] = [];
+    const baseMonitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap> = {
+      ...baseMonitorTaskQueue,
+      scheduleLatest: (task) => {
+        scheduledMonitorTaskTypes.push(task.type);
+        baseMonitorTaskQueue.scheduleLatest(task);
+      },
+    };
+    const monitorContext = createMonitorContext({
+      strategy: createStrategyDouble({
+        generateSignals: () => ({
+          immediateSignals: [],
+          delayedSignals,
+        }),
+      }),
+      delayedSignalVerifier: createDelayedSignalVerifierDouble({
+        addSignal: (params: { readonly signal: Signal }) => {
+          addedSignals.push(params.signal);
+        },
+      }),
+    });
+
+    monitorContext.symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+      ...monitorContext.symbolRegistry.getSeatState('HSI.HK', 'LONG'),
+      symbol: 'BULL.HK',
+      status: 'ACTIVATING',
+      callPrice: 20_000,
+    } as never);
+
+    const tradingConfig = createOrdinarySignalTradingConfig();
+    const lastState = createLastState();
+    const seatActivationDispatcher = createSeatActivationDispatcher({
+      tradingConfig,
+      symbolRegistry: monitorContext.symbolRegistry,
+      monitorTaskQueue,
+    });
+    const monitorTaskProcessor = createMonitorTaskProcessor({
+      monitorTaskQueue,
+      getMonitorContext: () => monitorContext,
+      clearMonitorDirectionQueues: () => {},
+      trader: createTraderDouble(),
+      marketDataClient: marketDataClientDouble,
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble({
+        reconcilePositionHoldFromCurrentTruth: async () => {},
+      }),
+      switchWakeupRuntime: {
+        handoffPendingSwitch: () => {},
+      },
+      lastState,
+      tradingConfig,
+    });
+
+    const { indicatorCache } = createIndicatorCacheRecorder();
+    const program = createBusinessEventProgram({
+      marketDataClient,
+      monitorContexts: new Map([['HSI.HK', monitorContext]]),
+      lastState,
+      tradingConfig,
+      buyTaskQueue: createBuyTaskQueue(),
+      sellTaskQueue: createSellTaskQueue(),
+      monitorTaskQueue,
+      indicatorCache,
+    });
+
+    try {
+      seatActivationDispatcher.start();
+      program.start();
+
+      let snapshot = marketDataClient.getCandlestickSnapshot('HSI.HK', Period.Min_1);
+      if (snapshot === null) {
+        throw new Error('expected candlestick snapshot');
+      }
+
+      listener({
+        symbol: 'HSI.HK',
+        period: Period.Min_1,
+        snapshot,
+      });
+
+      await waitUntil(() => monitorContext.state.lastMonitorSnapshot !== null);
+      expect(addedSignals).toHaveLength(0);
+      expect(scheduledMonitorTaskTypes).toContain('SEAT_REFRESH');
+      expect(monitorTaskQueue.isEmpty()).toBeFalse();
+
+      monitorTaskProcessor.start();
+      await waitUntil(
+        () => monitorContext.symbolRegistry.getSeatState('HSI.HK', 'LONG').status === 'ACTIVE',
+      );
+      expect(addedSignals).toHaveLength(0);
+
+      snapshotVersion += 1;
+      snapshot = marketDataClient.getCandlestickSnapshot('HSI.HK', Period.Min_1);
+      if (snapshot === null) {
+        throw new Error('expected candlestick snapshot');
+      }
+
+      listener({
+        symbol: 'HSI.HK',
+        period: Period.Min_1,
+        snapshot,
+      });
+
+      await waitUntil(() => addedSignals.length === 1);
+      expect(addedSignals[0]?.symbol).toBe('BULL.HK');
+    } finally {
+      await program.stopAndDrain();
+      await monitorTaskProcessor.stopAndDrain();
+      seatActivationDispatcher.stop();
+    }
   });
 });

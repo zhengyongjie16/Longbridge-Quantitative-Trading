@@ -34,7 +34,6 @@ export function createBuyThrottle(): BuyThrottle {
       return { canTrade: true };
     }
 
-    const direction: 'LONG' | 'SHORT' = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
     const buyIntervalSeconds = monitorConfig?.buyIntervalSeconds ?? 60;
     const timeKey = buildBuyTimeKey(signalAction, monitorConfig);
     const lastTime = lastBuyTime.get(timeKey);
@@ -53,8 +52,6 @@ export function createBuyThrottle(): BuyThrottle {
     return {
       canTrade: false,
       waitSeconds,
-      direction,
-      reason: `需等待 ${waitSeconds} 秒`,
     };
   }
 

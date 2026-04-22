@@ -86,7 +86,7 @@ function expectRuntimeSnapshotEqualsFull(params: {
   readonly runtimeSnapshot: ReturnType<typeof buildSnapshotFromRuntime>;
   readonly candles: ReadonlyArray<CandleData>;
 }): void {
-  const fullSnapshot = buildIndicatorSnapshot('HSI.HK', params.candles, params.profile);
+  const fullSnapshot = buildIndicatorSnapshot(params.candles, params.profile);
   expect(params.runtimeSnapshot).toEqual(fullSnapshot);
 }
 
@@ -186,7 +186,7 @@ describe('indicators/runtime incremental business flow', () => {
     }
 
     const runtimeSnapshot = buildSnapshotFromRuntime(runtime);
-    const fullSnapshot = buildIndicatorSnapshot('HSI.HK', candles, profile);
+    const fullSnapshot = buildIndicatorSnapshot(candles, profile);
     expect(runtimeSnapshot).toEqual(fullSnapshot);
     expect(runtimeSnapshot?.rsi?.[6]).toBe(fullSnapshot?.rsi?.[6]);
     expect(runtimeSnapshot?.mfi).toBe(fullSnapshot?.mfi);
