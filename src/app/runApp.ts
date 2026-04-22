@@ -181,6 +181,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       buyTaskQueue: postGateRuntime.buyTaskQueue,
       sellTaskQueue: postGateRuntime.sellTaskQueue,
       monitorTaskQueue: postGateRuntime.monitorTaskQueue,
+      indicatorCache: postGateRuntime.indicatorCache,
     });
     const dayLifecycleManager = buildLifecycleRuntime({
       preGateRuntime,
@@ -255,7 +256,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
           doomsdayProtection: postGateRuntime.doomsdayProtection,
           tradingConfig: preGateRuntime.tradingConfig,
           monitorContexts: postGateRuntime.monitorContexts,
-          indicatorCache: postGateRuntime.indicatorCache,
           buyTaskQueue: postGateRuntime.buyTaskQueue,
           sellTaskQueue: postGateRuntime.sellTaskQueue,
           monitorTaskQueue: postGateRuntime.monitorTaskQueue,

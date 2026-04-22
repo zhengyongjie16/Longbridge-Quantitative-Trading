@@ -235,7 +235,7 @@ describe('full business simulation integration', () => {
       shortVersion: 1,
     });
 
-    const indicatorCache = createIndicatorCache({ maxEntries: 300 });
+    const indicatorCache = createIndicatorCache({ retentionWindowMs: 300_000 });
     const buyTaskQueue = createBuyTaskQueue();
     const sellTaskQueue = createSellTaskQueue();
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
@@ -451,6 +451,7 @@ describe('full business simulation integration', () => {
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
+      indicatorCache,
     });
 
     buyProcessor.start();
@@ -523,7 +524,7 @@ describe('full business simulation integration', () => {
       shortVersion: 1,
     });
 
-    const indicatorCache = createIndicatorCache({ maxEntries: 300 });
+    const indicatorCache = createIndicatorCache({ retentionWindowMs: 300_000 });
     const buyTaskQueue = createBuyTaskQueue();
     const sellTaskQueue = createSellTaskQueue();
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
@@ -975,7 +976,7 @@ describe('full business simulation integration', () => {
       shortVersion: 1,
     });
 
-    const indicatorCache = createIndicatorCache({ maxEntries: 300 });
+    const indicatorCache = createIndicatorCache({ retentionWindowMs: 300_000 });
     const buyTaskQueue = createBuyTaskQueue();
     const sellTaskQueue = createSellTaskQueue();
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
@@ -1302,7 +1303,6 @@ describe('full business simulation integration', () => {
         doomsdayProtection: createDoomsdayProtectionDouble(),
         tradingConfig,
         monitorContexts,
-        indicatorCache,
         buyTaskQueue,
         sellTaskQueue,
         monitorTaskQueue,
@@ -1330,7 +1330,6 @@ describe('full business simulation integration', () => {
         doomsdayProtection: createDoomsdayProtectionDouble(),
         tradingConfig,
         monitorContexts,
-        indicatorCache,
         buyTaskQueue,
         sellTaskQueue,
         monitorTaskQueue,

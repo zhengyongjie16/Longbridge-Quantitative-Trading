@@ -24,7 +24,7 @@ import {
 } from '../../utils/time/index.js';
 import { formatError } from '../../utils/error/index.js';
 import { createTradingDayInfoResolver } from '../lifecycle/rebuild.js';
-import { resolveGatePolicies, resolveGatePolicySources } from '../startup/startupModes.js';
+import { resolveGatePolicies } from '../startup/startupModes.js';
 import type { AppEnvironmentParams, PreGateRuntime } from '../types.js';
 
 /**
@@ -55,7 +55,6 @@ export async function createPreGateRuntime(params: AppEnvironmentParams): Promis
   });
   const marketDataClient = await createMarketDataClient({ config });
   const gatePolicies = resolveGatePolicies(env);
-  const gatePolicySources = resolveGatePolicySources(env);
   const resolveTradingDayInfo = createTradingDayInfoResolver({
     marketDataClient,
     getHKDateKey,
@@ -74,9 +73,6 @@ export async function createPreGateRuntime(params: AppEnvironmentParams): Promis
     intervalMs: TRADING.INTERVAL_MS,
     logger,
   });
-  logger.info(
-    `startup gate 策略=${gatePolicies.startupGate}（source=${gatePolicySources.startupGateSource}）; runtime gate 策略=${gatePolicies.runtimeGate}（source=${gatePolicySources.runtimeGateSource}）`,
-  );
   const startupTradingDayInfo = await startupGate.wait({ mode: gatePolicies.startupGate });
 
   return {

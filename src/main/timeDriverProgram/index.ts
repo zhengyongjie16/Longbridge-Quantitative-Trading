@@ -6,7 +6,7 @@
  * - 驱动交易日生命周期状态机（dayLifecycleManager.tick），统一维护 isTradingEnabled 与交易日快照
  * - 在交易门禁状态变化时发布 gate event，供非周期自动寻标 owner 消费
  * - 执行末日保护（买入截止窗口撤单和清仓接管窗口清仓）
- * - 驱动时间语义维护：周期换标 tick、风险展示刷新、席位同步与 indicatorCache 时间轴采样
+ * - 驱动时间语义维护：周期换标 tick、风险展示刷新与席位同步
  *
  * 明确不负责：
  * - 读取 monitor candlestick 并推进普通指标
@@ -18,8 +18,6 @@ import type { MonitorRuntimeContext } from '../processMonitor/types.js';
 import type { TimeDriverProgramContext } from './types.js';
 import { formatError } from '../../utils/error/index.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
-import type { VerificationIndicator } from '../../types/indicatorProfile.js';
-import { projectVerificationSampleValues } from '../asyncProgram/indicatorCache/utils.js';
 import {
   getHKDateKey,
   isInContinuousHKSession,
@@ -66,7 +64,6 @@ export async function timeDriverProgram({
   doomsdayProtection,
   tradingConfig,
   monitorContexts,
-  indicatorCache,
   buyTaskQueue,
   sellTaskQueue,
   monitorTaskQueue,
@@ -273,24 +270,5 @@ export async function timeDriverProgram({
         formatError(error),
       );
     }
-  }
-
-  const sampleTimestampMs = currentTime.getTime();
-  for (const [monitorSymbol, monitorContext] of monitorContexts) {
-    const capturedSnapshot = monitorContext.state.lastMonitorSnapshot;
-    if (capturedSnapshot === null) {
-      continue;
-    }
-
-    const verificationIndicators = new Set<VerificationIndicator>([
-      ...monitorContext.indicatorProfile.verificationIndicatorsBySide.buy,
-      ...monitorContext.indicatorProfile.verificationIndicatorsBySide.sell,
-    ]);
-
-    indicatorCache.push(
-      monitorSymbol,
-      projectVerificationSampleValues(capturedSnapshot, [...verificationIndicators]),
-      sampleTimestampMs,
-    );
   }
 }

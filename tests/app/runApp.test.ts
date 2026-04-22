@@ -75,6 +75,8 @@ function createHarnessState(): MutableRunAppHarnessState {
     cleanupRegistered: 0,
     timeDriverProgramCalls: 0,
     timeDriverProgramRuntimeGateModes: [],
+    createBusinessEventProgramHasIndicatorCache: null,
+    timeDriverProgramHasIndicatorCache: null,
     sleepDurations: [],
     validationResult: {
       valid: true,
@@ -294,7 +296,7 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
         },
         indicatorCache: {
           push: () => {},
-          getAt: () => null,
+          getClosest: () => null,
           clearAll: () => {},
         },
         buyTaskQueue: createTaskQueueDouble(),
@@ -341,14 +343,17 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
       harnessState.registerDelayedCalls += 1;
       harnessState.events.push('registerDelayedSignalHandlers');
     },
-    createBusinessEventProgram: () => ({
-      start: () => {
-        harnessState.events.push('businessEventProgram.start');
-      },
-      stopAndDrain: async () => {
-        harnessState.events.push('businessEventProgram.stopAndDrain');
-      },
-    }),
+    createBusinessEventProgram: (params) => {
+      harnessState.createBusinessEventProgramHasIndicatorCache = 'indicatorCache' in params;
+      return {
+        start: () => {
+          harnessState.events.push('businessEventProgram.start');
+        },
+        stopAndDrain: async () => {
+          harnessState.events.push('businessEventProgram.stopAndDrain');
+        },
+      };
+    },
     createAsyncRuntime: () => {
       harnessState.events.push('createAsyncRuntime');
       return {
@@ -393,6 +398,7 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
     timeDriverProgram: async (params) => {
       harnessState.timeDriverProgramCalls += 1;
       harnessState.timeDriverProgramRuntimeGateModes.push(params.runtimeGateMode);
+      harnessState.timeDriverProgramHasIndicatorCache = 'indicatorCache' in params;
       harnessState.events.push('timeDriverProgram');
     },
     sleep: async (ms) => {
@@ -466,6 +472,8 @@ describe('app runApp assembly', () => {
     expect(harnessState.cleanupRegistered).toBe(1);
     expect(harnessState.timeDriverProgramCalls).toBe(1);
     expect(harnessState.timeDriverProgramRuntimeGateModes).toEqual(['strict']);
+    expect(harnessState.createBusinessEventProgramHasIndicatorCache).toBeTrue();
+    expect(harnessState.timeDriverProgramHasIndicatorCache).toBeFalse();
   });
 
   it('keeps lifecycle alive when startup snapshot switches to pending open rebuild', async () => {

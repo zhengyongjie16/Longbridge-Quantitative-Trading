@@ -252,7 +252,7 @@ describe('createSignalRuntimeDomain', () => {
       postTradeConsistencyRuntime,
       indicatorCache: {
         push: () => {},
-        getAt: () => null,
+        getClosest: () => null,
         clearAll: () => {
           globalCalls.push('indicatorCache.clearAll');
         },
@@ -400,7 +400,7 @@ describe('createSignalRuntimeDomain', () => {
       },
       indicatorCache: {
         push: () => {},
-        getAt: () => null,
+        getClosest: () => null,
         clearAll: () => {
           globalCalls.push('indicatorCache.clearAll');
         },

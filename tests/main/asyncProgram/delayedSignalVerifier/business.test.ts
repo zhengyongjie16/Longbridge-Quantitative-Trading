@@ -304,19 +304,11 @@ describe('delayedSignalVerifier business flow', () => {
     expect(result.reason).toContain('值无效');
   });
 
-  it('rejects signal when one required time point is missing', async () => {
+  it('fails when cache has no samples for required verification points', async () => {
     const baseTime = 200_000;
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-    });
-
-    withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSampleK(11), Date.now());
-    });
-
-    withMockedNowSync(baseTime + 4_000, () => {
-      indicatorCache.push('HSI.HK', createSampleK(12), Date.now());
     });
 
     let verifiedCount = 0;
@@ -331,7 +323,7 @@ describe('delayedSignalVerifier business flow', () => {
       indicators1: { K: 10 },
     });
 
-    withMockedNowSync(baseTime + 10000, () => {
+    withMockedNowSync(baseTime + 10_000, () => {
       verifier.addSignal({
         signal,
         monitorSymbol: 'HSI.HK',
@@ -344,7 +336,7 @@ describe('delayedSignalVerifier business flow', () => {
     expect(verifiedCount).toBe(0);
   });
 
-  it('accepts data points within +/-5s tolerance window', async () => {
+  it('accepts nearest retained samples even when one old sample covers multiple target points', async () => {
     const baseTime = 300_000;
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
@@ -355,12 +347,8 @@ describe('delayedSignalVerifier business flow', () => {
       indicatorCache.push('HSI.HK', createSampleK(11), Date.now());
     });
 
-    withMockedNowSync(baseTime + 5_000 + 4_000, () => {
+    withMockedNowSync(baseTime + 9_000, () => {
       indicatorCache.push('HSI.HK', createSampleK(12), Date.now());
-    });
-
-    withMockedNowSync(baseTime + 10_000 + 4_000, () => {
-      indicatorCache.push('HSI.HK', createSampleK(13), Date.now());
     });
 
     let passed = 0;
@@ -375,7 +363,7 @@ describe('delayedSignalVerifier business flow', () => {
       indicators1: { K: 10 },
     });
 
-    withMockedNowSync(baseTime + 10000, () => {
+    withMockedNowSync(baseTime + 10_000, () => {
       verifier.addSignal({
         signal,
         monitorSymbol: 'HSI.HK',

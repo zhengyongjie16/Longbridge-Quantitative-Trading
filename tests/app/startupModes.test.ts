@@ -5,10 +5,7 @@
  * - startup/runtime gate 仅由独立环境变量控制
  */
 import { describe, expect, it } from 'bun:test';
-import {
-  resolveGatePolicies,
-  resolveGatePolicySources,
-} from '../../src/app/startup/startupModes.js';
+import { resolveGatePolicies } from '../../src/app/startup/startupModes.js';
 
 describe('app startupModes', () => {
   it('defaults startup/runtime gates to strict when env vars are absent', () => {
@@ -16,22 +13,12 @@ describe('app startupModes', () => {
       startupGate: 'strict',
       runtimeGate: 'strict',
     });
-
-    expect(resolveGatePolicySources({})).toEqual({
-      startupGateSource: 'default',
-      runtimeGateSource: 'default',
-    });
   });
 
   it('keeps strict gate defaults in RUN_MODE=dev without explicit gate overrides', () => {
     expect(resolveGatePolicies({ RUN_MODE: 'dev' })).toEqual({
       startupGate: 'strict',
       runtimeGate: 'strict',
-    });
-
-    expect(resolveGatePolicySources({ RUN_MODE: 'dev' })).toEqual({
-      startupGateSource: 'default',
-      runtimeGateSource: 'default',
     });
   });
 
@@ -41,19 +28,9 @@ describe('app startupModes', () => {
       runtimeGate: 'strict',
     });
 
-    expect(resolveGatePolicySources({ STARTUP_GATE_MODE: ' skip ' })).toEqual({
-      startupGateSource: 'explicit',
-      runtimeGateSource: 'default',
-    });
-
     expect(resolveGatePolicies({ RUNTIME_GATE_MODE: 'SKIP' })).toEqual({
       startupGate: 'strict',
       runtimeGate: 'skip',
-    });
-
-    expect(resolveGatePolicySources({ RUNTIME_GATE_MODE: 'SKIP' })).toEqual({
-      startupGateSource: 'default',
-      runtimeGateSource: 'explicit',
     });
   });
 });

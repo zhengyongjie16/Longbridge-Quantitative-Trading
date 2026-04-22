@@ -219,7 +219,7 @@ function createRuntime(monitors: ReadonlyArray<MonitorConfig>): {
     },
     indicatorCache: {
       push: () => {},
-      getAt: () => null,
+      getClosest: () => null,
       clearAll: () => {},
     },
     buyTaskQueue: {

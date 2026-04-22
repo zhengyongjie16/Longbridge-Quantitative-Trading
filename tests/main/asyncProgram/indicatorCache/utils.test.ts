@@ -1,18 +1,11 @@
-/**
- * indicatorCache utils 测试
- *
- * 功能：
- * - 验证环形缓冲区最近时间点查找在不同写入状态下保持既有语义
- * - 锁定容忍度、最近点优先和环形覆盖后的查找结果
- */
 import { describe, expect, it } from 'bun:test';
 
 import type { IndicatorCacheEntry } from '../../../../src/main/asyncProgram/indicatorCache/types.js';
 import {
-  createRingBuffer,
+  createSampleQueue,
   findClosestEntry,
   projectVerificationSampleValues,
-  pushToBuffer,
+  pushToQueue,
 } from '../../../../src/main/asyncProgram/indicatorCache/utils.js';
 
 function createEntry(timestamp: number, value: number): IndicatorCacheEntry {
@@ -52,16 +45,20 @@ describe('indicatorCache utils', () => {
   });
 
   it('stores verification sample values instead of full snapshot', () => {
-    const buffer = createRingBuffer(5);
-    pushToBuffer(buffer, {
-      timestamp: 1000,
-      values: {
-        K: { kind: 'value', value: 81 },
-        ADX: { kind: 'invalid' },
+    const queue = createSampleQueue();
+    pushToQueue(
+      queue,
+      {
+        timestamp: 1000,
+        values: {
+          K: { kind: 'value', value: 81 },
+          ADX: { kind: 'invalid' },
+        },
       },
-    });
+      5000,
+    );
 
-    const entry = findClosestEntry(buffer, 1000, 0);
+    const entry = findClosestEntry(queue, 1000);
     expect(entry).toEqual({
       timestamp: 1000,
       values: {
@@ -71,65 +68,36 @@ describe('indicatorCache utils', () => {
     });
   });
 
-  it('returns the closest entry within tolerance from a partially filled buffer', () => {
-    const buffer = createRingBuffer(5);
-    pushToBuffer(buffer, createEntry(1000, 1));
-    pushToBuffer(buffer, createEntry(2000, 2));
-    pushToBuffer(buffer, createEntry(3000, 3));
+  it('trims samples older than retentionWindowMs after push', () => {
+    const queue = createSampleQueue();
+    pushToQueue(queue, createEntry(1000, 1), 2500);
+    pushToQueue(queue, createEntry(2000, 2), 2500);
+    pushToQueue(queue, createEntry(4000, 4), 2500);
 
-    const result = findClosestEntry(buffer, 2400, 500);
+    expect(queue.entries).toEqual([createEntry(2000, 2), createEntry(4000, 4)]);
+    expect(findClosestEntry(queue, 2000)?.timestamp).toBe(2000);
+    expect(findClosestEntry(queue, 4000)?.timestamp).toBe(4000);
+  });
+
+  it('returns the later entry when two samples are equally distant', () => {
+    const queue = createSampleQueue();
+    pushToQueue(queue, createEntry(2000, 2), 5000);
+    pushToQueue(queue, createEntry(3000, 3), 5000);
+
+    const result = findClosestEntry(queue, 2500);
+    expect(result?.timestamp).toBe(3000);
+  });
+
+  it('returns the closest retained entry without tolerance filtering', () => {
+    const queue = createSampleQueue();
+    pushToQueue(queue, createEntry(1000, 1), 10000);
+    pushToQueue(queue, createEntry(2000, 2), 10000);
+    pushToQueue(queue, createEntry(3000, 3), 10000);
+
+    const result = findClosestEntry(queue, 5000);
     const resultK = result?.values.K;
-    expect(result?.timestamp).toBe(2000);
-    expect(resultK?.kind === 'value' ? resultK.value : null).toBe(2);
-  });
 
-  it('returns null when every entry is outside tolerance', () => {
-    const buffer = createRingBuffer(4);
-    pushToBuffer(buffer, createEntry(1000, 1));
-    pushToBuffer(buffer, createEntry(2000, 2));
-    pushToBuffer(buffer, createEntry(3000, 3));
-
-    const result = findClosestEntry(buffer, 5000, 200);
-    expect(result).toBeNull();
-  });
-
-  it('matches an entry whose diff equals toleranceMs exactly', () => {
-    const buffer = createRingBuffer(3);
-    pushToBuffer(buffer, createEntry(1000, 1));
-    pushToBuffer(buffer, createEntry(2000, 2));
-
-    // diff = 500 === toleranceMs = 500，应命中（<= 边界）
-    const result = findClosestEntry(buffer, 2500, 500);
-    expect(result?.timestamp).toBe(2000);
-  });
-
-  it('returns the first-scanned entry when two entries are equidistant', () => {
-    const buffer = createRingBuffer(3);
-    pushToBuffer(buffer, createEntry(1000, 1));
-    pushToBuffer(buffer, createEntry(2000, 2));
-    pushToBuffer(buffer, createEntry(3000, 3));
-
-    // 目标 2500，与 2000 和 3000 各差 500；实现用 diff < minDiff（严格小于），先扫到的 2000 胜出
-    const result = findClosestEntry(buffer, 2500, 500);
-    expect(result?.timestamp).toBe(2000);
-  });
-
-  it('preserves closest-match semantics after ring buffer wraparound', () => {
-    const buffer = createRingBuffer(3);
-    pushToBuffer(buffer, createEntry(1000, 1));
-    pushToBuffer(buffer, createEntry(2000, 2));
-    pushToBuffer(buffer, createEntry(3000, 3));
-    pushToBuffer(buffer, createEntry(4000, 4));
-    pushToBuffer(buffer, createEntry(5000, 5));
-
-    const nearOldestRetained = findClosestEntry(buffer, 3900, 200);
-    const nearOldestRetainedK = nearOldestRetained?.values.K;
-    expect(nearOldestRetained?.timestamp).toBe(4000);
-    expect(nearOldestRetainedK?.kind === 'value' ? nearOldestRetainedK.value : null).toBe(4);
-
-    const nearNewest = findClosestEntry(buffer, 4900, 200);
-    const nearNewestK = nearNewest?.values.K;
-    expect(nearNewest?.timestamp).toBe(5000);
-    expect(nearNewestK?.kind === 'value' ? nearNewestK.value : null).toBe(5);
+    expect(result?.timestamp).toBe(3000);
+    expect(resultK?.kind === 'value' ? resultK.value : null).toBe(3);
   });
 });

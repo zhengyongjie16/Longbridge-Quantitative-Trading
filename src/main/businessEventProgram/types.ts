@@ -3,6 +3,7 @@ import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { MonitorContext, LastState } from '../../types/state.js';
 import type { MarketDataClient } from '../../types/services.js';
 import type { SignalSeatInfo } from '../processMonitor/types.js';
+import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { BuyTaskType, SellTaskType, TaskQueue } from '../asyncProgram/tradeTaskQueue/types.js';
@@ -27,10 +28,16 @@ export interface BusinessEventProgram {
  * 数据来源：由 businessEventProgram 在运行期维护。
  * 使用范围：仅 businessEventProgram 模块内部使用。
  */
-export type BusinessEventRouteState = {
-  inFlight: boolean;
-  dirty: boolean;
-};
+export type BusinessEventRouteState =
+  | {
+      inFlight: boolean;
+      dirty: false;
+    }
+  | {
+      inFlight: boolean;
+      dirty: true;
+      pendingObservedAtMs: number;
+    };
 
 /**
  * K 线业务程序依赖。
@@ -46,6 +53,7 @@ export type BusinessEventProgramDeps = Readonly<{
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
+  indicatorCache: IndicatorCache;
 }>;
 
 /**

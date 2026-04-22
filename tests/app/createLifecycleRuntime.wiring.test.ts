@@ -228,7 +228,7 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
       signalProcessor: createSignalProcessorDouble(),
       indicatorCache: {
         push: () => {},
-        getAt: () => null,
+        getClosest: () => null,
         clearAll: () => {},
       },
       buyTaskQueue: {

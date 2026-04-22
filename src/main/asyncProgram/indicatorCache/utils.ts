@@ -5,89 +5,82 @@ import type {
   IndicatorCacheEntry,
   VerificationSamplePoint,
   VerificationSampleValues,
-  _RingBuffer,
+  _SampleQueue,
 } from './types.js';
 
 /**
- * 创建环形缓冲区
- * @param capacity 缓冲区容量（最大条目数）
- * @returns 初始化后的空环形缓冲区
+ * 创建时间窗口样本队列。
+ *
+ * @returns 初始化后的空样本队列
  */
-export function createRingBuffer(capacity: number): _RingBuffer {
+export function createSampleQueue(): _SampleQueue {
   return {
-    entries: Array.from<IndicatorCacheEntry | null>({ length: capacity }).fill(null),
-    head: 0,
-    size: 0,
-    capacity,
+    entries: [],
   };
 }
 
 /**
- * 向环形缓冲区推送数据
+ * 向时间窗口样本队列追加数据，并裁剪保留窗口外的旧样本。
  *
- * 在 head 位置写入新条目，然后移动 head 指针。
- * 若缓冲区已满，会覆盖最旧的数据。
- *
- * @param buffer 目标环形缓冲区
+ * @param queue 目标样本队列
  * @param entry 待写入的缓存条目
+ * @param retentionWindowMs 样本保留时间窗口（毫秒）
  * @returns 无返回值
  */
-export function pushToBuffer(buffer: _RingBuffer, entry: IndicatorCacheEntry): void {
-  buffer.entries[buffer.head] = entry;
-  buffer.head = (buffer.head + 1) % buffer.capacity;
-  if (buffer.size < buffer.capacity) {
-    buffer.size++;
+export function pushToQueue(
+  queue: _SampleQueue,
+  entry: IndicatorCacheEntry,
+  retentionWindowMs: number,
+): void {
+  queue.entries.push(entry);
+
+  const minTimestamp = entry.timestamp - retentionWindowMs;
+  let firstRetainedIndex = 0;
+
+  for (const [index, currentEntry] of queue.entries.entries()) {
+    if (currentEntry.timestamp >= minTimestamp) {
+      firstRetainedIndex = index;
+      break;
+    }
+
+    firstRetainedIndex = index + 1;
+  }
+
+  if (firstRetainedIndex > 0) {
+    queue.entries.splice(0, firstRetainedIndex);
   }
 }
 
 /**
- * 在环形缓冲区中查找容忍度内最接近目标时间的条目
+ * 在时间窗口样本队列中查找最接近目标时间的条目。
  *
- * 直接遍历缓冲区避免先物化完整数组，减少临时分配。
- *
- * @param buffer 目标环形缓冲区
+ * @param queue 目标样本队列
  * @param targetTime 目标时间戳（毫秒）
- * @param toleranceMs 允许的最大时间偏差（毫秒）
- * @returns 容忍度内最接近目标时间的条目，无匹配时返回 null
+ * @returns 最接近目标时间的条目，无可用样本时返回 null
  */
 export function findClosestEntry(
-  buffer: _RingBuffer,
+  queue: _SampleQueue,
   targetTime: number,
-  toleranceMs: number,
 ): IndicatorCacheEntry | null {
-  if (buffer.size === 0) {
+  const firstEntry = queue.entries[0];
+  if (firstEntry === undefined) {
     return null;
   }
 
-  let closestEntry: IndicatorCacheEntry | null = null;
-  let minDiff = Infinity;
+  let closestEntry: IndicatorCacheEntry = firstEntry;
+  let minDiff = Math.abs(closestEntry.timestamp - targetTime);
 
-  const updateClosestEntry = (entry: IndicatorCacheEntry | null | undefined): void => {
-    if (entry === null || entry === undefined) {
-      return;
+  for (const [index, entry] of queue.entries.entries()) {
+    if (index === 0) {
+      continue;
     }
 
     const diff = Math.abs(entry.timestamp - targetTime);
-    if (diff <= toleranceMs && diff < minDiff) {
+
+    if (diff < minDiff || (diff === minDiff && entry.timestamp > closestEntry.timestamp)) {
       minDiff = diff;
       closestEntry = entry;
     }
-  };
-
-  if (buffer.size < buffer.capacity) {
-    for (let index = 0; index < buffer.size; index += 1) {
-      updateClosestEntry(buffer.entries[index]);
-    }
-
-    return closestEntry;
-  }
-
-  for (let index = buffer.head; index < buffer.capacity; index += 1) {
-    updateClosestEntry(buffer.entries[index]);
-  }
-
-  for (let index = 0; index < buffer.head; index += 1) {
-    updateClosestEntry(buffer.entries[index]);
   }
 
   return closestEntry;

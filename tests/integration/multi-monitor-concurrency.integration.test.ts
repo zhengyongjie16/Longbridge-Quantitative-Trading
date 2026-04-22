@@ -148,11 +148,6 @@ describe('multi-monitor isolation integration', () => {
         [configA.monitorSymbol, createMonitorContextDouble({ config: configA })],
         [configB.monitorSymbol, createMonitorContextDouble({ config: configB })],
       ]),
-      indicatorCache: {
-        push: () => {},
-        getAt: () => null,
-        clearAll: () => {},
-      },
       buyTaskQueue: {
         push: () => {},
         pop: () => null,

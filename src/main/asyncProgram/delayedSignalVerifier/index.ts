@@ -7,7 +7,7 @@
  *
  * 执行流程：
  * - 入队时基于 triggerTime 计算延迟并注册定时器
- * - 验证时查询 IndicatorCache 获取 T0、T0+5s、T0+10s 的数据（时间容忍度 ±5 秒）
+ * - 验证时查询 IndicatorCache，读取缓存窗口内最接近 T0、T0+5s、T0+10s 的样本
  * - 按 performVerification 中与动作对应的比较规则校验趋势；ADX 对所有动作统一要求当前值低于初始值
  */
 import { logger } from '../../../utils/logger/index.js';

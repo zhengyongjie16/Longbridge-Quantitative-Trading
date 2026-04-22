@@ -209,7 +209,7 @@ function defaultDeps(steps: string[]): CleanupContext {
     monitorContexts: new Map(),
     indicatorCache: {
       push: () => {},
-      getAt: () => null,
+      getClosest: () => null,
       clearAll: () => {
         steps.push('clearIndicatorCache');
       },

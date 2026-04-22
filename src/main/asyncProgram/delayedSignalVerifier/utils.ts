@@ -144,9 +144,9 @@ const verifyTimePoint = (
  * 执行完整的验证流程
  *
  * 验证逻辑：
- * - 从 IndicatorCache 获取 T0、T0+5s、T0+10s 三个时间点的数据
+ * - 从 IndicatorCache 读取缓存窗口内最接近 T0、T0+5s、T0+10s 的样本
  * - 所有时间点的所有配置指标都必须满足趋势条件才算通过
- * - 时间容忍度为 ±5 秒
+ * - 若某个目标时间点在缓存窗口内无可用样本则直接失败
  *
  * @param indicatorCache 指标缓存
  * @param entry 待验证信号条目（包含 triggerTime、初始指标与验证指标列表）
@@ -167,15 +167,14 @@ export const performVerification = (
   const isUptrend = signal.action === 'BUYCALL' || signal.action === 'SELLPUT';
 
   // 定义3个目标时间点
-  const toleranceMs = VERIFICATION.TIME_TOLERANCE_MS;
   const t0 = triggerTime;
   const t1 = triggerTime + VERIFICATION.TIME_OFFSET_1_SECONDS * TIME.MILLISECONDS_PER_SECOND;
   const t2 = triggerTime + VERIFICATION.TIME_OFFSET_2_SECONDS * TIME.MILLISECONDS_PER_SECOND;
 
   // 从 IndicatorCache 获取3个时间点的数据
-  const entry0 = indicatorCache.getAt(monitorSymbol, t0, toleranceMs);
-  const entry1 = indicatorCache.getAt(monitorSymbol, t1, toleranceMs);
-  const entry2 = indicatorCache.getAt(monitorSymbol, t2, toleranceMs);
+  const entry0 = indicatorCache.getClosest(monitorSymbol, t0);
+  const entry1 = indicatorCache.getClosest(monitorSymbol, t1);
+  const entry2 = indicatorCache.getClosest(monitorSymbol, t2);
 
   // 检查是否所有时间点都有数据
   if (!entry0 || !entry1 || !entry2) {

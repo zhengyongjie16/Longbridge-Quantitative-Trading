@@ -1,4 +1,3 @@
-import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
 import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
 import type { GateMode } from '../../types/seat.js';
 import type { Trader } from '../../types/services.js';
@@ -19,7 +18,6 @@ export type TimeDriverProgramContext = MonitorRuntimeContext &
     trader: Trader;
     doomsdayProtection: DoomsdayProtection;
     monitorContexts: ReadonlyMap<string, MonitorContext>;
-    indicatorCache: IndicatorCache;
     runtimeGateMode: GateMode;
     tradingGateEventRuntime: Pick<TradingGateEventRuntime, 'emitGateStateChanged'>;
     quoteSubscriptionRuntime: Pick<

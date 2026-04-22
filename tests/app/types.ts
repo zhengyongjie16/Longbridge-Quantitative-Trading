@@ -47,6 +47,8 @@ export type MutableRunAppHarnessState = {
   cleanupRegistered: number;
   timeDriverProgramCalls: number;
   timeDriverProgramRuntimeGateModes: Array<'strict' | 'skip'>;
+  createBusinessEventProgramHasIndicatorCache: boolean | null;
+  timeDriverProgramHasIndicatorCache: boolean | null;
   sleepDurations: number[];
   validationResult: MutableRunAppValidationResult;
 };

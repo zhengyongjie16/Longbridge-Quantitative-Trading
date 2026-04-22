@@ -2,9 +2,9 @@
  * app 启动模式解析模块
  *
  * 职责：
- * - 从独立门禁配置解析 startup/runtime gate 策略与来源
+ * - 从独立门禁配置解析 startup/runtime gate 策略
  */
-import type { GatePolicies, GatePolicySources } from '../types.js';
+import type { GatePolicies } from '../types.js';
 import type { GateMode } from '../../types/seat.js';
 
 /**
@@ -27,20 +27,6 @@ function resolveGateMode(rawMode: string | undefined): GateMode {
 }
 
 /**
- * 判断门禁配置是否来自显式环境变量。
- *
- * @param rawMode 单个门禁环境变量原始值
- * @returns true 表示来源为显式配置；false 表示使用默认配置
- */
-function isExplicitGateMode(rawMode: string | undefined): boolean {
-  if (typeof rawMode !== 'string') {
-    return false;
-  }
-
-  return rawMode.trim().length > 0;
-}
-
-/**
  * 从环境变量解析 startup/runtime gate 策略。
  *
  * @param env 环境变量对象（如 process.env）
@@ -50,18 +36,5 @@ export function resolveGatePolicies(env: NodeJS.ProcessEnv): GatePolicies {
   return {
     startupGate: resolveGateMode(env['STARTUP_GATE_MODE']),
     runtimeGate: resolveGateMode(env['RUNTIME_GATE_MODE']),
-  };
-}
-
-/**
- * 从环境变量解析 startup/runtime gate 策略来源。
- *
- * @param env 环境变量对象（如 process.env）
- * @returns startup/runtime gate 的来源标签（default | explicit）
- */
-export function resolveGatePolicySources(env: NodeJS.ProcessEnv): GatePolicySources {
-  return {
-    startupGateSource: isExplicitGateMode(env['STARTUP_GATE_MODE']) ? 'explicit' : 'default',
-    runtimeGateSource: isExplicitGateMode(env['RUNTIME_GATE_MODE']) ? 'explicit' : 'default',
   };
 }

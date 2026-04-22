@@ -8,7 +8,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { LOGGING, TRADING } from '../../constants/index.js';
+import { INDICATOR_CACHE, LOGGING, TIME, TRADING, VERIFICATION } from '../../constants/index.js';
 import { createTrader } from '../../core/trader/index.js';
 import { createOrderFilteringEngine } from '../../core/orderRecorder/orderFilteringEngine.js';
 import { classifyAndConvertOrders } from '../../core/orderRecorder/utils.js';
@@ -341,8 +341,13 @@ export async function createPostGateRuntime(
       ),
     ),
   );
+  const indicatorCacheRetentionSeconds =
+    maxDelaySeconds +
+    VERIFICATION.READY_DELAY_SECONDS +
+    INDICATOR_CACHE.RETENTION_SAFETY_MARGIN_SECONDS;
+  // 额外保留缓存安全余量，确保延迟验证读取最近样本时窗口充足。
   const indicatorCache = createIndicatorCache({
-    maxEntries: maxDelaySeconds + 15 + 10,
+    retentionWindowMs: indicatorCacheRetentionSeconds * TIME.MILLISECONDS_PER_SECOND,
   });
   const buyTaskQueue = createBuyTaskQueue();
   const sellTaskQueue = createSellTaskQueue();

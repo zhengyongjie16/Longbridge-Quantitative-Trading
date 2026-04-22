@@ -123,9 +123,6 @@ export const VERIFICATION = {
   /** 验证时间点2偏移量（秒），信号触发后二次验证 */
   TIME_OFFSET_2_SECONDS: 10,
 
-  /** 验证时间点误差容忍度（毫秒） */
-  TIME_TOLERANCE_MS: 5 * 1000,
-
   /** 验证就绪延迟时间（秒），信号注册后等待验证的时间 */
   READY_DELAY_SECONDS: 10,
 
@@ -201,8 +198,11 @@ export const API = {
 
 /** 指标缓存相关常量 */
 export const INDICATOR_CACHE = {
-  /** 指标时序缓存默认最大条目数（环形缓冲区） */
-  TIMESERIES_DEFAULT_MAX_ENTRIES: 100,
+  /** 指标样本默认保留时间窗口（毫秒） */
+  DEFAULT_RETENTION_WINDOW_MS: 100 * 1000,
+
+  /** 样本保留窗口安全余量（秒） */
+  RETENTION_SAFETY_MARGIN_SECONDS: 15,
 } as const;
 
 /** 行情监控相关常量，用于 MarketMonitor 检测价格/指标变化 */

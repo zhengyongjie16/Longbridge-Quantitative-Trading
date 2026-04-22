@@ -5,7 +5,7 @@
  * - 启动阶段：模拟订阅相关 API 每次调用固定延迟 200ms
  * - 主循环阶段：模拟真实逻辑，仅从本地缓存读取行情（无 API 延迟）
  * - 构造 5 个监控标的并执行真实 timeDriverProgram -> processMonitor 链路
- * - 校验时间驱动不推进普通 K 线指标，仅在已有 snapshot 时采样 indicatorCache，并统计循环耗时
+ * - 校验时间驱动不推进普通 K 线指标，并统计循环耗时
  */
 import { describe, expect, it } from 'bun:test';
 import type { Candlestick, Period, TradeSessions } from 'longbridge';
@@ -25,7 +25,6 @@ import {
   createSellTaskQueue,
 } from '../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createMonitorTaskQueue } from '../../src/main/asyncProgram/monitorTaskQueue/index.js';
-import { createIndicatorCache } from '../../src/main/asyncProgram/indicatorCache/index.js';
 import { initMonitorState } from '../../src/utils/helpers/index.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import {
@@ -395,7 +394,6 @@ describe('main loop latency full-chain integration', () => {
     }
 
     const initialQuotes = createQuotesForSymbols(monitorConfigs, 0);
-    const indicatorCache = createIndicatorCache({ maxEntries: 400 });
     const buyTaskQueue = createBuyTaskQueue();
     const sellTaskQueue = createSellTaskQueue();
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
@@ -597,7 +595,6 @@ describe('main loop latency full-chain integration', () => {
       doomsdayProtection: createDoomsdayProtectionDouble(),
       tradingConfig,
       monitorContexts,
-      indicatorCache,
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
@@ -646,7 +643,6 @@ describe('main loop latency full-chain integration', () => {
         expect(monitorState).not.toBeUndefined();
         const snapshot = monitorState?.lastMonitorSnapshot;
         expect(snapshot).toBeNull();
-        expect(indicatorCache.getAt(monitorConfig.monitorSymbol, Date.now(), 10_000)).toBeNull();
       }
     }
 

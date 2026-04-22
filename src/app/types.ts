@@ -92,25 +92,6 @@ export type GatePolicies = Readonly<{
 }>;
 
 /**
- * 启动门禁策略来源。
- * 类型用途：区分门禁模式是使用默认值还是显式配置值。
- * 数据来源：由 app 组装层解析启动参数与环境变量后生成。
- * 使用范围：仅 app 启动装配链路使用。
- */
-export type GatePolicySource = 'default' | 'explicit';
-
-/**
- * 启动门禁策略来源集合。
- * 类型用途：同时表达 startup gate 与 runtime gate 的来源（default/explicit）。
- * 数据来源：由 app 组装层解析启动参数与环境变量后组合生成。
- * 使用范围：仅 app 启动装配链路使用。
- */
-export type GatePolicySources = Readonly<{
-  startupGateSource: GatePolicySource;
-  runtimeGateSource: GatePolicySource;
-}>;
-
-/**
  * app 环境参数。
  * 类型用途：统一表达从入口传入 app 组装层的环境变量对象。
  * 数据来源：由 src/index.ts 调用 runApp 时传入 process.env。

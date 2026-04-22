@@ -5,11 +5,13 @@
  * - 监听 monitor symbol 的 K 线更新事件
  * - 以 per-monitor single-flight + latest-only collapse 推进普通 latest snapshot
  * - 在事件路径中直接生成普通 immediate / delayed signals
- * - 不负责生命周期 tick、末日保护、周期换标 tick 和 indicatorCache 时间轴采样
+ * - 在普通指标推进成功后立即写入 indicatorCache 延迟验证样本
+ * - 不负责生命周期 tick、末日保护和周期换标 tick
  */
 import { TRADING } from '../../constants/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { formatError } from '../../utils/error/index.js';
+import { projectVerificationSampleValues } from '../asyncProgram/indicatorCache/utils.js';
 import { runIndicatorPipeline } from './indicatorPipeline.js';
 import { runSignalPipeline } from './signalPipeline.js';
 import { syncSignalSeatState } from '../processMonitor/seatSync.js';
@@ -34,6 +36,7 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
     buyTaskQueue,
     sellTaskQueue,
     monitorTaskQueue,
+    indicatorCache,
   } = deps;
   const pipelineContext = {
     marketDataClient,
@@ -96,14 +99,22 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
    * @param monitorSymbol 监控标的
    */
   function processMonitorRoute(monitorSymbol: string): void {
-    const routeState = routeStates.get(monitorSymbol);
-    if (routeState === undefined) {
+    if (!routeStates.has(monitorSymbol)) {
       return;
     }
 
     try {
-      while (running && routeState.dirty) {
-        routeState.dirty = false;
+      while (running) {
+        const currentRouteState = routeStates.get(monitorSymbol);
+        if (!currentRouteState?.dirty) {
+          return;
+        }
+
+        const observedAtMs = currentRouteState.pendingObservedAtMs;
+        routeStates.set(monitorSymbol, {
+          inFlight: currentRouteState.inFlight,
+          dirty: false,
+        });
 
         const monitorContext = monitorContexts.get(monitorSymbol);
         if (monitorContext === undefined) {
@@ -119,6 +130,16 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
         if (monitorSnapshot === null) {
           continue;
         }
+
+        const verificationIndicators = new Set([
+          ...monitorContext.indicatorProfile.verificationIndicatorsBySide.buy,
+          ...monitorContext.indicatorProfile.verificationIndicatorsBySide.sell,
+        ]);
+        indicatorCache.push(
+          monitorSymbol,
+          projectVerificationSampleValues(monitorSnapshot, [...verificationIndicators]),
+          observedAtMs,
+        );
 
         const seatInfo = syncSignalSeatState({
           monitorSymbol,
@@ -148,9 +169,23 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
     } finally {
       const latestRouteState = routeStates.get(monitorSymbol);
       if (latestRouteState !== undefined) {
-        latestRouteState.inFlight = false;
-        if (running && latestRouteState.dirty) {
-          latestRouteState.inFlight = true;
+        const idleRouteState: BusinessEventRouteState = latestRouteState.dirty
+          ? {
+              inFlight: false,
+              dirty: true,
+              pendingObservedAtMs: latestRouteState.pendingObservedAtMs,
+            }
+          : {
+              inFlight: false,
+              dirty: false,
+            };
+        routeStates.set(monitorSymbol, idleRouteState);
+        if (running && idleRouteState.dirty) {
+          routeStates.set(monitorSymbol, {
+            inFlight: true,
+            dirty: true,
+            pendingObservedAtMs: idleRouteState.pendingObservedAtMs,
+          });
           startMonitorRouteProcessing(monitorSymbol, 'monitor route 重入失败');
         }
       }
@@ -161,15 +196,25 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
    * 统一触发单 monitor 业务路由。
    *
    * @param monitorSymbol 监控标的
+   * @param observedAtMs 本次 K 线事件被监听到的时间戳
    */
-  function triggerMonitorRoute(monitorSymbol: string): void {
-    const routeState = getOrCreateRouteState(monitorSymbol);
-    routeState.dirty = true;
+  function triggerMonitorRoute(monitorSymbol: string, observedAtMs: number): void {
+    let routeState = getOrCreateRouteState(monitorSymbol);
+    routeState = {
+      ...routeState,
+      dirty: true,
+      pendingObservedAtMs: observedAtMs,
+    };
+    routeStates.set(monitorSymbol, routeState);
     if (routeState.inFlight || !running) {
       return;
     }
 
-    routeState.inFlight = true;
+    routeState = {
+      ...routeState,
+      inFlight: true,
+    };
+    routeStates.set(monitorSymbol, routeState);
     startMonitorRouteProcessing(monitorSymbol, 'monitor route 执行失败');
   }
 
@@ -188,7 +233,7 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
         return;
       }
 
-      triggerMonitorRoute(event.symbol);
+      triggerMonitorRoute(event.symbol, Date.now());
     });
   }
 
