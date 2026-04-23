@@ -151,9 +151,7 @@ export const createOrderStorage = (): OrderStorage => {
     executedTimeMs: number,
   ): void => {
     const executedTime = isValidPositiveNumber(executedTimeMs) ? executedTimeMs : Date.now();
-    const list = [...getBuyOrdersList(symbol, isLongSymbol)];
-
-    list.push({
+    const nextRecord: OrderRecord = {
       orderId: createLocalOrderId('LOCAL', executedTime),
       symbol,
       executedPrice,
@@ -161,9 +159,9 @@ export const createOrderStorage = (): OrderStorage => {
       executedTime,
       submittedAt: undefined,
       updatedAt: undefined,
-    });
-
-    setBuyOrdersList(symbol, list, isLongSymbol);
+    };
+    const list = getBuyOrdersList(symbol, isLongSymbol);
+    setBuyOrdersList(symbol, [...list, nextRecord], isLongSymbol);
 
     const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
     logger.info(
@@ -222,7 +220,7 @@ export const createOrderStorage = (): OrderStorage => {
       return;
     }
 
-    const relatedBuyOrderIdSet = new Set(relatedBuyOrderIds ?? []);
+    const relatedBuyOrderIdSet = new Set(relatedBuyOrderIds);
     if (relatedBuyOrderIdSet.size > 0) {
       const filtered = list.filter((order) => !relatedBuyOrderIdSet.has(order.orderId));
       setBuyOrdersList(symbol, filtered, isLongSymbol);

@@ -43,9 +43,9 @@ function getRelevantLines(source: string): string[] {
 
 function expectNoNamedExport(source: string, symbolName: string): void {
   expect(source).not.toMatch(
-    new RegExp(`export\\s+(?:type|interface|function)\\s+${symbolName}\\b`),
+    new RegExp(String.raw`export\s+(?:type|interface|function)\s+${symbolName}\b`),
   );
-  expect(source).not.toMatch(new RegExp(`export\\s*\\{[^}]*\\b${symbolName}\\b[^}]*\\}`));
+  expect(source).not.toMatch(new RegExp(String.raw`export\s*\{[^}]*\b${symbolName}\b[^}]*\}`));
 }
 
 describe('type organization regressions', () => {

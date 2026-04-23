@@ -43,12 +43,11 @@ function resolveClosedReasonFromStatus(
  * 单订单权威状态查询：仅用于撤单/改单 API 业务失败后的确认。
  */
 export function createOrderStatusQuery(deps: OrderStatusQueryDeps): OrderStatusQuery {
-  const { ctxPromise, rateLimiter } = deps;
+  const { ctx, rateLimiter } = deps;
 
   async function checkOrderState(orderId: string): Promise<OrderStateCheckResult> {
     try {
       await rateLimiter.throttle();
-      const ctx = await ctxPromise;
       const detail = await ctx.orderDetail(orderId);
       const status = detail.status;
       const executedPriceNumber = decimalToNumber(detail.executedPrice);

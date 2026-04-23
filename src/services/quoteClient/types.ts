@@ -109,7 +109,7 @@ export interface QuoteContextLike {
  */
 export type MarketDataClientDeps = {
   readonly config: Config;
-  readonly quoteContextFactory?: (config: Config) => Promise<QuoteContextLike>;
+  readonly quoteContextFactory?: (config: Config) => QuoteContextLike | Promise<QuoteContextLike>;
 };
 
 /**

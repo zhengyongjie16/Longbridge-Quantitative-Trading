@@ -118,7 +118,7 @@ function createDeps(): {
   }
 
   const deps: OrderMonitorDeps = {
-    ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+    ctx: tradeCtx as unknown as TradeContext,
     rateLimiter: {
       throttle: async () => {},
     },
@@ -337,7 +337,7 @@ describe('createOrderMonitor route hooks integration', () => {
     const tradeCtx = createTradeContextMock();
     const monitor = createOrderMonitor({
       ...deps,
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       marketDataClient: createMarketDataClientDouble({
         onQuoteUpdated: (listener) => {
           quoteUpdatedListeners.push(listener);

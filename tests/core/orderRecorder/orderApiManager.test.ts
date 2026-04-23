@@ -66,7 +66,7 @@ describe('createOrderAPIManager', () => {
     ]);
 
     const apiManager = createOrderAPIManager({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -99,7 +99,7 @@ describe('createOrderAPIManager', () => {
     ]);
 
     const apiManager = createOrderAPIManager({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -126,7 +126,7 @@ describe('createOrderAPIManager', () => {
     ]);
 
     const apiManager = createOrderAPIManager({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },

@@ -117,7 +117,7 @@ describe('processMonitor indicatorPipeline business flow', () => {
         marketDataClient: {
           getCandlestickSnapshot: () => null,
         },
-      } as never,
+      },
     });
 
     expect(result).toBeNull();
@@ -151,7 +151,7 @@ describe('processMonitor indicatorPipeline business flow', () => {
         marketDataClient: {
           getCandlestickSnapshot: () => cacheSnapshot,
         },
-      } as never,
+      },
     });
 
     expect(result).not.toBeNull();
@@ -190,7 +190,7 @@ describe('processMonitor indicatorPipeline business flow', () => {
         marketDataClient: {
           getCandlestickSnapshot: () => cacheSnapshot,
         },
-      } as never,
+      },
     });
 
     expect(previousSnapshot.ema?.[7]).toBe(110);
@@ -215,7 +215,7 @@ describe('processMonitor indicatorPipeline business flow', () => {
         marketDataClient: {
           getCandlestickSnapshot: () => cacheSnapshot,
         },
-      } as never,
+      },
     });
 
     expect(result).not.toBeNull();

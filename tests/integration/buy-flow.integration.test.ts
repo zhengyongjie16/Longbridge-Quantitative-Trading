@@ -83,9 +83,9 @@ describe('buy-flow integration', () => {
     const tradingConfig = createTradingConfig();
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve({
+      ctx: {
         submitOrder: async () => ({}),
-      } as unknown as TradeContext),
+      } as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -144,7 +144,7 @@ describe('buy-flow integration', () => {
     const tradingConfig = createTradingConfig();
     const tradeCtx = createTradeContextMock();
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -218,7 +218,7 @@ describe('buy-flow integration', () => {
     const tradeCtx = createTradeContextMock();
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -301,7 +301,7 @@ describe('buy-flow integration', () => {
     const tradeCtx = createTradeContextMock();
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -364,7 +364,7 @@ describe('buy-flow integration', () => {
     const tradeCtx = createTradeContextMock();
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -420,7 +420,7 @@ describe('buy-flow integration', () => {
     const tradingConfig = createTradingConfig();
     const tradeCtx = createTradeContextMock({ now: () => fixedNow });
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -489,7 +489,7 @@ describe('buy-flow integration', () => {
     });
 
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -567,7 +567,7 @@ describe('buy-flow integration', () => {
     const successNow = 3_000_000;
     const successTradeCtx = createTradeContextMock({ now: () => successNow });
     const successOrderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(successTradeCtx as unknown as TradeContext),
+      ctx: successTradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -663,7 +663,7 @@ describe('buy-flow integration', () => {
     });
 
     const failedOrderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(failedTradeCtx as unknown as TradeContext),
+      ctx: failedTradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },

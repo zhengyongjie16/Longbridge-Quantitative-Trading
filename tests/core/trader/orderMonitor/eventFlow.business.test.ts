@@ -17,7 +17,6 @@ import type {
 } from '../../../../src/core/trader/orderMonitor/types.js';
 import { createOrderRecorderDouble } from '../../../helpers/testDoubles.js';
 
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- 避免测试输出噪音
 mock.module('../../../../src/utils/logger/index.js', () => ({
   logger: {
     info: () => {},

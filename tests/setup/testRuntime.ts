@@ -15,7 +15,8 @@ process.env['APP_RUNTIME_PROFILE'] = 'test';
 process.env['APP_LOG_ROOT_DIR'] = testLogRootDir;
 process.env['APP_ENABLE_PROCESS_HOOKS'] = 'false';
 
-process.env.NODE_ENV ??= 'test';
+const nodeEnvKey = 'NODE_ENV';
+process.env[nodeEnvKey] ??= 'test';
 
 if (!fs.existsSync(testLogRootDir)) {
   fs.mkdirSync(testLogRootDir, { recursive: true });

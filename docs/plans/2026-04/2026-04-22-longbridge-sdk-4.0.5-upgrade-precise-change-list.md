@@ -1,7 +1,7 @@
 # 2026-04-22 Longbridge SDK 4.0.5 升级精确改动清单
 
-> 状态：待实施  
-> 当前基线：`longbridge@4.0.3`  
+> 状态：已实施并通过全量验证  
+> 实施前基线：`longbridge@4.0.3`  
 > 目标基线：`longbridge@4.0.5`  
 > 范围：依赖升级、SDK 上下文创建签名对齐、仓库内测试与文档基线同步  
 > 不在范围：`4.0.6` / `Unreleased` 未发布能力接入；内容社区 API 接入；交易逻辑、风控逻辑、策略逻辑重构
@@ -15,6 +15,11 @@
 1. 依赖基线升级到 `longbridge@4.0.5`
 2. 把交易链路内以 `ctxPromise` 为中心的异步上下文创建模型改成同步 `ctx`
 3. 把行情链路的测试工厂类型从“仅 Promise”改成与 SDK `4.0.5` 一致的“同步创建为主，测试替身可继续 awaitable”
+
+本次实施保持以下边界不扩散：
+
+1. `createTrader()` 顶层门面继续保持 `Promise<Trader>`，只收敛内部 `TradeContext` 注入边界
+2. 不把测试改写扩大成新的业务重构，只把原本依赖异步 `ctxPromise` 的时序测试改写到真实仍存在的异步边界
 
 本次方案**不应**做以下事情：
 
@@ -45,9 +50,9 @@
 2. `main` 分支未发布的 `WatchlistSecurity.is_pinned`
 3. `main` 分支未发布的 `QuoteContext` 缓存过期修复 PR `#518`
 
-### 2.2 当前仓库真实状态
+### 2.2 实施前仓库真实状态
 
-当前仓库的实际状态如下：
+实施前仓库的实际状态如下：
 
 1. `package.json` 当前声明 `longbridge@^4.0.3`
 2. `node_modules/longbridge/package.json` 当前实际安装版本为 `4.0.3`
@@ -266,7 +271,9 @@ ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext);
 
 1. 所有测试依赖对象字段从 `ctxPromise` 改成 `ctx`
 2. 所有 `Promise.resolve(...)` 形式的 TradeContext fixture 改成直接传入对象
-3. 原本通过 `ctxPromise` reject / deferred 模拟“创建时不可用”的测试，需要改为模拟具体 API 方法抛错，而不是模拟 `TradeContext.new(...)` 失败
+3. 原本通过 `ctxPromise` reject / deferred 模拟“创建时不可用”的测试，不能机械改成任意 API 抛错，而要按原语义改写到真实异步边界：
+   - “broker 接受前失败必须释放 placeholder” 改为模拟 `rateLimiter.throttle()` 或 `ctx.submitOrder()` 在 broker 接受前失败
+   - “旧 continuation 晚到时不得继续提交” 改为延迟 `rateLimiter.throttle()`，而不是继续伪造异步 `ctx`
 
 #### 行情链路测试
 
@@ -298,7 +305,7 @@ quoteContextFactory: async () => quoteMock;
 1. 若是“当前操作指南/当前计划文档/当前 README”，要更新到 `4.0.5` 语义
 2. 若是“历史 issue 记录”，保持原样，不做追溯性重写
 
-本次仓库内未扫描到需要同步的活文档示例，因此**文档面无必改的运行态指南文件**。
+本次仓库内需要同步的活文档主要就是本计划文档本身，因此实施完成后应回写状态、边界和特殊测试改法，确保文档与最终实现一致。
 
 ## 5. 明确不改的部分
 
@@ -358,8 +365,9 @@ quoteContextFactory: async () => quoteMock;
 ### 步骤 4：刷新测试
 
 1. 先改交易链路测试 fixture
-2. 再跑 quote/trader 相关测试
-3. 最后跑全量 `type-check` 与 `test`
+2. 再按真实语义重写 `routeProcessor` 中依赖异步 `ctxPromise` 的特殊时序测试
+3. 跑 quote/trader 相关测试
+4. 最后跑全量 `format`、`lint`、`type-check` 与 `test`
 
 ## 7. 验收清单
 
@@ -369,9 +377,10 @@ quoteContextFactory: async () => quoteMock;
 2. 仓库内生产代码不再保留 `ctxPromise: Promise<TradeContext>`
 3. 仓库内生产代码默认路径不再 `await QuoteContext.new(config)`
 4. `quoteContextFactory` 类型允许同步或异步测试替身
-5. `bun run type-check` 通过
-6. `bun test` 通过
-7. 行情订阅、K 线订阅、订单推送初始化链路不出现新的类型或运行时错误
+5. `createTrader()` 继续保持现有 async 门面，不额外扩大 public API 变更面
+6. `bun format`、`bun lint`、`bun type-check` 通过
+7. `bun test` 通过
+8. 行情订阅、K 线订阅、订单推送初始化链路不出现新的类型或运行时错误
 
 ## 8. 最终范围表
 
@@ -385,10 +394,21 @@ quoteContextFactory: async () => quoteMock;
 | `src/services/quoteClient/types.ts` | 是 | 工厂类型改成 awaitable seam |
 | `src/services/quoteClient/index.ts` | 是 | 默认路径切换到同步 `QuoteContext.new(...)` |
 | `tests/**` 中所有交易链路 `ctxPromise` fixture | 是 | 测试基线同步到同步 `ctx` |
+| `tests/app/runApp.test.ts` / `src/app/runApp.ts` | 是 | 去掉全局模块 mock 串扰，恢复全量测试并发可重复性 |
 | `tests/services/quoteClient/**` | 可能 | 仅在类型对齐需要时调整 |
 | `docs/issues/**` | 否 | 历史记录不追溯重写 |
 | `ContentContext` / 内容社区能力接入 | 否 | 不在本次升级范围 |
 | `memberId()` / `quoteLevel()` / `quotePackageDetails()` 调用点 | 否 | 当前仓库没有使用 |
+
+## 10. 实施结果
+
+截至 `2026-04-23`，本次改动已完成并验证：
+
+1. `package.json` 与 `bun.lock` 已升级到 `longbridge@4.0.5`
+2. 交易链路生产代码已全部去除 `ctxPromise`
+3. 行情链路默认创建路径已切换为同步 `QuoteContext.new(config)`
+4. `routeProcessor` 的特殊时序测试已改写到真实异步边界
+5. 为消除 `bun test` 全量并发时的历史模块 mock 串扰，`runApp` 装配测试改为显式依赖注入，不再污染其他测试文件
 
 ## 9. 参考
 

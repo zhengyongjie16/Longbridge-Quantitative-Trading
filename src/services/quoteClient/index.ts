@@ -298,7 +298,7 @@ export async function createMarketDataClient(
   // SDK 返回的 QuoteContext 能力面覆盖当前仓库的 QuoteContextLike；这里在第三方边界集中收口一次断言。
   const ctx: QuoteContextLike = quoteContextFactory
     ? await quoteContextFactory(config)
-    : ((await QuoteContext.new(config)) as QuoteContextLike);
+    : (QuoteContext.new(config) as QuoteContextLike);
   const tradingDayCache = createTradingDayCache();
 
   // 昨收价缓存（用于 realtime quote 组装 prevClose）

@@ -35,7 +35,7 @@ describe('protective-liquidation integration', () => {
 
     const tradeCtx = createTradeContextMock();
     const deps: OrderMonitorDeps = {
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },

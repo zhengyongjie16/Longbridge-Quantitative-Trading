@@ -176,7 +176,7 @@ async function createMonitorContext(monitorSymbol: string): Promise<MonitorConte
       console.log(`请在浏览器中完成 Longbridge OAuth 授权：${url}`);
     },
   });
-  const ctx = await QuoteContext.new(config);
+  const ctx = QuoteContext.new(config);
 
   return {
     ctx,

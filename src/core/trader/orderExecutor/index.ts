@@ -25,12 +25,12 @@ import {
 /**
  * 创建订单执行器（核心业务流程：信号执行与订单提交）。
  *
- * @param deps 依赖注入（ctxPromise、rateLimiter、cacheManager、orderMonitor、orderRecorder、tradingConfig、symbolRegistry、isExecutionAllowed）
+ * @param deps 依赖注入（ctx、rateLimiter、cacheManager、orderMonitor、orderRecorder、tradingConfig、symbolRegistry、isExecutionAllowed）
  * @returns OrderExecutor 接口实例
  */
 export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
   const {
-    ctxPromise,
+    ctx,
     rateLimiter,
     cacheManager,
     orderMonitor,
@@ -141,7 +141,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       return { submittedCount: 0, submittedOrderIds: [] };
     }
 
-    const ctx = await ctxPromise;
     let submittedCount = 0;
     const submittedOrderIds: string[] = [];
 

@@ -35,12 +35,12 @@ import type { CancelOrderOutcome } from '../../../types/trader.js';
 /**
  * 创建订单监控器。
  *
- * @param deps 依赖（ctxPromise、rateLimiter、cacheManager、orderRecorder、dailyLossTracker、orderHoldRegistry、tradingConfig 等）
+ * @param deps 依赖（ctx、rateLimiter、cacheManager、orderRecorder、dailyLossTracker、orderHoldRegistry、tradingConfig 等）
  * @returns 实现 OrderMonitor 接口的实例
  */
 export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   const {
-    ctxPromise,
+    ctx,
     rateLimiter,
     cacheManager,
     marketDataClient,
@@ -96,13 +96,13 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   });
 
   const orderStatusQuery = createOrderStatusQuery({
-    ctxPromise,
+    ctx,
     rateLimiter,
   });
 
   const orderOps = createOrderOps({
     runtime,
-    ctxPromise,
+    ctx,
     rateLimiter,
     cacheManager,
     orderHoldRegistry,
@@ -143,7 +143,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     config,
     thresholdDecimal,
     orderRecorder,
-    ctxPromise,
+    ctx,
     rateLimiter,
     isExecutionAllowed,
     trackOrder: orderOps.trackOrder,
@@ -236,7 +236,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       return;
     }
 
-    const ctx = await ctxPromise;
     ctx.setOnOrderChanged((err: Error | null, event: PushOrderChanged) => {
       if (err) {
         logger.error('[订单监控] WebSocket 推送错误:', err.message);

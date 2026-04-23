@@ -68,7 +68,7 @@ function buildAppRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
  * @param deps app 组装链路依赖；生产环境使用默认依赖，测试可注入受控替身
  * @returns runApp 函数
  */
-function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) => Promise<void> {
+export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) => Promise<void> {
   const {
     createPreGateRuntime: buildPreGateRuntime,
     createPostGateRuntime: buildPostGateRuntime,

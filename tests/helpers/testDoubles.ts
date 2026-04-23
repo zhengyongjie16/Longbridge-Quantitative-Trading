@@ -138,7 +138,7 @@ function normalizeCandlestickData(
  * Longbridge Config 为原生绑定对象，单测只需满足依赖注入边界，不需要真实认证能力。
  */
 export function createSdkConfigDouble(): Config {
-  return {} as unknown as Config;
+  return {};
 }
 
 /**

@@ -351,7 +351,7 @@ function createDeps(params?: {
   });
 
   const deps: OrderMonitorDeps = {
-    ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+    ctx: tradeCtx as unknown as TradeContext,
     rateLimiter: {
       throttle: async () => {},
     },
@@ -1099,10 +1099,10 @@ describe('orderMonitor business flow', () => {
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
     });
-    tradeCtx.submitOrder = (async () => {
+    tradeCtx.submitOrder = async () => {
       submitCalls += 1;
       return {} as never;
-    }) as typeof tradeCtx.submitOrder;
+    };
     const monitor = createOrderMonitor(deps);
 
     await monitor.initialize();

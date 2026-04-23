@@ -10,7 +10,6 @@ import type { TimeDriverProgramModule } from './types.js';
 const processCalls: string[] = [];
 
 async function loadTimeDriverProgram(): Promise<TimeDriverProgramModule> {
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 同步注册
   mock.module('../../src/main/processMonitor/index.js', () => ({
     processMonitor: ({
       monitorContext,

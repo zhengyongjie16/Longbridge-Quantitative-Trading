@@ -291,7 +291,7 @@ describe('auto-symbol-switch integration', () => {
 
     const trackedOrders: Array<{ orderId: string; side: OrderSide; quantity: number }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(createTradeContextDouble(tradeCtx)),
+      ctx: createTradeContextDouble(tradeCtx),
       rateLimiter: {
         throttle: async () => {},
       },

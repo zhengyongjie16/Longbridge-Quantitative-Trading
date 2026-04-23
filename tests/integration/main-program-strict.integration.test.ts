@@ -84,7 +84,6 @@ async function loadTimeDriverProgram(): Promise<TimeDriverProgramModule> {
   const actualTimeModuleUnknown: unknown = await import(actualTimeModulePath);
   const actualTimeModule = actualTimeModuleUnknown as typeof TimeModule;
 
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 timeDriverProgram 前同步注册
   mock.module('../../src/main/processMonitor/index.js', () => ({
     processMonitor: ({
       monitorContext,
@@ -104,7 +103,6 @@ async function loadTimeDriverProgram(): Promise<TimeDriverProgramModule> {
     },
   }));
 
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 timeDriverProgram 前同步注册
   mock.module('../../src/utils/time/index.js', () => ({
     ...actualTimeModule,
     getHKDateKey: (now: Date) => tradingTimeOverrides.dayKey ?? getHKDateKeyFallback(now),

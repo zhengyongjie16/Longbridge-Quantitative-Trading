@@ -5,12 +5,12 @@
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "build:watch": "tsc --watch",
+    "build": "bun clean && tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
     "start": "bun src/index.ts",
     "dev": "cross-env RUN_MODE=dev bun start",
-    "dev:watch": "concurrently -k -r \"tsc --watch\" \"bun --watch dist/src/index.js\"",
-    "type-check": "tsc --noEmit",
+    "dev:watch": "concurrently -k -r \"tsc -p tsconfig.build.json --watch\" \"bun --watch dist/src/index.js\"",
+    "type-check": "tsc -p tsconfig.json",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "clean": "rimraf dist",
@@ -22,24 +22,24 @@
     "sonarqube:duplications": "bun scripts/get-duplications.js"
   },
   "dependencies": {
-    "dotenv": "^16.6.1",
-    "longbridge": "^4.0.3",
+    "dotenv": "^17.4.2",
+    "longbridge": "^4.0.5",
     "pino": "^10.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@stylistic/eslint-plugin": "^4.4.1",
-    "@types/bun": "^1.3.11",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/bun": "^1.3.13",
     "concurrently": "^9.2.1",
-    "cross-env": "^7.0.3",
+    "cross-env": "^10.1.0",
     "dotenv-cli": "^11.0.0",
-    "eslint": "^10.1.0",
+    "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-sonarjs": "^4.0.2",
-    "eslint-plugin-unicorn": "^61.0.2",
-    "prettier": "^3.8.1",
-    "rimraf": "^5.0.10",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.57.1"
+    "eslint-plugin-sonarjs": "^4.0.3",
+    "eslint-plugin-unicorn": "^64.0.0",
+    "prettier": "^3.8.3",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.0"
   }
 }

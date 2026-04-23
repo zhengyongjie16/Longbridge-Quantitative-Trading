@@ -71,6 +71,37 @@ export interface LongportEventBus {
   getQueueSize: () => number;
 }
 
+type EventSubscribers = {
+  readonly quote: Set<Subscriber<'quote'>>;
+  readonly candlestick: Set<Subscriber<'candlestick'>>;
+  readonly orderChanged: Set<Subscriber<'orderChanged'>>;
+};
+
+/**
+ * 按 topic 读取已收窄的订阅集合。
+ *
+ * 该 helper 将 topic 与订阅函数签名的对应关系集中在一处，避免在订阅/退订路径中
+ * 重复书写条件分支与类型断言。
+ */
+function getTopicSubscribers<TTopic extends LongportEventTopic>(
+  subscribers: EventSubscribers,
+  topic: TTopic,
+): Set<Subscriber<TTopic>> {
+  return subscribers[topic] as Set<Subscriber<TTopic>>;
+}
+
+/**
+ * 向同一 topic 的所有订阅者分发事件负载。
+ */
+function deliverToSubscribers<TTopic extends LongportEventTopic>(
+  topicSubscribers: ReadonlySet<Subscriber<TTopic>>,
+  payload: LongportEventPayloadMap[TTopic],
+): void {
+  for (const subscriber of topicSubscribers) {
+    subscriber(payload);
+  }
+}
+
 /**
  * 选取当前可投递事件并从队列移除。
  *
@@ -114,14 +145,10 @@ function takeDueEvents(
 export function createLongportEventBus(
   getNowMs: () => number = () => Date.now(),
 ): LongportEventBus {
-  const subscribers = {
-    quote: new Set(),
-    candlestick: new Set(),
-    orderChanged: new Set(),
-  } as {
-    quote: Set<Subscriber<'quote'>>;
-    candlestick: Set<Subscriber<'candlestick'>>;
-    orderChanged: Set<Subscriber<'orderChanged'>>;
+  const subscribers: EventSubscribers = {
+    quote: new Set<Subscriber<'quote'>>(),
+    candlestick: new Set<Subscriber<'candlestick'>>(),
+    orderChanged: new Set<Subscriber<'orderChanged'>>(),
   };
 
   const queue: Array<QueueEventUnion> = [];
@@ -131,22 +158,11 @@ export function createLongportEventBus(
     topic: TTopic,
     subscriber: Subscriber<TTopic>,
   ): () => void {
-    if (topic === 'quote') {
-      subscribers.quote.add(subscriber as Subscriber<'quote'>);
-    } else if (topic === 'candlestick') {
-      subscribers.candlestick.add(subscriber as Subscriber<'candlestick'>);
-    } else {
-      subscribers.orderChanged.add(subscriber as Subscriber<'orderChanged'>);
-    }
+    const topicSubscribers = getTopicSubscribers(subscribers, topic);
+    topicSubscribers.add(subscriber);
 
     return () => {
-      if (topic === 'quote') {
-        subscribers.quote.delete(subscriber as Subscriber<'quote'>);
-      } else if (topic === 'candlestick') {
-        subscribers.candlestick.delete(subscriber as Subscriber<'candlestick'>);
-      } else {
-        subscribers.orderChanged.delete(subscriber as Subscriber<'orderChanged'>);
-      }
+      topicSubscribers.delete(subscriber);
     };
   }
 
@@ -167,17 +183,11 @@ export function createLongportEventBus(
     const dueEvents = takeDueEvents(queue, nowMs);
     for (const event of dueEvents) {
       if (event.topic === 'quote') {
-        for (const subscriber of subscribers.quote) {
-          subscriber(event.payload);
-        }
+        deliverToSubscribers(subscribers.quote, event.payload);
       } else if (event.topic === 'candlestick') {
-        for (const subscriber of subscribers.candlestick) {
-          subscriber(event.payload);
-        }
+        deliverToSubscribers(subscribers.candlestick, event.payload);
       } else {
-        for (const subscriber of subscribers.orderChanged) {
-          subscriber(event.payload);
-        }
+        deliverToSubscribers(subscribers.orderChanged, event.payload);
       }
     }
 

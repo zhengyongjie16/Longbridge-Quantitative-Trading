@@ -349,7 +349,7 @@ describe('createDayLifecycleManager', () => {
 
       mutableState.currentDayKey = '2025-02-15';
       await manager.tick(new Date(), createRuntime());
-      expect(mutableState.lifecycleState as string).toBe('ACTIVE');
+      expect(mutableState.lifecycleState).toBe('ACTIVE');
     });
 
     it('支持 async midnightClear', async () => {

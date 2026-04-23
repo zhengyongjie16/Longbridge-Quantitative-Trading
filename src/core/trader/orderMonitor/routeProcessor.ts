@@ -412,7 +412,7 @@ async function submitTimeoutMarketOrder(
   let brokerSubmissionAccepted = false;
   let newOrderId: string | null = null;
   try {
-    const ctx = await deps.ctxPromise;
+    const { ctx } = deps;
     if (!isRouteGenerationCurrent(deps.runtime, params)) {
       deps.orderRecorder.markSellCancelled(order.orderId);
       return;

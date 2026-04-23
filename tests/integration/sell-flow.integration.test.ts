@@ -89,7 +89,7 @@ describe('sell-flow integration', () => {
 
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -232,7 +232,7 @@ describe('sell-flow integration', () => {
 
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -357,7 +357,7 @@ describe('sell-flow integration', () => {
 
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -435,7 +435,7 @@ describe('sell-flow integration', () => {
     const submittedAt = Date.parse('2026-02-25T03:00:00.000Z');
 
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -550,7 +550,7 @@ describe('sell-flow integration', () => {
 
     const cancelCalls: string[] = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -637,7 +637,7 @@ describe('sell-flow integration', () => {
     }> = [];
 
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },

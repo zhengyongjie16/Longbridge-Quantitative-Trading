@@ -98,7 +98,7 @@ describe('sellProcessor business flow', () => {
     const processor = createSellProcessor({
       taskQueue: queue,
       getMonitorContext: () => monitorContext,
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient,
       getLastState: () => lastState,
@@ -206,7 +206,7 @@ describe('sellProcessor business flow', () => {
     const processor = createSellProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -261,7 +261,7 @@ describe('sellProcessor business flow', () => {
     const processor = createSellProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -317,7 +317,7 @@ describe('sellProcessor business flow', () => {
     const processor = createSellProcessor({
       taskQueue: queue,
       getMonitorContext: () => monitorContext,
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -376,7 +376,7 @@ describe('sellProcessor business flow', () => {
     const processor = createSellProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -448,7 +448,7 @@ describe('sellProcessor business flow', () => {
     const processor = createSellProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -515,7 +515,7 @@ describe('sellProcessor business flow', () => {
     const processor = createSellProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader: createTraderDouble({
         executeSignals: async () => {
           executeCalls += 1;
@@ -593,7 +593,7 @@ describe('sellProcessor business flow', () => {
     const processor = createSellProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -655,7 +655,7 @@ describe('sellProcessor business flow', () => {
     const processor = createSellProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader: createTraderDouble(),
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -727,7 +727,7 @@ describe('sellProcessor business flow', () => {
     const processor = createSellProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -790,7 +790,7 @@ describe('sellProcessor business flow', () => {
     const processor = createSellProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>

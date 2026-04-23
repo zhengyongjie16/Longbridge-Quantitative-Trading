@@ -181,7 +181,7 @@ function resolveAttachedTrackedOrder(
 export function createOrderOps(deps: OrderOpsDeps): OrderOps {
   const {
     runtime,
-    ctxPromise,
+    ctx,
     rateLimiter,
     cacheManager,
     orderHoldRegistry,
@@ -274,7 +274,6 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
   async function cancelOrder(orderId: string): Promise<CancelOrderOutcome> {
     try {
       await rateLimiter.throttle();
-      const ctx = await ctxPromise;
       await ctx.cancelOrder(orderId);
       cacheManager.clearCache();
       logger.debug(`[订单撤销成功] 订单ID=${orderId}，等待 WS 终态确认`);
@@ -444,7 +443,6 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
 
     try {
       await rateLimiter.throttle();
-      const ctx = await ctxPromise;
       if (resolveAttachedTrackedOrder(runtime, orderId, trackedOrder) === null) {
         logger.debug(`[订单修改] 订单 ${orderId} 已脱离追踪，跳过过期改单请求`);
         return;

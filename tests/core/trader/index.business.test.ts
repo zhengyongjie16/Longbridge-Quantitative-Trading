@@ -21,17 +21,13 @@ type TraderModuleShape = {
 
 async function loadCreateTraderWithStubbedTradeContext(
   suffix: string,
+  tradeContextFactory: { readonly new: () => object },
 ): Promise<TraderModuleShape['createTrader']> {
   const actualLongbridge = await import('longbridge');
-  const StubTradeContext = {
-    new(): Promise<object> {
-      return Promise.resolve({});
-    },
-  };
 
   void mock.module('longbridge', () => ({
     ...actualLongbridge,
-    TradeContext: StubTradeContext,
+    TradeContext: tradeContextFactory,
   }));
 
   const traderModulePath = `../../../src/core/trader/index.js?legacy-worker-removal-${suffix}`;
@@ -48,10 +44,14 @@ afterEach(() => {
 
 describe('trader facade business flow', () => {
   it('createTrader 不再暴露旧的订单监控轮询入口', async () => {
-    const createTrader = await loadCreateTraderWithStubbedTradeContext('trader');
+    const createTrader = await loadCreateTraderWithStubbedTradeContext('trader', {
+      new(): object {
+        return {};
+      },
+    });
 
     const trader = await createTrader({
-      config: {} as never,
+      config: {},
       tradingConfig: createTradingConfig(),
       marketDataClient: createMarketDataClientDouble(),
       symbolRegistry: createSymbolRegistryDouble(),
@@ -64,5 +64,34 @@ describe('trader facade business flow', () => {
     });
 
     expect('monitorAndManageOrders' in trader).toBe(false);
+  });
+
+  it('createTrader 在 TradeContext.new 同步抛错时保持 rejected promise 语义', async () => {
+    const createTrader = await loadCreateTraderWithStubbedTradeContext('trader-sync-throw', {
+      new(): object {
+        throw new Error('trade context init failed');
+      },
+    });
+
+    let caught: unknown = null;
+    try {
+      await createTrader({
+        config: {},
+        tradingConfig: createTradingConfig(),
+        marketDataClient: createMarketDataClientDouble(),
+        symbolRegistry: createSymbolRegistryDouble(),
+        dailyLossTracker: createDailyLossTrackerDouble(),
+        protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+        postTradeConsistencyRuntime: {
+          recordSettlementRefreshNeed: () => {},
+        },
+        isExecutionAllowed: () => true,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe('trade context init failed');
   });
 });

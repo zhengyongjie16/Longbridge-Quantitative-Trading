@@ -2,8 +2,9 @@
   "compilerOptions": {
     // ===== 编译目标 =====
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Node",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
     "lib": ["ES2022"],
     // ===== 严格模式（核心配置）=====
     "strict": true,
@@ -30,18 +31,14 @@
     "resolveJsonModule": true,
     // 注意: 禁用 isolatedModules 因为 longbridge SDK 使用了 const enum
     "isolatedModules": false,
-    // ===== 输出配置 =====
-    "outDir": "./dist",
-    "rootDir": "./",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "removeComments": false,
     // ===== 渐进式迁移配置 =====
     "allowJs": true,
     "checkJs": false,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    // ===== 默认类型检查入口 =====
+    "types": ["bun", "node"],
+    "noEmit": true
   },
   "include": ["src/**/*", "tools/**/*", "tests/**/*", "mock/**/*"],
   "exclude": ["node_modules", "dist", "logs", "utils/**", ".claude"]

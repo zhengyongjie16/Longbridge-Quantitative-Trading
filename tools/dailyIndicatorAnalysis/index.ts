@@ -163,7 +163,7 @@ async function main(): Promise<void> {
       console.log(`请在浏览器中完成 Longbridge OAuth 授权：${url}`);
     },
   });
-  const quoteContext = await QuoteContext.new(config);
+  const quoteContext = QuoteContext.new(config);
   const candles = await quoteContext.candlesticks(
     symbol,
     Period.Min_1,

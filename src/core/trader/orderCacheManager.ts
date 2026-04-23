@@ -48,11 +48,11 @@ function toOrderNumber(value: unknown): number {
  * 缓存未成交订单列表（按 symbols 组合 + TTL），提供 getPendingOrders、clearCache。
  * 避免频繁调用 todayOrders API，订单状态变化后由调用方 clearCache 失效。
  *
- * @param deps 依赖注入（ctxPromise、rateLimiter）
+ * @param deps 依赖注入（ctx、rateLimiter）
  * @returns OrderCacheManager 接口实例
  */
 export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCacheManager => {
-  const { ctxPromise, rateLimiter } = deps;
+  const { ctx, rateLimiter } = deps;
 
   // 闭包捕获的私有状态
   let pendingOrdersCache: PendingOrder[] | null = null;
@@ -93,7 +93,6 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
       return [...pendingOrdersCache];
     }
 
-    const ctx = await ctxPromise;
     try {
       // 使用模块级常量 PENDING_ORDER_STATUSES 过滤未成交订单，避免每次调用创建新 Set
       let allOrders: ReadonlyArray<{

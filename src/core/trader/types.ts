@@ -278,7 +278,7 @@ export type RateLimiterDeps = {
  * 使用范围：仅在 trader 模块内部使用。
  */
 export type AccountServiceDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
 };
 
@@ -289,7 +289,7 @@ export type AccountServiceDeps = {
  * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderCacheManagerDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
 };
 
@@ -491,7 +491,7 @@ export interface OrderHoldRegistry {
  * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderMonitorDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
   readonly marketDataClient: MarketDataClient;
@@ -536,7 +536,7 @@ type IsExecutionAllowed = () => boolean;
  * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderExecutorDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
   readonly orderMonitor: OrderMonitor;

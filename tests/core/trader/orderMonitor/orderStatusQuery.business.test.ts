@@ -55,7 +55,7 @@ function createQueryContext(params?: {
       }),
   };
   const orderStatusQuery = createOrderStatusQuery({
-    ctxPromise: Promise.resolve(ctx as unknown as TradeContext),
+    ctx: ctx as unknown as TradeContext,
     rateLimiter: {
       throttle: async () => {},
     },

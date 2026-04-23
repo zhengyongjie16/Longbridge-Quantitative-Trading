@@ -209,7 +209,7 @@ export interface OrderAPIManager {
  * 使用范围：仅 orderRecorder 模块内部使用。
  */
 export type OrderAPIManagerDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
 };
 

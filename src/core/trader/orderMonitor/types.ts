@@ -327,7 +327,7 @@ export interface EventFlow {
  * 使用范围：仅 orderMonitor/orderStatusQuery.ts 使用。
  */
 export type OrderStatusQueryDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
 };
 
@@ -349,7 +349,7 @@ export interface OrderStatusQuery {
  */
 export type OrderOpsDeps = {
   readonly runtime: OrderMonitorRuntimeStore;
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
   readonly orderHoldRegistry: OrderHoldRegistry;
@@ -380,7 +380,7 @@ export type RouteProcessorDeps = {
   readonly config: OrderMonitorConfig;
   readonly thresholdDecimal: Decimal;
   readonly orderRecorder: OrderRecorder;
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
   readonly isExecutionAllowed: () => boolean;
   readonly trackOrder: (params: TrackOrderParams) => void;

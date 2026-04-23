@@ -19,7 +19,6 @@ import type {
   OrderMonitorTrackedOrder,
 } from '../../../../src/core/trader/orderMonitor/types.js';
 
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- 避免测试输出噪音
 mock.module('../../../../src/utils/logger/index.js', () => ({
   logger: {
     info: () => {},

@@ -80,7 +80,7 @@ describe('orderMonitor orderOps', () => {
     const routeWakeups: Array<{ readonly symbol: string; readonly kind: string }> = [];
     const deps = {
       runtime,
-      ctxPromise: Promise.resolve(createTradeContextDouble()),
+      ctx: createTradeContextDouble(),
       rateLimiter: createRateLimiter(),
       cacheManager: createCacheManager(),
       orderHoldRegistry: createOrderHoldRegistry(),
@@ -130,7 +130,7 @@ describe('orderMonitor orderOps', () => {
     const routeWakeups: Array<{ readonly symbol: string; readonly kind: string }> = [];
     const deps = {
       runtime,
-      ctxPromise: Promise.resolve(createTradeContextDouble()),
+      ctx: createTradeContextDouble(),
       rateLimiter: createRateLimiter(),
       cacheManager: createCacheManager(),
       orderHoldRegistry: createOrderHoldRegistry(),
@@ -181,7 +181,7 @@ describe('orderMonitor orderOps', () => {
     };
     const deps = {
       runtime,
-      ctxPromise: Promise.resolve(createTradeContextDouble(tradeCtx)),
+      ctx: createTradeContextDouble(tradeCtx),
       rateLimiter: createRateLimiter(),
       cacheManager: createCacheManager(),
       orderHoldRegistry: createOrderHoldRegistry(),

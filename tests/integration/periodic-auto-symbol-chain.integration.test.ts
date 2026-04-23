@@ -179,7 +179,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      getMonitorContext: () => monitorContext as never,
+      getMonitorContext: () => monitorContext,
       clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
@@ -357,7 +357,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      getMonitorContext: () => monitorContext as never,
+      getMonitorContext: () => monitorContext,
       clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
@@ -510,7 +510,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      getMonitorContext: () => monitorContext as never,
+      getMonitorContext: () => monitorContext,
       clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
@@ -663,7 +663,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      getMonitorContext: () => monitorContext as never,
+      getMonitorContext: () => monitorContext,
       clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),

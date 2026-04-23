@@ -223,13 +223,16 @@ export default defineConfig(
       // 测试文件统一放宽部分规则，减少测试实现噪音
       'local/no-import-alias': 'off',
       '@typescript-eslint/no-empty-function': 'off',
+      '@typescript-eslint/no-floating-promises': 'off',
       '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-extraneous-class': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/unbound-method': 'off',
+      'sonarjs/void-use': 'off',
     },
   },
   {

@@ -308,7 +308,7 @@ function createDeps(params?: {
   readonly trackOrder?: RouteProcessorDeps['trackOrder'];
   readonly isExecutionAllowed?: () => boolean;
   readonly orderRecorder?: RouteProcessorDeps['orderRecorder'];
-  readonly ctxPromise?: RouteProcessorDeps['ctxPromise'];
+  readonly ctx?: RouteProcessorDeps['ctx'];
   readonly rateLimiter?: RouteProcessorDeps['rateLimiter'];
 }): {
   readonly runtime: OrderMonitorRuntimeStore;
@@ -323,7 +323,7 @@ function createDeps(params?: {
     config,
     thresholdDecimal: toDecimal(config.priceDiffThreshold),
     orderRecorder: params?.orderRecorder ?? createOrderRecorderDouble(),
-    ctxPromise: params?.ctxPromise ?? Promise.resolve(createTradeContextDouble(tradeCtx)),
+    ctx: params?.ctx ?? createTradeContextDouble(tradeCtx),
     rateLimiter: params?.rateLimiter ?? {
       throttle: async () => {},
     },
@@ -933,7 +933,7 @@ describe('orderMonitor routeProcessor', () => {
       runtime,
       orderRecorder,
       settleOrder: settlementFlow.settleOrder,
-      ctxPromise: Promise.resolve(createTradeContextDouble(tradeCtx)),
+      ctx: createTradeContextDouble(tradeCtx),
       trackOrder: (params) => {
         trackedOrders.push(params);
       },
@@ -987,7 +987,7 @@ describe('orderMonitor routeProcessor', () => {
       runtime,
       orderRecorder,
       settleOrder: settlementFlow.settleOrder,
-      ctxPromise: Promise.resolve(createTradeContextDouble(tradeCtx)),
+      ctx: createTradeContextDouble(tradeCtx),
       trackOrder: (params) => {
         trackedOrders.push(params);
       },
@@ -995,26 +995,6 @@ describe('orderMonitor routeProcessor', () => {
 
     const errorMessage = await captureTimeoutMarketRouteError(deps);
     expect(errorMessage).toContain('submit failed before broker accept');
-    expectTimeoutSellOccupancyReleased(storage);
-    expect(trackedOrders).toEqual([]);
-  });
-
-  it('卖单 timeout 转市价在 ctxPromise 拒绝时释放 follow-up placeholder', async () => {
-    const { runtime, storage, orderRecorder, settlementFlow } =
-      createTimeoutSellHandoffHarness('SELL-TIMEOUT-CTX-FAIL');
-    const trackedOrders: TrackOrderParams[] = [];
-    const { deps } = createDeps({
-      runtime,
-      orderRecorder,
-      settleOrder: settlementFlow.settleOrder,
-      ctxPromise: Promise.reject(new Error('ctx unavailable before broker accept')),
-      trackOrder: (params) => {
-        trackedOrders.push(params);
-      },
-    });
-
-    const errorMessage = await captureTimeoutMarketRouteError(deps);
-    expect(errorMessage).toContain('ctx unavailable before broker accept');
     expectTimeoutSellOccupancyReleased(storage);
     expect(trackedOrders).toEqual([]);
   });
@@ -1062,7 +1042,7 @@ describe('orderMonitor routeProcessor', () => {
       runtime,
       orderRecorder,
       settleOrder: settlementFlow.settleOrder,
-      ctxPromise: Promise.resolve(createTradeContextDouble(tradeCtx)),
+      ctx: createTradeContextDouble(tradeCtx),
       trackOrder: (params) => {
         trackedOrders.push(params);
       },
@@ -1104,7 +1084,7 @@ describe('orderMonitor routeProcessor', () => {
       runtime,
       orderRecorder,
       settleOrder: settlementFlow.settleOrder,
-      ctxPromise: Promise.resolve(createTradeContextDouble(tradeCtx)),
+      ctx: createTradeContextDouble(tradeCtx),
       trackOrder: (params) => {
         trackedOrders.push(params);
       },
@@ -1586,11 +1566,16 @@ describe('orderMonitor routeProcessor', () => {
     ]);
 
     const tradeCtx = createTradeContextMock();
-    const deferredCtx = createDeferredValue<ReturnType<typeof createTradeContextDouble>>();
+    const deferredThrottle = createDeferredValue<null>();
     const trackedOrders: TrackOrderParams[] = [];
     const { deps } = createDeps({
       runtime,
-      ctxPromise: deferredCtx.promise,
+      ctx: createTradeContextDouble(tradeCtx),
+      rateLimiter: {
+        throttle: async () => {
+          await deferredThrottle.promise;
+        },
+      },
       trackOrder: (params) => {
         trackedOrders.push(params);
       },
@@ -1627,10 +1612,7 @@ describe('orderMonitor routeProcessor', () => {
         };
       },
     });
-    const routeProcessor = createRouteProcessor({
-      ...deps,
-      ctxPromise: deferredCtx.promise,
-    });
+    const routeProcessor = createRouteProcessor(deps);
 
     const processPromise = routeProcessor.processRoute({
       symbol: 'BULL.HK',
@@ -1639,7 +1621,7 @@ describe('orderMonitor routeProcessor', () => {
       latestQuote: null,
     });
 
-    deferredCtx.resolve(createTradeContextDouble(tradeCtx));
+    deferredThrottle.resolve(null);
     await processPromise;
 
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);

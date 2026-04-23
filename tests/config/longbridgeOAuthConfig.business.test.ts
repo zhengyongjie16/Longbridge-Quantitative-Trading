@@ -64,7 +64,6 @@ const OAuth = {
   },
 };
 
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 为同步注册
 mock.module('longbridge', () => ({
   Config,
   OAuth,
