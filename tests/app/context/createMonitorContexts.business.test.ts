@@ -6,14 +6,17 @@
  * - 支持注入自定义策略工厂并逐 monitor 调用
  */
 import { describe, expect, it } from 'bun:test';
-import type { MutableMonitorContextsPostGateRuntime, PreGateRuntime } from '../../src/app/types.js';
-import { createMonitorContexts } from '../../src/app/context/createMonitorContexts.js';
-import { parseSignalConfig } from '../../src/config/utils.js';
-import type { TradingSignalStrategyFactory } from '../../src/core/strategy/types.js';
-import { createWarrantListCache } from '../../src/services/autoSymbolFinder/utils.js';
-import type { MonitorConfig, MultiMonitorTradingConfig } from '../../src/types/config.js';
-import type { Quote } from '../../src/types/quote.js';
-import type { MonitorState } from '../../src/types/state.js';
+import type {
+  MutableMonitorContextsPostGateRuntime,
+  PreGateRuntime,
+} from '../../../src/app/types.js';
+import { createMonitorContexts } from '../../../src/app/context/createMonitorContexts.js';
+import { parseSignalConfig } from '../../../src/config/utils.js';
+import type { TradingSignalStrategyFactory } from '../../../src/core/strategy/types.js';
+import { createWarrantListCache } from '../../../src/services/autoSymbolFinder/utils.js';
+import type { MonitorConfig, MultiMonitorTradingConfig } from '../../../src/types/config.js';
+import type { Quote } from '../../../src/types/quote.js';
+import type { MonitorState } from '../../../src/types/state.js';
 import {
   createDailyLossTrackerDouble,
   createAutoSearchWakeupRuntimeDouble,
@@ -28,16 +31,13 @@ import {
   createSymbolRegistryDouble,
   createTradingGateEventRuntimeDouble,
   createTraderDouble,
-} from '../helpers/testDoubles.js';
+} from '../../helpers/testDoubles.js';
 
 function createMonitorState(monitorSymbol: string): MonitorState {
   return {
     monitorSymbol,
-    longPrice: null,
-    shortPrice: null,
     signal: null,
     pendingDelayedSignals: [],
-    monitorValues: null,
     lastMonitorSnapshot: null,
     incrementalIndicatorRuntime: null,
   };
@@ -150,6 +150,15 @@ function createRuntime(
       start: () => {},
       stopAndDrain: async () => {},
     },
+    monitorDisplayRuntime: {
+      start: () => {},
+      requestRender: () => {},
+      stopAndDrain: async () => {},
+    },
+    tradingQuoteDisplayRuntime: {
+      start: () => {},
+      stopAndDrain: async () => {},
+    },
     switchWakeupRuntime: {
       start: () => {},
       stopAndDrain: async () => {},
@@ -200,8 +209,8 @@ function createRuntime(
       quotesMap: new Map(),
     }),
     marketMonitor: {
-      monitorPriceChanges: () => false,
-      monitorIndicatorChanges: () => false,
+      renderTradingQuote: () => {},
+      renderMonitorIndicators: () => {},
     },
     doomsdayProtection: {
       isBuyCutoffWindowActive: () => false,

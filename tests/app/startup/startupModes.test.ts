@@ -5,7 +5,7 @@
  * - startup/runtime gate 仅由独立环境变量控制
  */
 import { describe, expect, it } from 'bun:test';
-import { resolveGatePolicies } from '../../src/app/startup/startupModes.js';
+import { resolveGatePolicies } from '../../../src/app/startup/startupModes.js';
 
 describe('app startupModes', () => {
   it('defaults startup/runtime gates to strict when env vars are absent', () => {

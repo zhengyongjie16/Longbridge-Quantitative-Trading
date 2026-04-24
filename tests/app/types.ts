@@ -1,6 +1,5 @@
 import type { Quote } from '../../src/types/quote.js';
 import type { RawOrderFromAPI } from '../../src/types/services.js';
-import type { CacheDomain, LifecycleMutableState } from '../../src/main/lifecycle/types.js';
 
 /**
  * app runApp 测试中的单次重建调用记录。
@@ -48,6 +47,7 @@ export type MutableRunAppHarnessState = {
   timeDriverProgramCalls: number;
   timeDriverProgramRuntimeGateModes: Array<'strict' | 'skip'>;
   createBusinessEventProgramHasIndicatorCache: boolean | null;
+  createBusinessEventProgramHasMonitorDisplayRuntime: boolean | null;
   timeDriverProgramHasIndicatorCache: boolean | null;
   sleepDurations: number[];
   validationResult: MutableRunAppValidationResult;
@@ -66,27 +66,4 @@ export type AppTestTaskQueueDouble = Readonly<{
   removeTasks: () => number;
   clearAll: () => number;
   onTaskAdded: () => () => void;
-}>;
-
-/**
- * createLifecycleRuntime 接线测试中的开盘重建委托记录。
- * 类型用途：记录 executeTradingDayOpenRebuild 替身收到的入参，便于断言统一入口接线。
- * 数据来源：由 tests/app/createLifecycleRuntime.wiring.test.ts 中的替身函数收集。
- * 使用范围：仅 app 测试使用。
- */
-export type ExecuteOpenRebuildCall = Readonly<{
-  now: Date;
-  loadTradingDayRuntimeSnapshot: unknown;
-  rebuildTradingDayState: unknown;
-}>;
-
-/**
- * createLifecycleRuntime 接线测试中的 dayLifecycleManager 创建记录。
- * 类型用途：记录 createDayLifecycleManager 替身收到的可变状态与 cache domains。
- * 数据来源：由 tests/app/createLifecycleRuntime.wiring.test.ts 中的替身函数收集。
- * 使用范围：仅 app 测试使用。
- */
-export type CreateDayLifecycleManagerCall = Readonly<{
-  mutableState: LifecycleMutableState;
-  cacheDomains: ReadonlyArray<CacheDomain>;
 }>;

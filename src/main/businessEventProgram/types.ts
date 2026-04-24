@@ -40,8 +40,21 @@ export type BusinessEventRouteState =
     };
 
 /**
+ * monitor indicator 显示 runtime 最小契约。
+ * 类型用途：约束 businessEventProgram 在普通 K 线指标推进后提交显示请求的能力。
+ * 数据来源：由 app 层注入 MonitorDisplayRuntime 实例。
+ * 使用范围：仅 businessEventProgram 模块使用。
+ */
+export type BusinessEventMonitorDisplayRuntime = Readonly<{
+  requestRender: (params: {
+    readonly monitorSymbol: string;
+    readonly monitorSnapshot: IndicatorSnapshot;
+  }) => void;
+}>;
+
+/**
  * K 线业务程序依赖。
- * 类型用途：收口普通 K 线业务 owner 所需的共享服务、状态与任务队列。
+ * 类型用途：收口普通 K 线业务 owner 所需的共享服务、状态、任务队列与显示 runtime。
  * 数据来源：由 app 顶层装配注入。
  * 使用范围：仅 businessEventProgram 模块使用。
  */
@@ -54,6 +67,7 @@ export type BusinessEventProgramDeps = Readonly<{
   sellTaskQueue: TaskQueue<SellTaskType>;
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
   indicatorCache: IndicatorCache;
+  monitorDisplayRuntime: BusinessEventMonitorDisplayRuntime;
 }>;
 
 /**

@@ -12,11 +12,8 @@ import { createAccountSnapshotDouble, createPositionDouble } from '../../../help
 function createMockMonitorState(monitorSymbol: string): MonitorState {
   return {
     monitorSymbol,
-    longPrice: null,
-    shortPrice: null,
     signal: null,
     pendingDelayedSignals: [],
-    monitorValues: null,
     lastMonitorSnapshot: null,
     incrementalIndicatorRuntime: null,
   };
@@ -80,10 +77,8 @@ describe('createGlobalStateDomain', () => {
     const state = monitorStates.get('HSI.HK');
     expect(state).toBeDefined();
     if (state) {
-      expect(state.longPrice).toBe(null);
       expect(state.signal).toBe(null);
       expect(state.pendingDelayedSignals).toHaveLength(0);
-      expect(state.monitorValues).toBe(null);
       expect(state.lastMonitorSnapshot).toBe(null);
     }
 

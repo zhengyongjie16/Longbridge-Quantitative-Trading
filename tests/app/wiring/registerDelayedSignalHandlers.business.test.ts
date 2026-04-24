@@ -6,15 +6,15 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { registerDelayedSignalHandlers } from '../../src/app/wiring/registerDelayedSignalHandlers.js';
-import { createSignalDouble, createSymbolRegistryDouble } from '../helpers/testDoubles.js';
+import { registerDelayedSignalHandlers } from '../../../src/app/wiring/registerDelayedSignalHandlers.js';
+import { createSignalDouble, createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
 
-import type { Signal } from '../../src/types/signal.js';
+import type { Signal } from '../../../src/types/signal.js';
 import type {
   BuyTaskType,
   SellTaskType,
   TaskQueue,
-} from '../../src/main/asyncProgram/tradeTaskQueue/types.js';
+} from '../../../src/main/asyncProgram/tradeTaskQueue/types.js';
 
 function createTaskQueueDouble<TType extends string>(): TaskQueue<TType> {
   return {

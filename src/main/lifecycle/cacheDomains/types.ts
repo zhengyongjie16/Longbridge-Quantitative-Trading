@@ -20,6 +20,8 @@ import type {
   MonitorQuoteEventRuntime,
   SwitchWakeupRuntime,
 } from '../../monitorQuoteEventRuntime/types.js';
+import type { MonitorDisplayRuntime } from '../../monitorDisplayRuntime/types.js';
+import type { TradingQuoteDisplayRuntime } from '../../tradingQuoteDisplayRuntime/types.js';
 import type { QuoteSubscriptionRuntime } from '../../quoteSubscriptionRuntime/types.js';
 import type { AutoSearchWakeupRuntime } from '../../autoSearchWakeupRuntime/types.js';
 import type { SeatActivationDispatcher } from '../../seatActivationDispatcher/types.js';
@@ -58,6 +60,8 @@ export type SignalRuntimeDomainDeps = Readonly<{
   businessEventProgram: Pick<BusinessEventProgram, 'start' | 'stopAndDrain'>;
   tradingRiskEventRuntime: Pick<TradingRiskEventRuntime, 'start' | 'stopAndDrain'>;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
+  monitorDisplayRuntime: Pick<MonitorDisplayRuntime, 'start' | 'stopAndDrain'>;
+  tradingQuoteDisplayRuntime: Pick<TradingQuoteDisplayRuntime, 'start' | 'stopAndDrain'>;
   switchWakeupRuntime: Pick<SwitchWakeupRuntime, 'start' | 'stopAndDrain'>;
   quoteSubscriptionRuntime: Pick<
     QuoteSubscriptionRuntime,

@@ -32,7 +32,10 @@ import { createSeatActivationDispatcher } from '../../main/seatActivationDispatc
 import { createTradingGateEventRuntime } from '../../main/tradingGateEventRuntime/index.js';
 import { createDefaultMonitorQuoteEventRuntime } from '../../main/monitorQuoteEventRuntime/monitorQuoteEventRuntime.js';
 import { createSwitchWakeupRuntime } from '../../main/monitorQuoteEventRuntime/switchWakeupRuntime.js';
+import { createMonitorDisplayRuntime } from '../../main/monitorDisplayRuntime/index.js';
+import { createTradingQuoteDisplayRuntime } from '../../main/tradingQuoteDisplayRuntime/index.js';
 import { createMarketMonitor } from '../../services/marketMonitor/index.js';
+import { buildPriceDisplayInfo } from '../../services/marketMonitor/priceDisplayInfo.js';
 import { createLiquidationCooldownTracker } from '../../services/liquidationCooldown/index.js';
 import { createTradeLogHydrator } from '../../services/liquidationCooldown/tradeLogHydrator.js';
 import { createPositionCache } from '../../utils/positionCache/index.js';
@@ -42,18 +45,14 @@ import { buildTradeLogPath } from '../../utils/trading/tradeLogPath.js';
 import { getHKDateKey, toHongKongTimeIso } from '../../utils/time/index.js';
 import { logger, retainLatestLogFiles } from '../../utils/logger/index.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
-import type { TradeRecord } from '../../types/trader.js';
 import type { OrderStateChangedEvent } from '../../types/services.js';
 import type { MonitorTaskDataMap } from '../../main/asyncProgram/monitorTaskProcessor/types.js';
 import type { QuoteSubscriptionRuntime } from '../../main/quoteSubscriptionRuntime/types.js';
 import type {
   CreatePostGateRuntimeParams,
   MutableMonitorContextsPostGateRuntime,
+  PersistableTradeRecord,
 } from '../types.js';
-
-type PersistableTradeRecord = TradeRecord & {
-  readonly executedAtMs: number;
-};
 
 function hasPersistableTradeExecutionContext(
   event: OrderStateChangedEvent,
@@ -329,6 +328,38 @@ export async function createPostGateRuntime(
     now: () => new Date(),
     handoffPendingSwitch: switchWakeupRuntime.handoffPendingSwitch,
   });
+  const monitorDisplayRuntime = createMonitorDisplayRuntime({
+    marketDataClient,
+    monitorContexts,
+    lastState,
+    marketMonitor,
+  });
+  const tradingQuoteDisplayRuntime = createTradingQuoteDisplayRuntime({
+    marketDataClient,
+    symbolRegistry,
+    monitorContexts,
+    lastState,
+    renderTradingQuote: (renderParams) => {
+      const monitorContext = monitorContexts.get(renderParams.monitorSymbol);
+      if (monitorContext === undefined) {
+        return;
+      }
+
+      const displayInfo = buildPriceDisplayInfo({
+        seatActive: true,
+        symbol: renderParams.tradingSymbol,
+        monitorCurrentPrice: renderParams.monitorQuote?.price ?? null,
+        quotePrice: renderParams.event.quote.price,
+        isLongSymbol: renderParams.direction === 'LONG',
+        riskChecker: monitorContext.riskChecker,
+        orderRecorder: monitorContext.orderRecorder,
+      });
+      marketMonitor.renderTradingQuote({
+        ...renderParams,
+        displayInfo,
+      });
+    },
+  });
   const signalProcessor = createSignalProcessor({
     tradingConfig,
     liquidationCooldownTracker,
@@ -383,6 +414,8 @@ export async function createPostGateRuntime(
     autoSearchWakeupRuntime,
     tradingRiskEventRuntime,
     monitorQuoteEventRuntime,
+    monitorDisplayRuntime,
+    tradingQuoteDisplayRuntime,
     switchWakeupRuntime,
     postTradeConsistencyRuntime,
     lastState,

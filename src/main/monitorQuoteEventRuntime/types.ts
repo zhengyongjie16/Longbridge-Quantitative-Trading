@@ -1,10 +1,15 @@
 import type { MonitorContext, LastState } from '../../types/state.js';
+import type { Signal } from '../../types/signal.js';
 import type {
   MarketDataClient,
   PostTradeConsistencyFreshnessPort,
+  QuoteUpdatedEvent,
   Trader,
 } from '../../types/services.js';
-import type { SwitchDriveResult } from '../../types/monitorContextPorts.js';
+import type {
+  StartSwitchOnDistanceResult,
+  SwitchDriveResult,
+} from '../../types/monitorContextPorts.js';
 import type { SymbolRegistry } from '../../types/seat.js';
 import type { QuoteSubscriptionRuntime } from '../quoteSubscriptionRuntime/types.js';
 
@@ -41,6 +46,110 @@ export type MonitorQuoteFreshnessDeps = Readonly<{
   /** 订阅 freshness 追平事件；monitor quote runtime 可不订阅 */
   onFreshReached?: PostTradeConsistencyFreshnessPort['onFreshReached'];
 }>;
+
+/**
+ * Monitor quote 事件执行器。
+ * 类型用途：封装 monitor quote route 中静态清仓执行动作。
+ * 数据来源：默认静态清仓执行器或测试注入替身。
+ * 使用范围：仅 monitorQuoteEventRuntime 模块内部使用。
+ */
+export type MonitorQuoteEventExecutor = (params: {
+  readonly monitorContext: MonitorContext;
+  readonly event: QuoteUpdatedEvent;
+  readonly retryAttempts: number;
+}) => Promise<StaticLiquidationRuntimeResult>;
+
+/**
+ * 距离换标启动执行器。
+ * 类型用途：封装 monitor quote route 中距离换标启动动作。
+ * 数据来源：默认距离换标执行器或测试注入替身。
+ * 使用范围：仅 monitorQuoteEventRuntime 模块内部使用。
+ */
+export type StartDistanceSwitchExecutor = (params: {
+  readonly monitorContext: MonitorContext;
+  readonly event: QuoteUpdatedEvent;
+}) => Promise<ReadonlyArray<StartSwitchOnDistanceResult>>;
+
+/**
+ * Monitor quote event runtime 创建依赖。
+ * 类型用途：收口内部工厂所需的 quote 事件源、执行动作、freshness 与 quote retain 端口。
+ * 数据来源：默认组装入口或测试代码注入。
+ * 使用范围：仅 monitorQuoteEventRuntime 模块内部使用。
+ */
+export type CreateMonitorQuoteEventRuntimeDeps = Readonly<{
+  readonly marketDataClient: Pick<MarketDataClient, 'onQuoteUpdated'>;
+  readonly monitorContexts?: ReadonlyMap<string, MonitorContext>;
+  readonly executeStaticLiquidation?: MonitorQuoteEventExecutor;
+  readonly startDistanceSwitch?: StartDistanceSwitchExecutor;
+  readonly handoffPendingSwitch?: Pick<
+    SwitchWakeupRuntime,
+    'handoffPendingSwitch'
+  >['handoffPendingSwitch'];
+  readonly lastState?: Pick<LastState, 'isTradingEnabled' | 'canTrade' | 'isHalfDay'>;
+  readonly postTradeConsistencyRuntime?: MonitorQuoteFreshnessDeps;
+  readonly doomsdayProtectionEnabled?: boolean;
+  readonly now?: () => Date;
+  readonly scheduleTimer?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
+  readonly clearTimer?: (handle: ReturnType<typeof setTimeout>) => void;
+  readonly quoteSubscriptionRuntime?: Pick<
+    QuoteSubscriptionRuntime,
+    'retainSymbols' | 'releaseRetain'
+  >;
+}>;
+
+/**
+ * 默认 Monitor quote event runtime 创建依赖。
+ * 类型用途：为真实运行时组装静态清仓与距离换标默认执行器提供完整依赖。
+ * 数据来源：app post-gate runtime 组装层。
+ * 使用范围：createDefaultMonitorQuoteEventRuntime 使用。
+ */
+export type CreateDefaultMonitorQuoteEventRuntimeDeps = Readonly<{
+  readonly marketDataClient: Pick<MarketDataClient, 'onQuoteUpdated' | 'getQuotes'>;
+  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
+  readonly trader: Pick<Trader, 'executeSignals'>;
+  readonly lastState: Pick<
+    LastState,
+    'positionCache' | 'cachedPositions' | 'isTradingEnabled' | 'canTrade' | 'isHalfDay'
+  >;
+  readonly postTradeConsistencyRuntime: MonitorQuoteFreshnessDeps;
+  readonly doomsdayProtectionEnabled: boolean;
+  readonly now: () => Date;
+  readonly scheduleTimer?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
+  readonly clearTimer?: (handle: ReturnType<typeof setTimeout>) => void;
+  readonly quoteSubscriptionRuntime?: Pick<
+    QuoteSubscriptionRuntime,
+    'retainSymbols' | 'releaseRetain'
+  >;
+  readonly handoffPendingSwitch?: Pick<
+    SwitchWakeupRuntime,
+    'handoffPendingSwitch'
+  >['handoffPendingSwitch'];
+}>;
+
+/**
+ * Monitor quote route 模式。
+ * 类型用途：区分同一 monitor quote route 当前由静态清仓还是距离换标接管。
+ * 数据来源：monitor 配置中的 autoSearchEnabled。
+ * 使用范围：仅 monitorQuoteEventRuntime 模块内部使用。
+ */
+export type MonitorQuoteRouteMode = 'STATIC_LIQUIDATION' | 'DISTANCE_SWITCH';
+
+/**
+ * Monitor quote route 状态。
+ * 类型用途：维护单 monitor route 的 latest-only collapse、静态清仓 WAIT 唤醒和 retry timer。
+ * 数据来源：monitorQuoteEventRuntime 在 quote event 与 WAIT 结果到达时写入。
+ * 使用范围：仅 monitorQuoteEventRuntime 模块内部使用。
+ */
+export type MonitorQuoteRouteState = {
+  latestMonitorContext: MonitorContext | null;
+  latestEvent: QuoteUpdatedEvent | null;
+  wakeupSymbols: ReadonlySet<string>;
+  mode: MonitorQuoteRouteMode;
+  inFlight: boolean;
+  dirty: boolean;
+  retryAttempts: number;
+  retryTimerHandle: ReturnType<typeof setTimeout> | null;
+};
 
 /**
  * Switch wakeup freshness 依赖。
@@ -194,6 +303,48 @@ export type StaticLiquidationRuntimeResult =
       kind: 'WAIT';
       wakeupSymbols: ReadonlyArray<string>;
       retryAtMs: number | null;
+    }>;
+
+/**
+ * 静态清仓执行器依赖。
+ * 类型用途：收口 monitor quote 驱动静态距回收价清仓所需的最小依赖。
+ * 数据来源：由 app/main 顶层运行时组装并注入。
+ * 使用范围：仅 staticLiquidationExecutor 模块内部使用。
+ */
+export type CreateStaticLiquidationExecutorDeps = Readonly<{
+  readonly trader: Pick<Trader, 'executeSignals'>;
+  readonly marketDataClient: Pick<MarketDataClient, 'getQuotes'>;
+  readonly lastState: Pick<LastState, 'positionCache'>;
+}>;
+
+/**
+ * 单边静态清仓候选。
+ * 类型用途：表示某一方向已通过触发判定、待执行并在成功后做缓存刷新的清仓项。
+ * 数据来源：由 monitor quote 事件执行时基于当前席位、持仓与行情构造。
+ * 使用范围：仅 staticLiquidationExecutor 模块内部使用。
+ */
+export type StaticLiquidationCandidate = Readonly<{
+  readonly signal: Signal;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly quote: QuoteUpdatedEvent['quote'];
+}>;
+
+/**
+ * 单边静态清仓候选构造结果。
+ * 类型用途：显式区分跳过、等待交易标的行情和生成可执行清仓候选。
+ * 数据来源：staticLiquidationExecutor 对单方向席位、持仓与 quote 的判定。
+ * 使用范围：仅 staticLiquidationExecutor 模块内部使用。
+ */
+export type StaticLiquidationCandidateResult =
+  | Readonly<{
+      kind: 'SKIP';
+    }>
+  | Readonly<{
+      kind: 'WAIT';
+    }>
+  | Readonly<{
+      kind: 'CANDIDATE';
+      candidate: StaticLiquidationCandidate;
     }>;
 
 /**

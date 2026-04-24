@@ -5,13 +5,13 @@
  * - 验证退出时排空处理器、销毁延迟验证器与释放资源的流程与边界。
  */
 import { describe, expect, it } from 'bun:test';
-import type { CleanupContext } from '../../src/app/types.js';
+import type { CleanupContext } from '../../../src/app/types.js';
 
-import { createCleanup } from '../../src/app/shutdown/createCleanup.js';
+import { createCleanup } from '../../../src/app/shutdown/createCleanup.js';
 import {
   createDelayedSignalVerifierDouble,
   createMonitorContextDouble,
-} from '../helpers/testDoubles.js';
+} from '../../helpers/testDoubles.js';
 import { createCleanupDeps, createLastState, createMonitorState } from './utils.js';
 
 describe('cleanup business flow', () => {
@@ -103,6 +103,8 @@ describe('cleanup business flow', () => {
       'businessEventProgram',
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
+      'monitorDisplayRuntime',
+      'tradingQuoteDisplayRuntime',
       'switchWakeupRuntime',
       'autoSearchWakeupRuntime',
       'seatActivationDispatcher',
@@ -156,6 +158,8 @@ describe('cleanup business flow', () => {
       'businessEventProgram',
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
+      'monitorDisplayRuntime',
+      'tradingQuoteDisplayRuntime',
       'switchWakeupRuntime',
       'autoSearchWakeupRuntime',
       'seatActivationDispatcher',
@@ -192,6 +196,8 @@ describe('cleanup business flow', () => {
         'businessEventProgram',
         'tradingRiskEventRuntime',
         'monitorQuoteEventRuntime',
+        'monitorDisplayRuntime',
+        'tradingQuoteDisplayRuntime',
         'switchWakeupRuntime',
         'autoSearchWakeupRuntime',
         'seatActivationDispatcher',
@@ -256,6 +262,8 @@ describe('cleanup business flow', () => {
       'businessEventProgram',
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
+      'monitorDisplayRuntime',
+      'tradingQuoteDisplayRuntime',
       'switchWakeupRuntime',
       'autoSearchWakeupRuntime',
       'seatActivationDispatcher',
@@ -301,6 +309,8 @@ describe('cleanup business flow', () => {
         'businessEventProgram',
         'tradingRiskEventRuntime',
         'monitorQuoteEventRuntime',
+        'monitorDisplayRuntime',
+        'tradingQuoteDisplayRuntime',
         'switchWakeupRuntime',
         'autoSearchWakeupRuntime',
         'seatActivationDispatcher',
@@ -386,10 +396,12 @@ describe('cleanup business flow', () => {
     expect(steps[1]).toBe('businessEventProgram');
     expect(steps[2]).toBe('tradingRiskEventRuntime');
     expect(steps[3]).toBe('monitorQuoteEventRuntime');
-    expect(steps[4]).toBe('switchWakeupRuntime');
-    expect(steps[5]).toBe('autoSearchWakeupRuntime');
-    expect(steps[6]).toBe('seatActivationDispatcher');
-    expect(steps[7]).toBe('monitorTask');
+    expect(steps[4]).toBe('monitorDisplayRuntime');
+    expect(steps[5]).toBe('tradingQuoteDisplayRuntime');
+    expect(steps[6]).toBe('switchWakeupRuntime');
+    expect(steps[7]).toBe('autoSearchWakeupRuntime');
+    expect(steps[8]).toBe('seatActivationDispatcher');
+    expect(steps[9]).toBe('monitorTask');
     expect(steps[steps.indexOf('stopOrderMonitorRuntimeAndDrain') - 1]).toBe('sell');
     expect(steps).toContain('buy');
     expect(steps).toContain('postTradeConsistencyRuntime');

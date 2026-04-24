@@ -31,6 +31,25 @@ export type QuoteSubscriptionRetainParams = Readonly<{
 }>;
 
 /**
+ * Quote retain owner。
+ * 类型用途：把 retain reason 与 ownerKey 合并为订阅保留的唯一拥有方身份。
+ * 数据来源：QuoteSubscriptionRuntime 的基础投影与外部 retainSymbols 请求。
+ * 使用范围：仅 QuoteSubscriptionRuntime 模块内部使用。
+ */
+export type QuoteSubscriptionRetainOwner = Readonly<{
+  reason: QuoteSubscriptionRetainReason;
+  ownerKey: string;
+}>;
+
+/**
+ * 可变 retain 存储。
+ * 类型用途：按 owner 记录当前需要保留订阅的 symbol 集合。
+ * 数据来源：QuoteSubscriptionRuntime 在运行期从权威状态和 retain API 投影。
+ * 使用范围：仅 QuoteSubscriptionRuntime 模块内部使用。
+ */
+export type MutableQuoteSubscriptionRetainStore = Map<string, Set<string>>;
+
+/**
  * Quote 订阅 runtime 依赖。
  * 类型用途：创建 runtime 时注入权威状态读取、订阅 API 和事件源。
  * 数据来源：app runtime 装配层。

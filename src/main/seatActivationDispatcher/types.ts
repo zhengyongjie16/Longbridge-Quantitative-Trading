@@ -4,6 +4,25 @@ import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/ty
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 
 /**
+ * 席位激活 route key。
+ * 类型用途：以 monitorSymbol + direction 记录 SWITCHING 到 ACTIVATING 之间的旧标的缓存。
+ * 数据来源：SeatActivationDispatcher 监听 seat 状态事件时构造。
+ * 使用范围：仅 SeatActivationDispatcher 模块内部使用。
+ */
+export type SeatActivationRouteKey = `${string}:${'LONG' | 'SHORT'}`;
+
+/**
+ * 待激活席位缓存。
+ * 类型用途：暂存 SWITCHING 事件中的旧标的与版本，用于后续 ACTIVATING 调度 SEAT_REFRESH。
+ * 数据来源：SymbolRegistry 的 SeatStateChangedEvent。
+ * 使用范围：仅 SeatActivationDispatcher 模块内部使用。
+ */
+export type PendingSeatActivation = Readonly<{
+  seatVersion: number;
+  oldSymbol: string | null;
+}>;
+
+/**
  * 席位激活调度器依赖。
  * 类型用途：创建 runtime 阶段 ACTIVATING -> SEAT_REFRESH producer 所需的事件源与队列。
  * 数据来源：app runtime 装配层。

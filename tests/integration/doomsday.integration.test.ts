@@ -79,11 +79,8 @@ function createMonitorContext(
     config,
     state: {
       monitorSymbol: config.monitorSymbol,
-      longPrice: null,
-      shortPrice: null,
       signal: null,
       pendingDelayedSignals: [],
-      monitorValues: null,
       lastMonitorSnapshot: null,
       incrementalIndicatorRuntime: null,
     },

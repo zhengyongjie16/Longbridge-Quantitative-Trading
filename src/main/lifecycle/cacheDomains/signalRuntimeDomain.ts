@@ -75,6 +75,8 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
     businessEventProgram,
     tradingRiskEventRuntime,
     monitorQuoteEventRuntime,
+    monitorDisplayRuntime,
+    tradingQuoteDisplayRuntime,
     switchWakeupRuntime,
     quoteSubscriptionRuntime,
     autoSearchWakeupRuntime,
@@ -93,6 +95,8 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
       await businessEventProgram.stopAndDrain();
       await tradingRiskEventRuntime.stopAndDrain();
       await monitorQuoteEventRuntime.stopAndDrain();
+      await monitorDisplayRuntime.stopAndDrain();
+      await tradingQuoteDisplayRuntime.stopAndDrain();
       await switchWakeupRuntime.stopAndDrain();
       await autoSearchWakeupRuntime.stopAndDrain();
       seatActivationDispatcher.stop();
@@ -122,9 +126,11 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
       postTradeConsistencyRuntime.start();
       postTradeConsistencyRuntime.completeRebuildBaseline();
       await quoteSubscriptionRuntime.reconcileFromCurrentTruth();
+      tradingQuoteDisplayRuntime.start();
       quoteSubscriptionRuntime.start();
       seatActivationDispatcher.start();
       autoSearchWakeupRuntime.start();
+      monitorDisplayRuntime.start();
       businessEventProgram.start();
       tradingRiskEventRuntime.start();
       monitorQuoteEventRuntime.start();
@@ -134,7 +140,7 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
       monitorTaskProcessor.restart();
       trader.startOrderMonitorRuntime();
       logger.debug(
-        '[Lifecycle][signalRuntime] runtime baseline、业务 owner、订阅 owner、处理器与订单监控 runtime 已重启',
+        '[Lifecycle][signalRuntime] runtime baseline、显示 owner、业务 owner、订阅 owner、处理器与订单监控 runtime 已重启',
       );
     },
   };

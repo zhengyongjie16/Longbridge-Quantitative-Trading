@@ -13,7 +13,6 @@ import {
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import type { ProcessMonitorParams } from '../../../src/main/processMonitor/types.js';
-import type { MonitorIndicatorChangesParams } from '../../../src/services/marketMonitor/types.js';
 import type { MarketDataClient } from '../../../src/types/services.js';
 import type { IndicatorSnapshot, Quote } from '../../../src/types/quote.js';
 import type { LastState, MonitorContext } from '../../../src/types/state.js';
@@ -43,7 +42,6 @@ async function loadProcessMonitor(): Promise<ProcessMonitorFn> {
 function createProcessMonitorParams(params: {
   readonly monitorContext: MonitorContext;
   readonly marketDataClient?: Partial<MarketDataClient>;
-  readonly monitorIndicatorChanges?: (params: MonitorIndicatorChangesParams) => boolean;
 }): Readonly<{
   readonly params: ProcessMonitorParams;
   readonly buyTaskQueue: ReturnType<typeof createBuyTaskQueue>;
@@ -62,10 +60,6 @@ function createProcessMonitorParams(params: {
     params: {
       context: {
         marketDataClient,
-        marketMonitor: {
-          monitorPriceChanges: () => false,
-          monitorIndicatorChanges: params.monitorIndicatorChanges ?? (() => false),
-        },
         buyTaskQueue,
         sellTaskQueue,
         monitorTaskQueue,
@@ -124,11 +118,8 @@ function createMonitorContext(params: {
     }),
     state: {
       monitorSymbol: 'HSI.HK',
-      longPrice: null,
-      shortPrice: null,
       signal: null,
       pendingDelayedSignals: [],
-      monitorValues: null,
       lastMonitorSnapshot: null,
       incrementalIndicatorRuntime: null,
     },
@@ -185,16 +176,13 @@ describe('processMonitor end-to-end orchestration', () => {
     expect(sellTaskQueue.isEmpty()).toBeTrue();
   });
 
-  it('consumes latest monitor snapshot for indicator display without enqueueing trade tasks', async () => {
+  it('does not read candlestick cache or trigger monitor rendering from processMonitor', async () => {
     const processMonitor = await loadProcessMonitor();
     const monitorContext = createMonitorContext({
       autoSearchEnabled: false,
     });
     monitorContext.state.lastMonitorSnapshot = createIndicatorSnapshot();
 
-    const received = {
-      indicatorParams: null as MonitorIndicatorChangesParams | null,
-    };
     const { params, buyTaskQueue, sellTaskQueue } = createProcessMonitorParams({
       monitorContext,
       marketDataClient: {
@@ -202,51 +190,11 @@ describe('processMonitor end-to-end orchestration', () => {
           throw new Error('processMonitor should not read candlestick cache for display');
         },
       },
-      monitorIndicatorChanges: (indicatorParams) => {
-        received.indicatorParams = indicatorParams;
-        return true;
-      },
     });
     const monitorQuote = createQuoteDouble('HSI.HK', 20_010);
 
     processMonitor(params, new Map([['HSI.HK', monitorQuote]]));
 
-    if (received.indicatorParams === null) {
-      throw new Error('expected monitor indicator display params');
-    }
-
-    expect(received.indicatorParams.klineTimestamp).toBeNull();
-    expect(received.indicatorParams.monitorQuote).toEqual(monitorQuote);
-    expect(received.indicatorParams.monitorSnapshot).toEqual(
-      monitorContext.state.lastMonitorSnapshot,
-    );
-    expect(received.indicatorParams.indicatorProfile).toEqual(monitorContext.indicatorProfile);
-    expect(buyTaskQueue.isEmpty()).toBeTrue();
-    expect(sellTaskQueue.isEmpty()).toBeTrue();
-  });
-
-  it('does not trigger indicator display when latest monitor snapshot is unavailable', async () => {
-    const processMonitor = await loadProcessMonitor();
-    const monitorContext = createMonitorContext({
-      autoSearchEnabled: false,
-    });
-    let indicatorDisplayCalls = 0;
-    const { params, buyTaskQueue, sellTaskQueue } = createProcessMonitorParams({
-      monitorContext,
-      marketDataClient: {
-        getCandlestickSnapshot: () => {
-          throw new Error('should not read candlestick snapshot without latest monitor snapshot');
-        },
-      },
-      monitorIndicatorChanges: () => {
-        indicatorDisplayCalls += 1;
-        return false;
-      },
-    });
-
-    processMonitor(params, new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_010)]]));
-
-    expect(indicatorDisplayCalls).toBe(0);
     expect(buyTaskQueue.isEmpty()).toBeTrue();
     expect(sellTaskQueue.isEmpty()).toBeTrue();
   });

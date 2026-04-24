@@ -254,10 +254,6 @@ describe('timeDriverProgram strict-mode integration', () => {
       },
       trader: createTraderDouble(),
       lastState,
-      marketMonitor: {
-        monitorPriceChanges: () => false,
-        monitorIndicatorChanges: () => false,
-      },
       doomsdayProtection: createDoomsdayProtectionDouble(),
       tradingConfig: createTradingConfig({
         monitors: [createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' })],
@@ -337,10 +333,6 @@ describe('timeDriverProgram strict-mode integration', () => {
       },
       trader: createTraderDouble(),
       lastState,
-      marketMonitor: {
-        monitorPriceChanges: () => false,
-        monitorIndicatorChanges: () => false,
-      },
       doomsdayProtection: createDoomsdayProtectionDouble({
         cancelPendingBuyOrders: async () => {
           callSequence.push('cancelPendingBuyOrders');
@@ -409,10 +401,6 @@ describe('timeDriverProgram strict-mode integration', () => {
       },
       trader: createTraderDouble(),
       lastState,
-      marketMonitor: {
-        monitorPriceChanges: () => false,
-        monitorIndicatorChanges: () => false,
-      },
       doomsdayProtection: createDoomsdayProtectionDouble(),
       tradingConfig: createTradingConfig({
         monitors: [createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' })],
@@ -508,10 +496,6 @@ describe('timeDriverProgram strict-mode integration', () => {
         getOrderHoldSymbols: () => new Set<string>(),
       }),
       lastState,
-      marketMonitor: {
-        monitorPriceChanges: () => false,
-        monitorIndicatorChanges: () => false,
-      },
       doomsdayProtection: createDoomsdayProtectionDouble(),
       tradingConfig: createTradingConfig({
         monitors: [monitorConfig],

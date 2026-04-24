@@ -216,11 +216,8 @@ describe('switchWakeupRuntime', () => {
             symbolRegistry,
             state: {
               monitorSymbol: 'HSI.HK',
-              longPrice: null,
-              shortPrice: null,
               signal: null,
               pendingDelayedSignals: [],
-              monitorValues: null,
               lastMonitorSnapshot: null,
               incrementalIndicatorRuntime: null,
             },

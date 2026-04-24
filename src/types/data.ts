@@ -1,5 +1,3 @@
-import type { KDJIndicator, MACDIndicator } from './quote.js';
-
 /**
  * K 线数据值类型。
  * 类型用途：兼容 Longbridge SDK 的 Decimal 与原始数值，作为 CandleData 各 OHLCV 字段的类型。
@@ -32,39 +30,4 @@ export type CandleData = {
 
   /** 成交量 */
   readonly volume?: CandleValue;
-};
-
-/**
- * 监控值。
- * 类型用途：市场监控用的技术指标集合（价格、EMA、RSI、KDJ、MACD、MFI、ADX 等），作为 MonitorState.monitorValues 类型。
- * 数据来源：由 K 线经指标计算得到（如 indicatorCache、marketMonitor）。
- * 使用范围：MonitorState、策略、主循环等；全项目可引用。
- */
-export type MonitorValues = {
-  /** 当前价格 */
-  readonly price: number | null;
-
-  /** 涨跌幅 */
-  readonly changePercent: number | null;
-
-  /** EMA 指数移动平均 */
-  readonly ema: Readonly<Record<number, number>> | null;
-
-  /** RSI 相对强弱指标 */
-  readonly rsi: Readonly<Record<number, number>> | null;
-
-  /** PSY 心理线指标 */
-  readonly psy: Readonly<Record<number, number>> | null;
-
-  /** MFI 资金流量指标 */
-  readonly mfi: number | null;
-
-  /** KDJ 随机指标 */
-  readonly kdj: KDJIndicator | null;
-
-  /** MACD 指标 */
-  readonly macd: MACDIndicator | null;
-
-  /** ADX 趋势强度指标 */
-  readonly adx: number | null;
 };

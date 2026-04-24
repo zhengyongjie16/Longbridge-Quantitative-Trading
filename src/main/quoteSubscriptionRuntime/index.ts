@@ -12,20 +12,14 @@ import type { OrderHoldSymbolsChangedEvent, Unsubscribe } from '../../types/serv
 import { formatError } from '../../utils/error/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type {
+  MutableQuoteSubscriptionRetainStore,
   QuoteSubscriptionRetainParams,
-  QuoteSubscriptionRetainReason,
+  QuoteSubscriptionRetainOwner,
   QuoteSubscriptionRuntime,
   QuoteSubscriptionRuntimeDeps,
 } from './types.js';
 
-type RetainOwner = Readonly<{
-  reason: QuoteSubscriptionRetainReason;
-  ownerKey: string;
-}>;
-
-type MutableRetainStore = Map<string, Set<string>>;
-
-function buildOwnerStoreKey(owner: RetainOwner): string {
+function buildOwnerStoreKey(owner: QuoteSubscriptionRetainOwner): string {
   return `${owner.reason}:${owner.ownerKey}`;
 }
 
@@ -68,13 +62,13 @@ export function createQuoteSubscriptionRuntime(
   let mutationChain: Promise<void> = Promise.resolve();
   let unsubscribeSeatStateChanged: Unsubscribe | null = null;
   let unsubscribeOrderHoldChanged: Unsubscribe | null = null;
-  const retainsByOwner: MutableRetainStore = new Map();
+  const retainsByOwner: MutableQuoteSubscriptionRetainStore = new Map();
 
   function readCommittedSymbolsFromLastState(): Set<string> {
     return new Set(deps.lastState.allTradingSymbols);
   }
 
-  function setOwnerSymbols(owner: RetainOwner, symbols: Iterable<string>): void {
+  function setOwnerSymbols(owner: QuoteSubscriptionRetainOwner, symbols: Iterable<string>): void {
     const normalized = normalizeSymbols(symbols);
     const ownerStoreKey = buildOwnerStoreKey(owner);
     if (normalized.length === 0) {
@@ -85,7 +79,7 @@ export function createQuoteSubscriptionRuntime(
     retainsByOwner.set(ownerStoreKey, new Set(normalized));
   }
 
-  function removeOwner(owner: RetainOwner): void {
+  function removeOwner(owner: QuoteSubscriptionRetainOwner): void {
     retainsByOwner.delete(buildOwnerStoreKey(owner));
   }
 
@@ -221,7 +215,7 @@ export function createQuoteSubscriptionRuntime(
   }
 
   async function retainSymbols(params: QuoteSubscriptionRetainParams): Promise<Unsubscribe> {
-    const owner: RetainOwner = {
+    const owner: QuoteSubscriptionRetainOwner = {
       reason: params.reason,
       ownerKey: params.ownerKey,
     };

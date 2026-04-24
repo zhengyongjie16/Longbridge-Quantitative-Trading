@@ -7,20 +7,20 @@
  * - createLifecycleRuntime 将固定顺序的 cache domains 交给 dayLifecycleManager
  */
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { createLifecycleRuntime } from '../../src/app/lifecycle/createLifecycleRuntime.js';
+import { createLifecycleRuntime } from '../../../src/app/lifecycle/createLifecycleRuntime.js';
 import type {
   LifecycleRuntimeFactories,
   LifecycleRuntimeFactoryDeps,
   PostTradeConsistencyRuntime,
-} from '../../src/app/types.js';
-import type { SignalProcessor } from '../../src/core/signalProcessor/types.js';
-import type { CacheDomain } from '../../src/main/lifecycle/types.js';
-import type { SignalRuntimeDomainDeps } from '../../src/main/lifecycle/cacheDomains/types.js';
-import type { MonitorTaskProcessor } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
-import type { Processor } from '../../src/main/asyncProgram/types.js';
-import type { LastState } from '../../src/types/state.js';
-import { createWarrantListCache } from '../../src/services/autoSymbolFinder/utils.js';
-import { createTradingConfig } from '../../mock/factories/configFactory.js';
+} from '../../../src/app/types.js';
+import type { SignalProcessor } from '../../../src/core/signalProcessor/types.js';
+import type { CacheDomain } from '../../../src/main/lifecycle/types.js';
+import type { SignalRuntimeDomainDeps } from '../../../src/main/lifecycle/cacheDomains/types.js';
+import type { MonitorTaskProcessor } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { Processor } from '../../../src/main/asyncProgram/types.js';
+import type { LastState } from '../../../src/types/state.js';
+import { createWarrantListCache } from '../../../src/services/autoSymbolFinder/utils.js';
+import { createTradingConfig } from '../../../mock/factories/configFactory.js';
 import {
   createDailyLossTrackerDouble,
   createAutoSearchWakeupRuntimeDouble,
@@ -32,7 +32,7 @@ import {
   createSymbolRegistryDouble,
   createTradingGateEventRuntimeDouble,
   createTraderDouble,
-} from '../helpers/testDoubles.js';
+} from '../../helpers/testDoubles.js';
 import type { CreateDayLifecycleManagerCall, ExecuteOpenRebuildCall } from './types.js';
 
 const factoryCalls: string[] = [];
@@ -90,6 +90,25 @@ function createMonitorQuoteEventRuntimeDouble() {
   return {
     start: () => {
       factoryCalls.push('monitorQuoteEventRuntime.start');
+    },
+    stopAndDrain: async () => {},
+  };
+}
+
+function createMonitorDisplayRuntimeDouble() {
+  return {
+    start: () => {
+      factoryCalls.push('monitorDisplayRuntime.start');
+    },
+    requestRender: () => {},
+    stopAndDrain: async () => {},
+  };
+}
+
+function createTradingQuoteDisplayRuntimeDouble() {
+  return {
+    start: () => {
+      factoryCalls.push('tradingQuoteDisplayRuntime.start');
     },
     stopAndDrain: async () => {},
   };
@@ -208,6 +227,8 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
       autoSearchWakeupRuntime: createAutoSearchWakeupRuntimeDouble(),
       tradingRiskEventRuntime: createTradingRiskEventRuntimeDouble(),
       monitorQuoteEventRuntime: createMonitorQuoteEventRuntimeDouble(),
+      monitorDisplayRuntime: createMonitorDisplayRuntimeDouble(),
+      tradingQuoteDisplayRuntime: createTradingQuoteDisplayRuntimeDouble(),
       switchWakeupRuntime: createSwitchWakeupRuntimeDouble(),
       postTradeConsistencyRuntime: createPostTradeConsistencyRuntimeDouble(),
       lastState,
@@ -217,8 +238,8 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
         quotesMap: new Map(),
       }),
       marketMonitor: {
-        monitorPriceChanges: () => false,
-        monitorIndicatorChanges: () => false,
+        renderTradingQuote: () => {},
+        renderMonitorIndicators: () => {},
       },
       doomsdayProtection: {
         isBuyCutoffWindowActive: () => false,

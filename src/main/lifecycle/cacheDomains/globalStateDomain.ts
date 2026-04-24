@@ -20,14 +20,11 @@ import type { GlobalStateDomainDeps } from './types.js';
 /**
  * 重置单个监控标的的运行状态，防止跨日数据污染。
  *
- * @param monitorState 单个监控标的的运行时状态（lastMonitorSnapshot、longPrice 等）
+ * @param monitorState 单个监控标的的运行时状态
  */
 function resetMonitorStateForNewDay(monitorState: MonitorState): void {
-  monitorState.longPrice = null;
-  monitorState.shortPrice = null;
   monitorState.signal = null;
   monitorState.pendingDelayedSignals = [];
-  monitorState.monitorValues = null;
   monitorState.lastMonitorSnapshot = null;
   monitorState.incrementalIndicatorRuntime = null;
 }

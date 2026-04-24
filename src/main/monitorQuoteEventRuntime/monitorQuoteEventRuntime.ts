@@ -11,85 +11,20 @@ import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProt
 import { formatError } from '../../utils/error/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type { StartSwitchOnDistanceResult } from '../../types/monitorContextPorts.js';
-import type { LastState, MonitorContext } from '../../types/state.js';
-import type { MarketDataClient, QuoteUpdatedEvent, Trader } from '../../types/services.js';
+import type { MonitorContext } from '../../types/state.js';
+import type { QuoteUpdatedEvent } from '../../types/services.js';
 import { isSeatActive } from '../../utils/seat/guards.js';
 import { createStaticLiquidationExecutor } from './staticLiquidationExecutor.js';
-import type { QuoteSubscriptionRuntime } from '../quoteSubscriptionRuntime/types.js';
 import type {
+  CreateDefaultMonitorQuoteEventRuntimeDeps,
+  CreateMonitorQuoteEventRuntimeDeps,
   MonitorQuoteEventRuntime,
-  MonitorQuoteFreshnessDeps,
+  MonitorQuoteEventExecutor,
+  MonitorQuoteRouteMode,
+  MonitorQuoteRouteState,
   StaticLiquidationRuntimeResult,
-  SwitchWakeupRuntime,
+  StartDistanceSwitchExecutor,
 } from './types.js';
-
-type MonitorQuoteEventExecutor = (params: {
-  readonly monitorContext: MonitorContext;
-  readonly event: QuoteUpdatedEvent;
-  readonly retryAttempts: number;
-}) => Promise<StaticLiquidationRuntimeResult>;
-
-type StartDistanceSwitchExecutor = (params: {
-  readonly monitorContext: MonitorContext;
-  readonly event: QuoteUpdatedEvent;
-}) => Promise<ReadonlyArray<StartSwitchOnDistanceResult>>;
-
-type CreateMonitorQuoteEventRuntimeDeps = Readonly<{
-  readonly marketDataClient: Pick<MarketDataClient, 'onQuoteUpdated'>;
-  readonly monitorContexts?: ReadonlyMap<string, MonitorContext>;
-  readonly executeStaticLiquidation?: MonitorQuoteEventExecutor;
-  readonly startDistanceSwitch?: StartDistanceSwitchExecutor;
-  readonly handoffPendingSwitch?: Pick<
-    SwitchWakeupRuntime,
-    'handoffPendingSwitch'
-  >['handoffPendingSwitch'];
-  readonly lastState?: Pick<LastState, 'isTradingEnabled' | 'canTrade' | 'isHalfDay'>;
-  readonly postTradeConsistencyRuntime?: MonitorQuoteFreshnessDeps;
-  readonly doomsdayProtectionEnabled?: boolean;
-  readonly now?: () => Date;
-  readonly scheduleTimer?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
-  readonly clearTimer?: (handle: ReturnType<typeof setTimeout>) => void;
-  readonly quoteSubscriptionRuntime?: Pick<
-    QuoteSubscriptionRuntime,
-    'retainSymbols' | 'releaseRetain'
-  >;
-}>;
-
-type CreateDefaultMonitorQuoteEventRuntimeDeps = Readonly<{
-  readonly marketDataClient: Pick<MarketDataClient, 'onQuoteUpdated' | 'getQuotes'>;
-  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
-  readonly trader: Pick<Trader, 'executeSignals'>;
-  readonly lastState: Pick<
-    LastState,
-    'positionCache' | 'cachedPositions' | 'isTradingEnabled' | 'canTrade' | 'isHalfDay'
-  >;
-  readonly postTradeConsistencyRuntime: MonitorQuoteFreshnessDeps;
-  readonly doomsdayProtectionEnabled: boolean;
-  readonly now: () => Date;
-  readonly scheduleTimer?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
-  readonly clearTimer?: (handle: ReturnType<typeof setTimeout>) => void;
-  readonly quoteSubscriptionRuntime?: Pick<
-    QuoteSubscriptionRuntime,
-    'retainSymbols' | 'releaseRetain'
-  >;
-  readonly handoffPendingSwitch?: Pick<
-    SwitchWakeupRuntime,
-    'handoffPendingSwitch'
-  >['handoffPendingSwitch'];
-}>;
-
-type MonitorQuoteRouteMode = 'STATIC_LIQUIDATION' | 'DISTANCE_SWITCH';
-
-type MonitorQuoteRouteState = {
-  latestMonitorContext: MonitorContext | null;
-  latestEvent: QuoteUpdatedEvent | null;
-  wakeupSymbols: ReadonlySet<string>;
-  mode: MonitorQuoteRouteMode;
-  inFlight: boolean;
-  dirty: boolean;
-  retryAttempts: number;
-  retryTimerHandle: ReturnType<typeof setTimeout> | null;
-};
 
 /**
  * 根据 quote 事件查找监控上下文。

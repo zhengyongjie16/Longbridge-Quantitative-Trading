@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { createPreGateRuntime } from '../../src/app/runtime/createPreGateRuntime.js';
+import { createPreGateRuntime } from '../../../src/app/runtime/createPreGateRuntime.js';
 
 function isConfigValidationError(error: unknown): error is {
   readonly name?: string;

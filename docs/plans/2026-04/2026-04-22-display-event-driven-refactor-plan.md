@@ -1,5 +1,7 @@
 # 终端显示事件驱动重构方案
 
+> 状态说明（2026-04-23）：本文档已按当前最终实现同步更新，可继续作为核验与检查基线。当前实现已明确删除 startup / openRebuild 的 monitor indicator bootstrap 补发逻辑；monitor indicator 恢复显示统一等待下一次真实 K 线 push。
+
 ## 1. 已确认需求
 
 本次重构以用户新确认的两条要求为准：
@@ -122,11 +124,11 @@
    - 当前显示 owner 虽然是时间循环，但它天然复用了 `lastState.isTradingEnabled` 与 `lastState.canTrade === true` 的运行时门禁。
    - 这次迁移不能把显示语义意外放大成“非连续交易时段、重建期、门禁关闭时也直接输出”。
    - 同时，显示输入边界应当是 `quoteClient` 的标准化 admitted event，而不是把整个方案建立在 raw SDK push 细节之上。
-3. **startup / open rebuild 的初始真相也必须进入显示链路。**
-   - 当前启动链路会先订阅并 seed 监控标的 K 线缓存，显示真相不只有未来的增量 `onCandlestickUpdated(...)` 事件，还包括启动与开盘重建后已经存在于缓存里的首帧真相。
-   - 如果方案只等待“下一根新 K 线 push 才显示”，就会把已知回归原样带进新方案。
+3. **startup / open rebuild 不再承担 monitor indicator 首帧补发职责。**
+   - 当前实现只保留真实增量 `onCandlestickUpdated(...)` 事件驱动的 monitor indicator 显示。
+   - 启动与开盘重建后，monitor indicator 是否立即可见不再作为显示语义目标；系统接受等待下一次真实 K 线 push 后再恢复显示。
 4. **删除轮询显示路径，不等于可以直接删除 `processMonitor` 的时间语义维护 owner。**
-   - 当前代码里，`processMonitor -> syncSeatState(...) -> syncSignalSeatState(...)` 仍然承担 `ACTIVE -> 非 ACTIVE` 时的延迟验证、买卖任务、监控任务与牛熊证缓存清理。
+   - 当前代码里，`processMonitor(...)` 仍然先调 `syncSeatState(...)`，而 `syncSeatState(...)` 内部再调 `syncSignalSeatState(...)`；这条链路仍然承担 `ACTIVE -> 非 ACTIVE` 时的延迟验证、买卖任务、监控任务与牛熊证缓存清理。
    - 同时 `syncSeatState(...)` 仍然是 `monitorContext.longSymbolName / shortSymbolName / monitorSymbolName` 的当前 owner；如果本轮不把名称维护迁到新的 seat-event owner，就不能把这条职责和 `quotesMap` 一起删掉。
 5. **交易标的显示 runtime 可以独立，但路由真相不能再平行造一份。**
    - 当前 `tradingRiskEventRuntime` 已经有 `tradingSymbol -> monitorSymbol + direction + seatVersion` 的权威路由索引与复核逻辑。
@@ -134,7 +136,7 @@
 
 在补上这些约束后，这次方案才与用户真实需求一致：
 
-1. 显示触发条件直接等于标准化 admitted event 与 startup/rebuild bootstrap，而不是“事件到达后本地再判定一次是否有变化”。
+1. 显示触发条件直接等于标准化 admitted event，而不是“事件到达后本地再判定一次是否有变化”。
 2. 交易标的显示粒度直接等于“单标的单事件”，不再被旧的 monitor 聚合语义绑住。
 3. 监控标的显示的 handoff 边界回到“snapshot / indicatorCache 已提交”，而不是等待 `runSignalPipeline(...)` 成功。
 4. 显示层职责收缩为纯投影，不再偷偷承担状态比较缓存 owner。
@@ -152,7 +154,7 @@
 
 - 新增独立 `monitorDisplayRuntime`
 
-正确触发点分成两类：
+正确触发点只有一类：
 
 1. **增量事件触发**
    1. 收到 `onCandlestickUpdated(...)`
@@ -163,10 +165,8 @@
       - `syncSignalSeatState(...)`
    5. 立刻把这次**已提交的** `monitorSnapshot` 交给 `monitorDisplayRuntime`
    6. 再继续执行 `runSignalPipeline(...)`
-2. **startup / open rebuild bootstrap 触发**
-   1. 启动或开盘重建先完成 K 线订阅与缓存 seed
-   2. 对每个已有有效 candlestick snapshot 的 `monitorSymbol` 主动执行一次与增量路径同口径的 bootstrap render request
-   3. 这次 bootstrap 不依赖等待下一根新 K 线 push，目标是恢复首帧监控标的显示真相
+
+启动与 open rebuild 不再主动补发 monitor indicator 显示；显示恢复时机统一等待下一次真实 K 线 push。
 
 `monitorDisplayRuntime` 在复用当前 runtime gate 后读取当前 monitor quote，并输出一次监控标的显示。
 
@@ -256,7 +256,7 @@
 3. monitor quote 的读取与终端输出由 `monitorDisplayRuntime` 自己承担，因为 `getQuotes(...)` 是 async 边界。
 4. `monitorDisplayRuntime` 对同一 `monitorSymbol` 使用 `single-flight + latest-only collapse`，避免显示副作用并发乱序。
 5. `requestRender(...)` 必须是 best-effort side effect，显示失败只能记日志，不能回滚或中断核心业务链路。
-6. startup / open rebuild 还需要复用同一 runtime 主动补发 bootstrap request，确保已有 candlestick cache 能重建首帧显示。
+6. 启动与 open rebuild 不再补发 monitor indicator 显示；首帧显示统一等待下一次真实 K 线 push。
 7. 这里不需要任何 `monitorValues` 缓存。
 
 ### 5.3 交易标的 quote 显示链路
@@ -269,6 +269,8 @@
 同样，这个 runtime 也必须纳入统一 lifecycle owner：
 
 - 在 `createPostGateRuntime` / `runApp` 中创建
+- 冷启动首次进入运行态时，也要纳入 `runApp` 当前那套 startup start 顺序，不能只接入 `openRebuild`
+- monitor indicator 不再在 startup 时主动补发，恢复显示统一等待后续真实 K 线 push
 - 在 `createLifecycleRuntime -> createSignalRuntimeDomain` 中统一 stop/start
 - `midnightClear` 停止并排空在途 route
 - `openRebuild` 仅在 route 真相恢复后再启动，避免重建期继续消费旧 seat 身份
@@ -297,8 +299,9 @@
 
 1. 显示复用 `lastState.isTradingEnabled === true` 与 `lastState.canTrade === true`。
 2. 显示不复用 `openProtectionActive`，因为当前开盘保护只禁止普通信号生成，不禁止展示。
-3. 显示不等待 `postTradeConsistencyRuntime` baseline，因为当前展示链路也没有这层等待语义。
-4. 任一 display runtime 的 quote 读取失败、格式化失败、logger 输出失败，都只能局部记日志并跳过本次输出，不能影响：
+3. 显示不等待 `postTradeConsistencyRuntime` baseline；这是一次**显式语义选择**，不是沿用当前事件型 runtime 的 freshness 约束。原因是显示属于纯投影，当前展示链路也没有 freshness baseline 才能显示的既有业务语义。
+4. 对于末日清仓接管窗口，本次方案维持与当前展示链路一致的最小语义：**不额外新增**基于 doomsday takeover window 的显示拦截。也就是说，显示 gate 仍只由 `isTradingEnabled/canTrade` 决定，而不是去复用 `tradingRiskEventRuntime` / `monitorQuoteEventRuntime` 那套更强的执行门禁。
+5. 任一 display runtime 的 quote 读取失败、格式化失败、logger 输出失败，都只能局部记日志并跳过本次输出，不能影响：
    - `indicatorCache.push(...)`
    - `syncSignalSeatState(...)`
    - `runSignalPipeline(...)`
@@ -414,7 +417,7 @@
 1. `createPostGateRuntime` / `runApp` 负责创建与注入
 2. `createLifecycleRuntime -> createSignalRuntimeDomain` 负责把它纳入 `midnightClear / openRebuild`
 3. `midnightClear` 需要 `stopAndDrain()`，避免跨日残留显示任务继续输出
-4. `openRebuild` 需要先恢复 runtime，再在订阅与 snapshot seed 完成后补发 bootstrap render request
+4. `openRebuild` 需要先恢复 runtime，但不再承担 monitor indicator bootstrap 显示补发职责
 
 route 逻辑：
 
@@ -425,7 +428,7 @@ route 逻辑：
 5. 再 `getQuotes([monitorSymbol])` 读取当前 monitor quote
 6. 然后调用纯渲染函数输出
 7. 任一失败只记日志，不反向抛回 `businessEventProgram`
-8. 对 startup / open rebuild，允许单独提供 `bootstrapFromCurrentTruth(...)` 或等价入口，按当前 candlestick cache 主动补发首帧显示
+8. 对 startup / open rebuild，不再提供 monitor indicator 首帧 bootstrap 入口；显示恢复统一依赖后续真实 K 线 push
 
 ### 7.2 交易标的显示改造
 
@@ -543,7 +546,6 @@ route 逻辑：
    - 验证使用与 `tradingRiskEventRuntime` 一致的 route 规则
 4. `tests/main/businessEventProgram/business.test.ts`
    - 改成验证 `K` 线事件到达后在 `indicatorCache.push(...) + syncSignalSeatState(...)` 之后立即请求 monitor display runtime，不直接回读 quote
-   - 新增验证 startup 不再遗漏已有 candlestick cache 的 bootstrap request
 5. `tests/main/processMonitor/index.business.test.ts`
    - 改成验证 `processMonitor` 不再承担显示职责，但仍保留最小时间语义职责
 6. `tests/main/processMonitor/riskTasks.business.test.ts`
@@ -557,7 +559,7 @@ route 逻辑：
    - 新增验证 monitorDisplayRuntime / tradingQuoteDisplayRuntime 已纳入 signalRuntime domain 的 stop/start 顺序
 10. `tests/app/runApp.test.ts`
 
-- 更新 runtime wiring、startup bootstrap 与 cleanup 顺序
+- 更新 runtime wiring 与 cleanup 顺序；删除 startup bootstrap 相关断言
 
 11. `tests/architecture/importBoundary.test.ts`
 
@@ -589,7 +591,7 @@ route 逻辑：
 6. `businessEventProgram` 不直接依赖 `marketDataClient.getQuotes`
 7. 监控标的显示的权威来源只在 `businessEventProgram`，终端输出由独立 display runtime 承担
 8. `monitorDisplayRuntime` 与 `tradingQuoteDisplayRuntime` 都已纳入 `createLifecycleRuntime -> createSignalRuntimeDomain` 的统一 owner
-9. startup / open rebuild 都有基于当前 candlestick cache 的 monitor display bootstrap 入口
+9. 冷启动首次进入运行态与 open rebuild 的 start 顺序都已纳入 display runtime，不存在只在其中一条路径生效的 wiring 缺口
 10. 交易标的显示 owner 只在新的 quote 显示 runtime
 11. 交易标的显示 route 真相复用现有 `tradingRiskEventRuntime` 路由规则或其轻量抽取结果
 
@@ -598,13 +600,14 @@ route 逻辑：
 满足以下行为：
 
 1. 每次监控标的 `K` 线 route 在 `indicatorCache.push(...)` 与席位同步完成后，都会向 `monitorDisplayRuntime` 发起一次显示请求；不等待 `runSignalPipeline(...)` 成功
-2. startup / open rebuild 完成订阅与 snapshot seed 后，已有有效 candlestick cache 的 monitor 都会收到一次 bootstrap 显示请求
+2. 启动 / open rebuild 后，monitor indicator 不再主动补发；恢复显示统一等待下一次真实 K 线 push
 3. 每次交易标的 quote push 命中当前 ACTIVE seat 后，只输出该单个交易标的
 4. 不再存在“双边一起输出”的交易标的显示语义
 5. 不再因为本地比较结果而跳过显示
 6. runtime gate 关闭时，display runtime 不输出
-7. 显示失败不会阻断 `indicatorCache.push(...)`、席位同步或信号生成
-8. `ACTIVE -> 非 ACTIVE` 时的延迟验证/任务队列/风险缓存清理仍然按当前语义发生
+7. 在末日清仓接管窗口内，显示不会额外因为 doomsday takeover gate 被拦截；若需要改变这条语义，必须单独改需求并同步调整文档
+8. 显示失败不会阻断 `indicatorCache.push(...)`、席位同步或信号生成
+9. `ACTIVE -> 非 ACTIVE` 时的延迟验证/任务队列/风险缓存清理仍然按当前语义发生
 
 ### 9.3 禁止项
 
@@ -623,14 +626,14 @@ route 逻辑：
 11. 通过 `symbolRegistry.resolveSeatBySymbol(...)` 单点判断直接手搓第二套 trading-symbol 路由真相
 12. 新增 display runtime 却不把它们纳入 lifecycle signalRuntime 域统一 stop/start
 13. 删除显示路径时把 `ACTIVE -> 非 ACTIVE` 的席位退场清理或名称维护 owner 一并删掉
-14. 接受“启动后直到下一根新 K 线 push 才显示”却不在文档中显式改需求
+14. 保留任何 startup / openRebuild 的 monitor indicator bootstrap 补发路径
 
 ## 10. 一句话结论
 
 按你刚确认的要求，这次重构的最短正确路径是：
 
 1. **监控标的显示的数据来源仍由 `businessEventProgram` 提供，但真正输出交给独立 `monitorDisplayRuntime`，且 handoff 边界必须前移到 `indicatorCache.push(...) + syncSignalSeatState(...)` 之后，避免再次耦合 `runSignalPipeline(...)` 成败**
-2. **startup / open rebuild 必须基于当前 candlestick cache 主动补发 monitor display bootstrap，不能等下一根新 K 线 push 才恢复首帧显示**
+2. **监控标的显示不再保留 startup / openRebuild 的 bootstrap 补发路径；恢复显示统一等待下一次真实 K 线 push**
 3. **交易标的显示改为标准化 quote 事件到达后按单标的直接输出，并复用现有 trading-risk 路由真相在 async 补 monitor quote 后复核同一 `seatVersion` 仍然有效**
 4. **monitorDisplayRuntime 与 tradingQuoteDisplayRuntime 都必须纳入 lifecycle signalRuntime 域统一 stop/start，不能绕过跨日清理与开盘重建语义**
 5. **彻底删除 `marketMonitor` 当前的本地变更检查逻辑、显示缓存状态、`MonitorValues` 类型与相关阈值常量**

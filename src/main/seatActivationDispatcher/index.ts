@@ -8,14 +8,12 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import type { SeatState, SeatStateChangedEvent } from '../../types/seat.js';
-import type { SeatActivationDispatcher, SeatActivationDispatcherDeps } from './types.js';
-
-type SeatActivationRouteKey = `${string}:${'LONG' | 'SHORT'}`;
-
-type PendingSeatActivation = Readonly<{
-  seatVersion: number;
-  oldSymbol: string | null;
-}>;
+import type {
+  PendingSeatActivation,
+  SeatActivationDispatcher,
+  SeatActivationDispatcherDeps,
+  SeatActivationRouteKey,
+} from './types.js';
 
 function buildSeatActivationRouteKey(params: {
   readonly monitorSymbol: string;

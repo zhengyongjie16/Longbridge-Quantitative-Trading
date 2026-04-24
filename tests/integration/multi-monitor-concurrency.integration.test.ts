@@ -133,10 +133,6 @@ describe('multi-monitor isolation integration', () => {
       },
       trader: createTraderDouble(),
       lastState: createLastState(),
-      marketMonitor: {
-        monitorPriceChanges: () => false,
-        monitorIndicatorChanges: () => false,
-      },
       doomsdayProtection: {
         isBuyCutoffWindowActive: () => false,
         executeClearance: async () => ({ executed: false, signalCount: 0 }),

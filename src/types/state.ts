@@ -1,5 +1,4 @@
 import type { SignalType, Signal } from './signal.js';
-import type { MonitorValues } from './data.js';
 import type { IndicatorSnapshot } from './quote.js';
 import type { AccountSnapshot, Position } from './account.js';
 import type { MonitorConfig } from './config.js';
@@ -23,23 +22,14 @@ export type MonitorState = {
 
   /**
    * 运行中持续更新的状态字段（性能考虑保持可变）
-   * - longPrice/shortPrice/signal/pendingDelayedSignals/monitorValues/lastMonitorSnapshot
+   * - signal/pendingDelayedSignals/lastMonitorSnapshot
    * - incrementalIndicatorRuntime
    */
-  /** 做多标的当前价格 */
-  longPrice: number | null;
-
-  /** 做空标的当前价格 */
-  shortPrice: number | null;
-
   /** 当前信号 */
   signal: SignalType | null;
 
   /** 待处理的延迟验证信号 */
   pendingDelayedSignals: ReadonlyArray<Signal>;
-
-  /** 监控指标值 */
-  monitorValues: MonitorValues | null;
 
   /** 最新指标快照 */
   lastMonitorSnapshot: IndicatorSnapshot | null;

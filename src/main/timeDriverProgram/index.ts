@@ -6,7 +6,7 @@
  * - 驱动交易日生命周期状态机（dayLifecycleManager.tick），统一维护 isTradingEnabled 与交易日快照
  * - 在交易门禁状态变化时发布 gate event，供非周期自动寻标 owner 消费
  * - 执行末日保护（买入截止窗口撤单和清仓接管窗口清仓）
- * - 驱动时间语义维护：周期换标 tick、风险展示刷新与席位同步
+ * - 驱动时间语义维护：周期换标 tick 与席位同步
  *
  * 明确不负责：
  * - 读取 monitor candlestick 并推进普通指标
@@ -60,7 +60,6 @@ export async function timeDriverProgram({
   marketDataClient,
   trader,
   lastState,
-  marketMonitor,
   doomsdayProtection,
   tradingConfig,
   monitorContexts,
@@ -241,7 +240,6 @@ export async function timeDriverProgram({
   const runtimeContext: MonitorRuntimeContext = {
     marketDataClient,
     lastState,
-    marketMonitor,
     tradingConfig,
     buyTaskQueue,
     sellTaskQueue,

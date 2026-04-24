@@ -1,4 +1,5 @@
 import type { Config } from 'longbridge';
+import type { TradeRecord } from '../types/trader.js';
 import type {
   RuntimeSymbolValidationInput,
   RuntimeSymbolValidationResult,
@@ -52,6 +53,8 @@ import type {
   MonitorQuoteEventRuntime,
   SwitchWakeupRuntime,
 } from '../main/monitorQuoteEventRuntime/types.js';
+import type { MonitorDisplayRuntime } from '../main/monitorDisplayRuntime/types.js';
+import type { TradingQuoteDisplayRuntime } from '../main/tradingQuoteDisplayRuntime/types.js';
 import type {
   BusinessEventProgram,
   BusinessEventProgramDeps,
@@ -250,6 +253,8 @@ export type CleanupContext = Readonly<{
   businessEventProgram: BusinessEventProgram;
   tradingRiskEventRuntime: TradingRiskEventRuntime;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
+  monitorDisplayRuntime: MonitorDisplayRuntime;
+  tradingQuoteDisplayRuntime: TradingQuoteDisplayRuntime;
   switchWakeupRuntime: SwitchWakeupRuntime;
   quoteSubscriptionRuntime: QuoteSubscriptionRuntime;
   seatActivationDispatcher: SeatActivationDispatcher;
@@ -372,6 +377,16 @@ export type CreatePostGateRuntimeParams = Readonly<{
 }>;
 
 /**
+ * 可持久化交易记录。
+ * 类型用途：在标准 TradeRecord 上补充执行时间戳，用于写入按交易日切分的 trade log。
+ * 数据来源：订单状态变化事件中的成交字段。
+ * 使用范围：仅 createPostGateRuntime 的 trade log 持久化链路使用。
+ */
+export type PersistableTradeRecord = TradeRecord & {
+  readonly executedAtMs: number;
+};
+
+/**
  * 启动后阶段共享运行时对象。
  * 类型用途：集中表达 post-gate 阶段唯一创建并跨模块共享的对象所有权。
  * 数据来源：由 createPostGateRuntime 创建。
@@ -388,6 +403,8 @@ type PostGateRuntime = Readonly<{
   autoSearchWakeupRuntime: AutoSearchWakeupRuntime;
   tradingRiskEventRuntime: TradingRiskEventRuntime;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
+  monitorDisplayRuntime: MonitorDisplayRuntime;
+  tradingQuoteDisplayRuntime: TradingQuoteDisplayRuntime;
   switchWakeupRuntime: SwitchWakeupRuntime;
   postTradeConsistencyRuntime: PostTradeConsistencyRuntime;
   lastState: LastState;

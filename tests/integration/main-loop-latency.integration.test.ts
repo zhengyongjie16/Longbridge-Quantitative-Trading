@@ -587,10 +587,6 @@ describe('main loop latency full-chain integration', () => {
       marketDataClient,
       trader: createTraderDouble(),
       lastState,
-      marketMonitor: {
-        monitorPriceChanges: () => false,
-        monitorIndicatorChanges: () => false,
-      },
       doomsdayProtection: createDoomsdayProtectionDouble(),
       tradingConfig,
       monitorContexts,

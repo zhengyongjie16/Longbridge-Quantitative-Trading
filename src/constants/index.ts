@@ -205,18 +205,6 @@ export const INDICATOR_CACHE = {
   RETENTION_SAFETY_MARGIN_SECONDS: 15,
 } as const;
 
-/** 行情监控相关常量，用于 MarketMonitor 检测价格/指标变化 */
-export const MONITOR = {
-  /** 价格变化检测阈值，低于此值不触发更新 */
-  PRICE_CHANGE_THRESHOLD: 0.001,
-
-  /** 技术指标变化检测阈值（EMA/RSI/MFI/KDJ/MACD） */
-  INDICATOR_CHANGE_THRESHOLD: 0.001,
-
-  /** 涨跌幅变化检测阈值（百分比） */
-  CHANGE_PERCENT_THRESHOLD: 0.01,
-} as const;
-
 /** 订单相关常量 */
 export const ORDER_PRICE_DIFF_THRESHOLD = 0.001;
 

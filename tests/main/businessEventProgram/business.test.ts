@@ -19,6 +19,7 @@ import type { MonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTas
 import { projectVerificationSampleValues } from '../../../src/main/asyncProgram/indicatorCache/utils.js';
 import type { BusinessEventProgramDeps } from '../../../src/main/businessEventProgram/types.js';
 import type { CandlestickUpdatedEvent } from '../../../src/types/services.js';
+import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { CandleData } from '../../../src/types/data.js';
 import type { Signal } from '../../../src/types/signal.js';
 import type { MonitorContext } from '../../../src/types/state.js';
@@ -123,6 +124,86 @@ function createOrdinarySignalTradingConfig(): ReturnType<typeof createTradingCon
 }
 
 describe('businessEventProgram business flow', () => {
+  it('requests monitor display after indicator pipeline succeeds', async () => {
+    let listener: (event: CandlestickUpdatedEvent) => void = (_event: CandlestickUpdatedEvent) => {
+      throw new Error('expected candlestick listener');
+    };
+    const marketDataClient = requireCandlestickEventClient(
+      createMarketDataClientDouble({
+        getCandlestickSnapshot: () => ({
+          symbol: 'HSI.HK',
+          period: Period.Min_1,
+          version: 7,
+          candles: createCandles(90, 120, 0.2),
+          lastBarTimestamp: 1_708_005_340_000,
+          lastBarConfirmed: true,
+          initialized: true,
+        }),
+        getQuotes: async () => {
+          throw new Error('businessEventProgram must not read realtime quotes');
+        },
+        onCandlestickUpdated: (nextListener) => {
+          listener = nextListener;
+          return () => {
+            listener = (_event: CandlestickUpdatedEvent) => {
+              throw new Error('candlestick listener already unsubscribed');
+            };
+          };
+        },
+      }),
+    );
+    const monitorContext = createMonitorContext();
+    const renderRequests: Array<{
+      readonly monitorSymbol: string;
+      readonly monitorSnapshot: IndicatorSnapshot;
+    }> = [];
+
+    const program = createBusinessEventProgram({
+      marketDataClient,
+      monitorContexts: new Map([['HSI.HK', monitorContext]]),
+      lastState: createLastState(),
+      tradingConfig: createOrdinarySignalTradingConfig(),
+      buyTaskQueue: createBuyTaskQueue(),
+      sellTaskQueue: createSellTaskQueue(),
+      monitorTaskQueue: createMonitorTaskQueue(),
+      indicatorCache: createIndicatorCacheRecorder().indicatorCache,
+      monitorDisplayRuntime: {
+        requestRender: (params: {
+          readonly monitorSymbol: string;
+          readonly monitorSnapshot: IndicatorSnapshot;
+        }) => {
+          renderRequests.push(params);
+        },
+      },
+    });
+
+    try {
+      program.start();
+      const snapshot = marketDataClient.getCandlestickSnapshot('HSI.HK', Period.Min_1);
+      if (snapshot === null) {
+        throw new Error('expected candlestick snapshot');
+      }
+
+      listener({
+        symbol: 'HSI.HK',
+        period: Period.Min_1,
+        snapshot,
+      });
+
+      await waitUntil(() => renderRequests.length === 1);
+      expect(renderRequests[0]?.monitorSymbol).toBe('HSI.HK');
+      const latestMonitorSnapshot = monitorContext.state.lastMonitorSnapshot;
+      expect(latestMonitorSnapshot).not.toBeNull();
+      if (latestMonitorSnapshot === null) {
+        throw new Error('expected latest monitor snapshot');
+      }
+
+      expect(renderRequests[0]?.monitorSnapshot).toEqual(latestMonitorSnapshot);
+    } finally {
+      await program.stopAndDrain();
+    }
+  });
+
   it('writes verification samples to indicatorCache immediately after indicator pipeline succeeds', async () => {
     let listener: (event: CandlestickUpdatedEvent) => void = (_event: CandlestickUpdatedEvent) => {
       throw new Error('expected candlestick listener');
@@ -173,6 +254,9 @@ describe('businessEventProgram business flow', () => {
       sellTaskQueue: createSellTaskQueue(),
       monitorTaskQueue: createMonitorTaskQueue(),
       indicatorCache,
+      monitorDisplayRuntime: {
+        requestRender: () => {},
+      },
     });
 
     try {
@@ -256,6 +340,9 @@ describe('businessEventProgram business flow', () => {
       sellTaskQueue: createSellTaskQueue(),
       monitorTaskQueue: createMonitorTaskQueue(),
       indicatorCache,
+      monitorDisplayRuntime: {
+        requestRender: () => {},
+      },
     });
 
     try {
@@ -317,6 +404,9 @@ describe('businessEventProgram business flow', () => {
       sellTaskQueue: createSellTaskQueue(),
       monitorTaskQueue: createMonitorTaskQueue(),
       indicatorCache,
+      monitorDisplayRuntime: {
+        requestRender: () => {},
+      },
     });
 
     program.start();
@@ -385,6 +475,9 @@ describe('businessEventProgram business flow', () => {
       sellTaskQueue: createSellTaskQueue(),
       monitorTaskQueue: createMonitorTaskQueue(),
       indicatorCache,
+      monitorDisplayRuntime: {
+        requestRender: () => {},
+      },
     });
 
     program.start();
@@ -438,6 +531,9 @@ describe('businessEventProgram business flow', () => {
       sellTaskQueue: createSellTaskQueue(),
       monitorTaskQueue: createMonitorTaskQueue(),
       indicatorCache,
+      monitorDisplayRuntime: {
+        requestRender: () => {},
+      },
     });
 
     program.start();
@@ -559,6 +655,9 @@ describe('businessEventProgram business flow', () => {
       sellTaskQueue: createSellTaskQueue(),
       monitorTaskQueue,
       indicatorCache,
+      monitorDisplayRuntime: {
+        requestRender: () => {},
+      },
     });
 
     try {

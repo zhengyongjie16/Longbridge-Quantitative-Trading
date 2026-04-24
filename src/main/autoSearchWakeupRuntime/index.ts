@@ -15,12 +15,11 @@ import {
 } from '../../utils/time/index.js';
 import type { TradingGateStateChangedEvent } from '../tradingGateEventRuntime/types.js';
 import type {
+  AutoSearchRouteKey,
   AutoSearchWakeupKind,
   AutoSearchWakeupRuntime,
   AutoSearchWakeupRuntimeDeps,
 } from './types.js';
-
-type AutoSearchRouteKey = `${string}:${'LONG' | 'SHORT'}:${number}`;
 
 function buildRouteKey(params: {
   readonly monitorSymbol: string;

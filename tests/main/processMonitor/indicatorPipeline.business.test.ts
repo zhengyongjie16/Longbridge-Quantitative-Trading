@@ -80,11 +80,8 @@ function createMonitorContext(overrides: Partial<MonitorContext> = {}): MonitorC
     config,
     state: {
       monitorSymbol: config.monitorSymbol,
-      longPrice: null,
-      shortPrice: null,
       signal: null,
       pendingDelayedSignals: [],
-      monitorValues: null,
       lastMonitorSnapshot: null,
       incrementalIndicatorRuntime: null,
     },
@@ -134,11 +131,8 @@ describe('processMonitor indicatorPipeline business flow', () => {
     const monitorContext = createMonitorContext({
       state: {
         monitorSymbol: 'HSI.HK',
-        longPrice: null,
-        shortPrice: null,
         signal: null,
         pendingDelayedSignals: [],
-        monitorValues: null,
         lastMonitorSnapshot: previousSnapshot,
         incrementalIndicatorRuntime: null,
       },
@@ -173,11 +167,8 @@ describe('processMonitor indicatorPipeline business flow', () => {
     const monitorContext = createMonitorContext({
       state: {
         monitorSymbol: 'HSI.HK',
-        longPrice: null,
-        shortPrice: null,
         signal: null,
         pendingDelayedSignals: [],
-        monitorValues: null,
         lastMonitorSnapshot: previousSnapshot,
         incrementalIndicatorRuntime: null,
       },

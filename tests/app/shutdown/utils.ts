@@ -1,7 +1,7 @@
-import type { CleanupContext } from '../../src/app/types.js';
-import type { MonitorTaskProcessor } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
-import type { MarketDataClient } from '../../src/types/services.js';
-import type { LastState, MonitorState } from '../../src/types/state.js';
+import type { CleanupContext } from '../../../src/app/types.js';
+import type { MonitorTaskProcessor } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { MarketDataClient } from '../../../src/types/services.js';
+import type { LastState, MonitorState } from '../../../src/types/state.js';
 
 /**
  * 构造单监控标的的 MonitorState，含默认指标快照，供 cleanup 测试使用。
@@ -12,21 +12,8 @@ import type { LastState, MonitorState } from '../../src/types/state.js';
 export function createMonitorState(monitorSymbol: string): MonitorState {
   return {
     monitorSymbol,
-    longPrice: null,
-    shortPrice: null,
     signal: null,
     pendingDelayedSignals: [],
-    monitorValues: {
-      price: 20_000,
-      changePercent: 0,
-      ema: null,
-      rsi: null,
-      psy: null,
-      mfi: null,
-      kdj: { k: 50, d: 50, j: 50 },
-      macd: { macd: 0, dif: 0, dea: 0 },
-      adx: null,
-    },
     lastMonitorSnapshot: {
       price: 20_000,
       changePercent: 0,
@@ -120,6 +107,19 @@ function defaultDeps(steps: string[]): CleanupContext {
       start: () => {},
       stopAndDrain: async () => {
         steps.push('monitorQuoteEventRuntime');
+      },
+    },
+    monitorDisplayRuntime: {
+      start: () => {},
+      requestRender: () => {},
+      stopAndDrain: async () => {
+        steps.push('monitorDisplayRuntime');
+      },
+    },
+    tradingQuoteDisplayRuntime: {
+      start: () => {},
+      stopAndDrain: async () => {
+        steps.push('tradingQuoteDisplayRuntime');
       },
     },
     quoteSubscriptionRuntime: {

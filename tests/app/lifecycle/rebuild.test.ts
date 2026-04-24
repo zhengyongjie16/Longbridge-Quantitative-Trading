@@ -7,10 +7,10 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderStatus, OrderType } from 'longbridge';
-import { executeTradingDayOpenRebuild } from '../../src/app/lifecycle/rebuild.js';
-import type { LoadTradingDayRuntimeSnapshotParams } from '../../src/main/lifecycle/types.js';
-import type { Quote } from '../../src/types/quote.js';
-import type { RawOrderFromAPI } from '../../src/types/services.js';
+import { executeTradingDayOpenRebuild } from '../../../src/app/lifecycle/rebuild.js';
+import type { LoadTradingDayRuntimeSnapshotParams } from '../../../src/main/lifecycle/types.js';
+import type { Quote } from '../../../src/types/quote.js';
+import type { RawOrderFromAPI } from '../../../src/types/services.js';
 
 describe('app rebuild helpers', () => {
   it('executes open rebuild with fixed snapshot flags and shared now', async () => {

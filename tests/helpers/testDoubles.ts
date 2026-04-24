@@ -1007,11 +1007,8 @@ export function createIndicatorUsageProfileDouble(overrides?: {
 function createMonitorStateDouble(monitorSymbol: string = 'HSI.HK'): MonitorState {
   return {
     monitorSymbol,
-    longPrice: null,
-    shortPrice: null,
     signal: null,
     pendingDelayedSignals: [],
-    monitorValues: null,
     lastMonitorSnapshot: null,
     incrementalIndicatorRuntime: null,
   };

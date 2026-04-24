@@ -26,9 +26,9 @@ export type Quote = {
 
 /**
  * KDJ 随机指标。
- * 类型用途：超买超卖判断的指标值（K/D/J），作为 IndicatorSnapshot.kdj、MonitorValues.kdj 及策略输入的字段类型。
+ * 类型用途：超买超卖判断的指标值（K/D/J），作为 IndicatorSnapshot.kdj.kdj 及策略输入的字段类型。
  * 数据来源：指标计算（indicators 服务或 quote 层）。
- * 使用范围：IndicatorSnapshot、策略、data.MonitorValues 等；全项目可引用。
+ * 使用范围：IndicatorSnapshot、策略 等；全项目可引用。
  */
 export type KDJIndicator = {
   /** K 值（快速随机值） */
@@ -45,7 +45,7 @@ export type KDJIndicator = {
  * MACD 指标。
  * 类型用途：表示 macd/dif/dea，用于趋势判断，作为 IndicatorSnapshot.macd 及策略输入的字段类型。
  * 数据来源：指标计算（indicators 服务或 quote 层）。
- * 使用范围：IndicatorSnapshot、策略、data.MonitorValues 等；全项目可引用。
+ * 使用范围：IndicatorSnapshot、策略 等；全项目可引用。
  */
 export type MACDIndicator = {
   /** MACD 柱状图值 */

@@ -6,13 +6,13 @@
  * - 自动寻标关闭时席位标的为 required，开启时为可选
  */
 import { describe, expect, it } from 'bun:test';
-import { collectRuntimeValidationSymbols } from '../../src/app/startup/runtimeValidation.js';
-import type { MultiMonitorTradingConfig } from '../../src/types/config.js';
+import { collectRuntimeValidationSymbols } from '../../../src/app/startup/runtimeValidation.js';
+import type { MultiMonitorTradingConfig } from '../../../src/types/config.js';
 import {
   createMonitorConfigDouble,
   createPositionDouble,
   createSymbolRegistryDouble,
-} from '../helpers/testDoubles.js';
+} from '../../helpers/testDoubles.js';
 
 function createTradingConfig(
   monitors: MultiMonitorTradingConfig['monitors'],

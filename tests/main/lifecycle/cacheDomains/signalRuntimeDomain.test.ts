@@ -127,6 +127,11 @@ describe('createSignalRuntimeDomain', () => {
     ) as MonitorTaskProcessor;
     const tradingRiskEventRuntime = createOrderedRuntime('tradingRiskEventRuntime', globalCalls);
     const monitorQuoteEventRuntime = createOrderedRuntime('monitorQuoteEventRuntime', globalCalls);
+    const monitorDisplayRuntime = createOrderedRuntime('monitorDisplayRuntime', globalCalls);
+    const tradingQuoteDisplayRuntime = createOrderedRuntime(
+      'tradingQuoteDisplayRuntime',
+      globalCalls,
+    );
     const switchWakeupRuntime = createOrderedRuntime('switchWakeupRuntime', globalCalls);
     let cancelAllCount = 0;
 
@@ -213,6 +218,22 @@ describe('createSignalRuntimeDomain', () => {
           await monitorQuoteEventRuntime.stopAndDrain();
         },
       },
+      monitorDisplayRuntime: {
+        start: () => {
+          monitorDisplayRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await monitorDisplayRuntime.stopAndDrain();
+        },
+      },
+      tradingQuoteDisplayRuntime: {
+        start: () => {
+          tradingQuoteDisplayRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await tradingQuoteDisplayRuntime.stopAndDrain();
+        },
+      },
       switchWakeupRuntime: {
         start: () => {
           switchWakeupRuntime.start();
@@ -273,6 +294,8 @@ describe('createSignalRuntimeDomain', () => {
       'businessEventProgram.stopAndDrain',
       'tradingRiskEventRuntime.stopAndDrain',
       'monitorQuoteEventRuntime.stopAndDrain',
+      'monitorDisplayRuntime.stopAndDrain',
+      'tradingQuoteDisplayRuntime.stopAndDrain',
       'switchWakeupRuntime.stopAndDrain',
       'autoSearchWakeupRuntime.stopAndDrain',
       'seatActivationDispatcher.stop',
@@ -302,6 +325,11 @@ describe('createSignalRuntimeDomain', () => {
     ) as MonitorTaskProcessor;
     const tradingRiskEventRuntime = createOrderedRuntime('tradingRiskEventRuntime', globalCalls);
     const monitorQuoteEventRuntime = createOrderedRuntime('monitorQuoteEventRuntime', globalCalls);
+    const monitorDisplayRuntime = createOrderedRuntime('monitorDisplayRuntime', globalCalls);
+    const tradingQuoteDisplayRuntime = createOrderedRuntime(
+      'tradingQuoteDisplayRuntime',
+      globalCalls,
+    );
     const switchWakeupRuntime = createOrderedRuntime('switchWakeupRuntime', globalCalls);
 
     const trader = {
@@ -340,6 +368,22 @@ describe('createSignalRuntimeDomain', () => {
         },
         stopAndDrain: async () => {
           await monitorQuoteEventRuntime.stopAndDrain();
+        },
+      },
+      monitorDisplayRuntime: {
+        start: () => {
+          monitorDisplayRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await monitorDisplayRuntime.stopAndDrain();
+        },
+      },
+      tradingQuoteDisplayRuntime: {
+        start: () => {
+          tradingQuoteDisplayRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await tradingQuoteDisplayRuntime.stopAndDrain();
         },
       },
       switchWakeupRuntime: {
@@ -427,9 +471,11 @@ describe('createSignalRuntimeDomain', () => {
       'postTradeConsistencyRuntime.start',
       'postTradeConsistencyRuntime.completeRebuildBaseline',
       'quoteSubscriptionRuntime.reconcileFromCurrentTruth',
+      'tradingQuoteDisplayRuntime.start',
       'quoteSubscriptionRuntime.start',
       'seatActivationDispatcher.start',
       'autoSearchWakeupRuntime.start',
+      'monitorDisplayRuntime.start',
       'businessEventProgram.start',
       'tradingRiskEventRuntime.start',
       'monitorQuoteEventRuntime.start',

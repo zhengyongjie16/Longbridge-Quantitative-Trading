@@ -4,6 +4,14 @@ import type { SymbolRegistry } from '../../types/seat.js';
 import type { TradingGateEventRuntime } from '../tradingGateEventRuntime/types.js';
 
 /**
+ * 自动寻标 route key。
+ * 类型用途：以 monitorSymbol + direction + seatVersion 唯一标识一条空席位寻标唤醒链。
+ * 数据来源：由 AutoSearchWakeupRuntime 在安排 one-shot timer 时构造。
+ * 使用范围：仅 AutoSearchWakeupRuntime 模块内部使用。
+ */
+export type AutoSearchRouteKey = `${string}:${'LONG' | 'SHORT'}:${number}`;
+
+/**
  * 自动寻标唤醒来源。
  * 类型用途：标记本次 AutoSearchWakeupRuntime 重新评估空席位的触发因子。
  * 数据来源：seat event、gate event 或 one-shot timer。

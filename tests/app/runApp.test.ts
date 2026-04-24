@@ -14,6 +14,7 @@ import type {
   CreatePostGateRuntimeParams,
   RunAppDeps,
 } from '../../src/app/types.js';
+import type { BusinessEventProgramDeps } from '../../src/main/businessEventProgram/types.js';
 import { TRADING } from '../../src/constants/index.js';
 import type { ProcessSellSignalsParams } from '../../src/core/signalProcessor/types.js';
 import { createWarrantListCache } from '../../src/services/autoSymbolFinder/utils.js';
@@ -102,6 +103,7 @@ function createHarnessState(): MutableRunAppHarnessState {
     timeDriverProgramCalls: 0,
     timeDriverProgramRuntimeGateModes: [],
     createBusinessEventProgramHasIndicatorCache: null,
+    createBusinessEventProgramHasMonitorDisplayRuntime: null,
     timeDriverProgramHasIndicatorCache: null,
     sleepDurations: [],
     validationResult: {
@@ -245,6 +247,25 @@ function createRunAppDeps(): RunAppDeps {
             harnessState.events.push('monitorQuoteEventRuntime.stopAndDrain');
           },
         },
+        monitorDisplayRuntime: {
+          start: () => {
+            harnessState.events.push('monitorDisplayRuntime.start');
+          },
+          requestRender: () => {
+            harnessState.events.push('monitorDisplayRuntime.requestRender');
+          },
+          stopAndDrain: async () => {
+            harnessState.events.push('monitorDisplayRuntime.stopAndDrain');
+          },
+        },
+        tradingQuoteDisplayRuntime: {
+          start: () => {
+            harnessState.events.push('tradingQuoteDisplayRuntime.start');
+          },
+          stopAndDrain: async () => {
+            harnessState.events.push('tradingQuoteDisplayRuntime.stopAndDrain');
+          },
+        },
         postTradeConsistencyRuntime: {
           bindBusinessDeps: () => {
             bindState.value = true;
@@ -300,8 +321,8 @@ function createRunAppDeps(): RunAppDeps {
           quotesMap: new Map(),
         }),
         marketMonitor: {
-          monitorPriceChanges: () => false,
-          monitorIndicatorChanges: () => false,
+          renderTradingQuote: () => {},
+          renderMonitorIndicators: () => {},
         },
         doomsdayProtection: {
           isBuyCutoffWindowActive: () => false,
@@ -366,9 +387,11 @@ function createRunAppDeps(): RunAppDeps {
       harnessState.registerDelayedCalls += 1;
       harnessState.events.push('registerDelayedSignalHandlers');
     },
-    createBusinessEventProgram: (params: { readonly indicatorCache?: unknown }) => {
+    createBusinessEventProgram: (params: BusinessEventProgramDeps) => {
       harnessState.events.push('createBusinessEventProgram');
       harnessState.createBusinessEventProgramHasIndicatorCache = 'indicatorCache' in params;
+      harnessState.createBusinessEventProgramHasMonitorDisplayRuntime =
+        'monitorDisplayRuntime' in params;
       return {
         start: () => {
           harnessState.events.push('businessEventProgram.start');
@@ -424,11 +447,13 @@ function createRunAppDeps(): RunAppDeps {
     },
     timeDriverProgram: async (params: {
       readonly runtimeGateMode: 'strict' | 'skip';
+      readonly lastState: LastState;
       readonly indicatorCache?: unknown;
     }) => {
       harnessState.timeDriverProgramCalls += 1;
       harnessState.timeDriverProgramRuntimeGateModes.push(params.runtimeGateMode);
       harnessState.timeDriverProgramHasIndicatorCache = 'indicatorCache' in params;
+      params.lastState.canTrade = true;
       harnessState.events.push('timeDriverProgram');
     },
     sleep: async (ms: number) => {
@@ -481,9 +506,11 @@ describe('app runApp assembly', () => {
       'postTradeConsistencyRuntime.start',
       'postTradeConsistencyRuntime.completeRebuildBaseline',
       'quoteSubscriptionRuntime.reconcileFromCurrentTruth',
+      'tradingQuoteDisplayRuntime.start',
       'quoteSubscriptionRuntime.start',
       'seatActivationDispatcher.start',
       'autoSearchWakeupRuntime.start',
+      'monitorDisplayRuntime.start',
       'businessEventProgram.start',
       'tradingRiskEventRuntime.start',
       'monitorQuoteEventRuntime.start',
@@ -498,6 +525,7 @@ describe('app runApp assembly', () => {
     expect(harnessState.registerDelayedCalls).toBe(1);
     expect(harnessState.cleanupRegistered).toBe(1);
     expect(harnessState.timeDriverProgramRuntimeGateModes).toEqual(['strict']);
+    expect(harnessState.createBusinessEventProgramHasMonitorDisplayRuntime).toBe(true);
   });
 
   it('keeps the app alive during startupRebuildPending without starting runtime processors', async () => {

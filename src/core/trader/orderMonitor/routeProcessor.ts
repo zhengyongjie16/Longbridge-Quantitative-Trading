@@ -29,6 +29,7 @@ import type {
   RouteProcessor,
   RouteProcessorDeps,
   RouteRuntimeProcessParams,
+  SellTimeoutResolution,
   TerminalClosedReason,
   TerminalSettlementInput,
   TimeoutMarketConversionTerminalState,
@@ -174,24 +175,6 @@ function resolvePendingTimeoutSettlementInput(
     queriedExecutedQuantity: terminalState.executedQuantity,
   };
 }
-
-type SellTimeoutResolution =
-  | {
-      readonly kind: 'WAIT_RETRY';
-    }
-  | {
-      readonly kind: 'SETTLE_FILLED';
-      readonly settlementInput: TerminalSettlementInput;
-    }
-  | {
-      readonly kind: 'SETTLE_NO_REMAINDER';
-      readonly settlementInput: TerminalSettlementInput;
-    }
-  | {
-      readonly kind: 'SETTLE_AND_CONVERT';
-      readonly settlementInput: TerminalSettlementInput;
-      readonly marketConversionQuantity: number;
-    };
 
 function resolveSellTimeoutResolution(
   order: OrderMonitorTrackedOrder,

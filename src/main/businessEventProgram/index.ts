@@ -37,6 +37,7 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
     sellTaskQueue,
     monitorTaskQueue,
     indicatorCache,
+    monitorDisplayRuntime,
   } = deps;
   const pipelineContext = {
     marketDataClient,
@@ -149,6 +150,11 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
             sellTaskQueue,
             monitorTaskQueue,
           },
+        });
+
+        monitorDisplayRuntime.requestRender({
+          monitorSymbol,
+          monitorSnapshot,
         });
 
         runSignalPipeline({

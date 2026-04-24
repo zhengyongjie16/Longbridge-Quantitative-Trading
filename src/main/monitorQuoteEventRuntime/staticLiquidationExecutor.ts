@@ -8,48 +8,15 @@
 import { ORDER_QUOTE_RETRY, WARRANT_LIQUIDATION_ORDER_TYPE } from '../../constants/index.js';
 import { validateSignalSeat } from '../../services/autoSymbolManager/utils.js';
 import type { Signal } from '../../types/signal.js';
-import type { MonitorContext, LastState } from '../../types/state.js';
-import type { MarketDataClient, QuoteUpdatedEvent, Trader } from '../../types/services.js';
+import type { MonitorContext } from '../../types/state.js';
+import type { QuoteUpdatedEvent } from '../../types/services.js';
 import { isSeatActive } from '../../utils/seat/guards.js';
-import type { StaticLiquidationRuntimeResult } from './types.js';
-
-/**
- * Monitor quote 静态清仓执行器依赖。
- *
- * 类型用途：收口执行静态距回收价清仓所需的最小依赖。
- * 数据来源：由 app/main 顶层运行时组装并注入。
- * 使用范围：仅 monitorQuoteEventRuntime 模块内部使用。
- */
-type CreateStaticLiquidationExecutorDeps = Readonly<{
-  readonly trader: Pick<Trader, 'executeSignals'>;
-  readonly marketDataClient: Pick<MarketDataClient, 'getQuotes'>;
-  readonly lastState: Pick<LastState, 'positionCache'>;
-}>;
-
-/**
- * 单边静态清仓候选。
- *
- * 类型用途：表示某一方向已通过触发判定、待执行并在成功后做缓存刷新的清仓项。
- * 数据来源：由 monitor quote 事件执行时基于当前席位、持仓与行情构造。
- * 使用范围：仅 staticLiquidationExecutor 模块内部使用。
- */
-type StaticLiquidationCandidate = Readonly<{
-  readonly signal: Signal;
-  readonly direction: 'LONG' | 'SHORT';
-  readonly quote: QuoteUpdatedEvent['quote'];
-}>;
-
-type StaticLiquidationCandidateResult =
-  | Readonly<{
-      kind: 'SKIP';
-    }>
-  | Readonly<{
-      kind: 'WAIT';
-    }>
-  | Readonly<{
-      kind: 'CANDIDATE';
-      candidate: StaticLiquidationCandidate;
-    }>;
+import type {
+  CreateStaticLiquidationExecutorDeps,
+  StaticLiquidationCandidate,
+  StaticLiquidationCandidateResult,
+  StaticLiquidationRuntimeResult,
+} from './types.js';
 
 function buildStaticLiquidationWakeupSymbols(params: {
   readonly monitorSymbol: string;

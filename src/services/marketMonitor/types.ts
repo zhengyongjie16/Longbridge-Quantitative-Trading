@@ -1,13 +1,16 @@
 import type { DisplayIndicatorItem, IndicatorUsageProfile } from '../../types/indicatorProfile.js';
-import type { MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
-import type { UnrealizedLossMetrics, WarrantDistanceInfo } from '../../types/services.js';
+import type {
+  QuoteUpdatedEvent,
+  UnrealizedLossMetrics,
+  WarrantDistanceInfo,
+} from '../../types/services.js';
 
 /**
- * 编译后的展示项描述。
- * 类型用途：将 displayPlan 的字符串项预编译为结构化描述，供 marketMonitor 在主循环中复用。
- * 数据来源：marketMonitor 根据 IndicatorUsageProfile.displayPlan 编译生成。
- * 使用范围：仅 services/marketMonitor 模块内部。
+ * 编译后的单项显示计划。
+ * 类型用途：把 displayPlan 中的原始指标项解析为可直接渲染的结构化项。
+ * 数据来源：由 createMarketMonitor 基于 indicatorProfile.displayPlan 编译。
+ * 使用范围：仅 marketMonitor 模块内部使用。
  */
 export type CompiledDisplayPlanItem =
   | { readonly item: 'price'; readonly kind: 'price' }
@@ -25,84 +28,63 @@ export type CompiledDisplayPlanItem =
   | { readonly item: DisplayIndicatorItem; readonly kind: 'psy'; readonly period: number };
 
 /**
- * 编译后的展示计划。
- * 类型用途：缓存 displayPlan 对应的结构化执行结果，避免主循环重复解析周期项和扫描展示集合。
- * 数据来源：marketMonitor 根据 IndicatorUsageProfile.displayPlan 编译生成。
- * 使用范围：仅 services/marketMonitor 模块内部。
+ * 编译后的显示计划。
+ * 类型用途：缓存 displayPlan 解析结果，避免每次渲染重复解析指标项。
+ * 数据来源：由 createMarketMonitor 基于 indicatorProfile.displayPlan 编译。
+ * 使用范围：仅 marketMonitor 模块内部使用。
  */
-export type CompiledDisplayPlan = {
-  readonly items: ReadonlyArray<CompiledDisplayPlanItem>;
-  readonly emaPeriods: ReadonlyArray<number>;
-  readonly rsiPeriods: ReadonlyArray<number>;
-  readonly psyPeriods: ReadonlyArray<number>;
-  readonly needsMfi: boolean;
-  readonly needsAdx: boolean;
-  readonly needsKdj: boolean;
-  readonly needsMacd: boolean;
-};
+export type CompiledDisplayPlan = Readonly<{
+  items: ReadonlyArray<CompiledDisplayPlanItem>;
+}>;
 
 /**
- * 价格展示附加信息。
- * 类型用途：封装做多/做空标的价格日志所需的距回收价、持仓市值/持仓盈亏、订单数量。
- * 数据来源：processMonitor.riskTasks 从 RiskChecker 与 OrderRecorder 聚合生成。
- * 使用范围：marketMonitor.monitorPriceChanges 入参。
+ * 交易标的价格显示附加信息。
+ * 类型用途：承载 trading quote 显示所需的距回收价、浮亏与订单数信息。
+ * 数据来源：由 tradingRiskEventRuntime 路由链路按当前 route 组装。
+ * 使用范围：仅 marketMonitor 交易标的显示链路使用。
  */
 export type PriceDisplayInfo = {
-  /** 距回收价信息 */
   readonly warrantDistanceInfo: WarrantDistanceInfo | null;
-
-  /** 浮亏实时指标 */
   readonly unrealizedLossMetrics: UnrealizedLossMetrics | null;
-
-  /** 未平仓买入订单数量（笔数） */
   readonly orderCount: number | null;
 };
 
 /**
- * 指标监控参数。
- * 类型用途：封装 monitorIndicatorChanges 所需的 latest snapshot、实时行情、指标画像与可选的 K 线时间戳，避免超参数函数签名。
- * 数据来源：由 timeDriver 链路消费已有 snapshot 与实时行情后组装传入；当前时间循环展示链路默认不再主动读取 candlestick cache，因此 K 线时间戳通常为空。
- * 使用范围：marketMonitor.monitorIndicatorChanges 入参。
+ * monitor indicator 渲染参数。
+ * 类型用途：封装纯渲染 monitor indicators 所需的 snapshot、quote、显示画像与 K 线时间。
+ * 数据来源：由 monitorDisplayRuntime 在补齐 monitor quote 后组装。
+ * 使用范围：仅 marketMonitor.renderMonitorIndicators 使用。
  */
-export type MonitorIndicatorChangesParams = Readonly<{
-  readonly monitorSnapshot: IndicatorSnapshot | null;
+export type RenderMonitorIndicatorsParams = Readonly<{
+  readonly monitorSnapshot: IndicatorSnapshot;
   readonly monitorQuote: Quote | null;
   readonly monitorSymbol: string;
   readonly indicatorProfile: IndicatorUsageProfile;
   readonly klineTimestamp: number | null;
-  readonly monitorState: MonitorState;
 }>;
 
 /**
- * 行情监控器接口。
- * 类型用途：对外暴露价格与指标监控方法，供主循环驱动控制台输出。
- * 数据来源：主循环传入行情快照与 MonitorState，由本模块计算是否变化。
- * 使用范围：主循环调用，仅用于控制台输出。
+ * trading quote 渲染参数。
+ * 类型用途：封装纯渲染交易标的行情所需的 quote 事件、route 信息、monitor quote 与附加展示信息。
+ * 数据来源：由 tradingQuoteDisplayRuntime 在 route 校验与补齐 monitor quote 后组装。
+ * 使用范围：仅 marketMonitor.renderTradingQuote 使用。
+ */
+export type RenderTradingQuoteParams = Readonly<{
+  readonly event: QuoteUpdatedEvent;
+  readonly tradingSymbol: string;
+  readonly monitorSymbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly monitorQuote: Quote | null;
+  readonly displayInfo: PriceDisplayInfo | null;
+}>;
+
+/**
+ * 终端显示纯渲染器契约。
+ * 类型用途：统一 monitor indicators 与 trading quote 的纯输出端口。
+ * 数据来源：由 createMarketMonitor 创建。
+ * 使用范围：显示 runtime 与 app 组装链路使用。
  */
 export interface MarketMonitor {
-  /**
-   * 监控并显示做多和做空标的的价格变化
-   * @param longQuote 做多标的行情数据
-   * @param shortQuote 做空标的行情数据
-   * @param longSymbol 做多标的代码
-   * @param shortSymbol 做空标的代码
-   * @param monitorState 监控标的状态（包含 longPrice, shortPrice）
-   * @returns 价格是否发生变化
-   */
-  monitorPriceChanges: (
-    longQuote: Quote | null,
-    shortQuote: Quote | null,
-    longSymbol: string,
-    shortSymbol: string,
-    monitorState: MonitorState,
-    longDisplayInfo?: PriceDisplayInfo | null,
-    shortDisplayInfo?: PriceDisplayInfo | null,
-  ) => boolean;
-
-  /**
-   * 监控并显示监控标的的指标变化
-   * @param params 指标监控参数（含快照、行情、周期配置、K线时间戳与状态）
-   * @returns 指标是否发生变化
-   */
-  monitorIndicatorChanges: (params: MonitorIndicatorChangesParams) => boolean;
+  readonly renderTradingQuote: (params: RenderTradingQuoteParams) => void;
+  readonly renderMonitorIndicators: (params: RenderMonitorIndicatorsParams) => void;
 }

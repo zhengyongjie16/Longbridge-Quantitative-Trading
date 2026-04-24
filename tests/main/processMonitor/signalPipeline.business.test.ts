@@ -24,7 +24,6 @@ import type {
 import {
   createIndicatorUsageProfileDouble,
   createOrderRecorderDouble,
-  createQuoteDouble,
   createSignalDouble,
 } from '../../helpers/testDoubles.js';
 
@@ -68,8 +67,6 @@ function createSeatInfo(overrides: Partial<SeatSyncResult> = {}): SeatSyncResult
     shortSeatActive: true,
     longSymbol: 'BULL.HK',
     shortSymbol: 'BEAR.HK',
-    longQuote: createQuoteDouble('BULL.HK', 1.2),
-    shortQuote: createQuoteDouble('BEAR.HK', 0.9),
   };
 
   return {
@@ -182,16 +179,13 @@ describe('signalPipeline business flow', () => {
     expect(harness.delayedAdded[0]?.seatVersion).toBe(11);
   });
 
-  it('does not require quote before routing buy and sell signals', () => {
+  it('routes buy and sell signals without quote enrichment in seat info', () => {
     const immediateBuy = createSignalDouble('BUYCALL', 'BULL.HK');
     const immediateSell = createSignalDouble('SELLCALL', 'BULL.HK');
 
     const harness = createPipelineHarness({
       immediateSignals: [immediateBuy, immediateSell],
       delayedSignals: [],
-      seatInfo: createSeatInfo({
-        longQuote: null,
-      }),
     });
 
     const queuedBuy = harness.buyTaskQueue.pop();

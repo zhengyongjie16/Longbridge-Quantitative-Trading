@@ -3,21 +3,19 @@ import type { Quote } from '../../types/quote.js';
 import type { SeatState } from '../../types/seat.js';
 import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { MarketDataClient } from '../../types/services.js';
-import type { MarketMonitor } from '../../services/marketMonitor/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { BuyTaskType, SellTaskType, TaskQueue } from '../asyncProgram/tradeTaskQueue/types.js';
 
 /**
  * monitor 级共享运行时上下文。
- * 类型用途：为 timeDriverProgram 驱动的 processMonitor、seatSync 与 riskTasks 提供共同依赖边界。
+ * 类型用途：为 timeDriverProgram 驱动的 processMonitor、seatSync 与 autoSymbolTasks 提供共同依赖边界。
  * 数据来源：由 timeDriverProgram 在每次 tick 内组装。
  * 使用范围：仅 main/processMonitor 时间循环链路使用。
  */
 export type MonitorRuntimeContext = Readonly<{
   marketDataClient: MarketDataClient;
   lastState: LastState;
-  marketMonitor: MarketMonitor;
   tradingConfig: MultiMonitorTradingConfig;
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
@@ -87,9 +85,9 @@ export type SignalSeatSyncParams = Readonly<{
 
 /**
  * 席位同步结果（syncSeatState 的返回值）。
- * 类型用途：包含双向席位状态、版本、就绪标志、标的与行情，供风险展示任务使用。
- * 数据来源：由 syncSeatState(SeatSyncParams) 根据 symbolRegistry 与行情计算返回。
- * 使用范围：仅 processMonitor 内部及下游流水线使用。
+ * 类型用途：包含双向席位状态、版本、就绪标志与标的代码，供普通信号流水线使用。
+ * 数据来源：由 syncSeatState(SeatSyncParams) 根据 symbolRegistry 计算返回。
+ * 使用范围：仅 processMonitor 内部及下游普通信号流水线使用。
  */
 export type SeatSyncResult = Readonly<{
   longSeatState: SeatState;
@@ -100,11 +98,7 @@ export type SeatSyncResult = Readonly<{
   shortSeatActive: boolean;
   longSymbol: string;
   shortSymbol: string;
-}> &
-  Readonly<{
-    longQuote: Quote | null;
-    shortQuote: Quote | null;
-  }>;
+}>;
 
 /**
  * 信号流水线席位信息。
@@ -121,17 +115,4 @@ export type SignalSeatInfo = Readonly<{
   shortSeatActive: boolean;
   longSymbol: string;
   shortSymbol: string;
-}>;
-
-/**
- * 风险任务调度参数（调度风险展示更新时的入参）。
- * 类型用途：封装价格展示更新所需的上下文与席位信息。
- * 数据来源：由 processMonitor 从 ProcessMonitorParams、seatInfo 等组装。
- * 使用范围：仅 processMonitor 内部使用。
- */
-export type RiskTasksParams = Readonly<{
-  monitorContext: MonitorContext;
-  mainContext: MonitorRuntimeContext;
-  seatInfo: SeatSyncResult;
-  monitorCurrentPrice: number | null;
 }>;

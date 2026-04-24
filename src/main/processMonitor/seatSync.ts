@@ -3,7 +3,7 @@
  *
  * 功能：
  * - 同步席位状态到监控上下文（席位状态、版本、标的代码）
- * - 在时间循环入口补充展示所需的行情数据与标的名称
+ * - 在时间循环入口补充展示所需的标的名称
  * - 当席位状态从 ACTIVE 变为非 ACTIVE 时，清理相关队列和延迟验证信号
  *
  * 清理触发条件：
@@ -68,7 +68,7 @@ function clearSignalDirectionRuntime(params: {
 
 /**
  * 同步普通信号链路所需的席位身份。
- * 只读取 symbolRegistry，不读取行情；行情展示继续由时间循环基于 SDK realtime 状态负责。
+ * 只读取 symbolRegistry，不读取行情；monitor indicator 显示由 businessEventProgram 直接提交，trading quote 显示由 quote 事件 owner 推进。
  *
  * @param params 同步所需的监控上下文与队列依赖
  * @returns 普通信号入队所需的席位信息
@@ -121,7 +121,7 @@ export function syncSignalSeatState(params: SignalSeatSyncParams): SignalSeatInf
  * 同步席位状态到监控上下文。
  * 从 symbolRegistry 读取最新席位状态并写入 monitorContext；
  * 当席位从 ACTIVE 变为非 ACTIVE 时清理对应方向的队列和牛熊证信息；
- * 随后使用时间循环已读取的 quotesMap 补充展示名称与风险展示行情。
+ * 随后使用时间循环已读取的 quotesMap 补充展示名称。
  */
 export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
   const { monitorSymbol, monitorContext, mainContext, quotesMap } = params;
@@ -136,16 +136,10 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
     symbolRegistry,
     quotesMap,
   );
-  const longQuote = runtimeSnapshot.longQuote;
-  const shortQuote = runtimeSnapshot.shortQuote;
 
   monitorContext.longSymbolName = runtimeSnapshot.longSymbolName;
   monitorContext.shortSymbolName = runtimeSnapshot.shortSymbolName;
   monitorContext.monitorSymbolName = runtimeSnapshot.monitorSymbolName;
 
-  return {
-    ...seatInfo,
-    longQuote,
-    shortQuote,
-  };
+  return seatInfo;
 }

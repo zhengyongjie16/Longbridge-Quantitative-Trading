@@ -178,6 +178,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       sellTaskQueue: postGateRuntime.sellTaskQueue,
       monitorTaskQueue: postGateRuntime.monitorTaskQueue,
       indicatorCache: postGateRuntime.indicatorCache,
+      monitorDisplayRuntime: postGateRuntime.monitorDisplayRuntime,
     });
     const dayLifecycleManager = buildLifecycleRuntime({
       preGateRuntime,
@@ -204,6 +205,8 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       businessEventProgram,
       tradingRiskEventRuntime: postGateRuntime.tradingRiskEventRuntime,
       monitorQuoteEventRuntime: postGateRuntime.monitorQuoteEventRuntime,
+      monitorDisplayRuntime: postGateRuntime.monitorDisplayRuntime,
+      tradingQuoteDisplayRuntime: postGateRuntime.tradingQuoteDisplayRuntime,
       switchWakeupRuntime: postGateRuntime.switchWakeupRuntime,
       autoSearchWakeupRuntime: postGateRuntime.autoSearchWakeupRuntime,
       seatActivationDispatcher: postGateRuntime.seatActivationDispatcher,
@@ -227,9 +230,11 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       postGateRuntime.postTradeConsistencyRuntime.start();
       postGateRuntime.postTradeConsistencyRuntime.completeRebuildBaseline();
       await postGateRuntime.quoteSubscriptionRuntime.reconcileFromCurrentTruth();
+      postGateRuntime.tradingQuoteDisplayRuntime.start();
       postGateRuntime.quoteSubscriptionRuntime.start();
       postGateRuntime.seatActivationDispatcher.start();
       postGateRuntime.autoSearchWakeupRuntime.start();
+      postGateRuntime.monitorDisplayRuntime.start();
       businessEventProgram.start();
       postGateRuntime.tradingRiskEventRuntime.start();
       postGateRuntime.monitorQuoteEventRuntime.start();
@@ -248,7 +253,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
           marketDataClient: preGateRuntime.marketDataClient,
           trader: postGateRuntime.trader,
           lastState: postGateRuntime.lastState,
-          marketMonitor: postGateRuntime.marketMonitor,
           doomsdayProtection: postGateRuntime.doomsdayProtection,
           tradingConfig: preGateRuntime.tradingConfig,
           monitorContexts: postGateRuntime.monitorContexts,

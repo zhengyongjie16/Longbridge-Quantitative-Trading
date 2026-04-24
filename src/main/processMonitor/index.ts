@@ -2,16 +2,15 @@
  * 单标的处理模块
  *
  * 核心职责：
- * - 处理单个监控标的的完整交易循环
- * - 实时监控价格变化并调度风险/换标任务
- * - 消费已有 latest snapshot，刷新监控标的展示
- * - 不再负责普通 K 线指标推进或普通信号生成
+ * - 处理时间循环中的单个监控标的维护任务
+ * - 调度自动换标 tick
+ * - 同步席位状态、名称缓存与 ACTIVE 退场清理
+ * - 不再负责普通 K 线指标推进、普通信号生成或终端显示
  *
  * 执行流程：
- * - 提取行情数据 → 自动换标任务调度 → 席位同步 → 风险展示刷新 → 监控标的展示刷新
+ * - 自动换标任务调度 → 席位同步
  */
 import { scheduleAutoSymbolTasks } from './autoSymbolTasks.js';
-import { scheduleRiskTasks } from './riskTasks.js';
 import { syncSeatState } from './seatSync.js';
 
 import type { Quote } from '../../types/quote.js';
@@ -34,11 +33,6 @@ export function processMonitor(
   const MONITOR_SYMBOL = config.monitorSymbol;
   const autoSearchEnabled = config.autoSearchConfig.autoSearchEnabled;
 
-  // 1. 从预先获取的行情 Map 中提取监控标的行情（无需单独 API 调用）
-  const monitorQuote = quotesMap.get(MONITOR_SYMBOL) ?? null;
-
-  const monitorCurrentPrice = monitorQuote?.price ?? null;
-
   const currentTimeMs = runtimeFlags.currentTime.getTime();
 
   scheduleAutoSymbolTasks({
@@ -51,31 +45,10 @@ export function processMonitor(
     openProtectionActive: runtimeFlags.openProtectionActive,
   });
 
-  const seatInfo = syncSeatState({
+  syncSeatState({
     monitorSymbol: MONITOR_SYMBOL,
     monitorContext,
     mainContext,
     quotesMap,
-  });
-
-  scheduleRiskTasks({
-    monitorContext,
-    mainContext,
-    seatInfo,
-    monitorCurrentPrice,
-  });
-
-  const monitorSnapshot = monitorContext.state.lastMonitorSnapshot;
-  if (monitorSnapshot === null) {
-    return;
-  }
-
-  mainContext.marketMonitor.monitorIndicatorChanges({
-    monitorSnapshot,
-    monitorQuote,
-    monitorSymbol: MONITOR_SYMBOL,
-    indicatorProfile: monitorContext.indicatorProfile,
-    klineTimestamp: null,
-    monitorState: monitorContext.state,
   });
 }

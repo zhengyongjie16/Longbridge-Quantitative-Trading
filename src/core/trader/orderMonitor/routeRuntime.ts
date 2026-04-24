@@ -16,14 +16,10 @@ import type {
   OrderMonitorTimerKind,
   OrderMonitorTrackedOrder,
   OrderMonitorWakeupKind,
+  RouteTimerSchedule,
   RouteRuntime,
   RouteRuntimeDeps,
 } from './types.js';
-
-type RouteTimerSchedule = Readonly<{
-  readonly key: OrderMonitorTimerKey;
-  readonly atMs: number;
-}>;
 
 function resolveTimeoutTimerKind(side: TrackedOrder['side']): OrderMonitorTimerKind {
   if (side === OrderSide.Buy) {

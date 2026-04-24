@@ -62,6 +62,30 @@ export type TerminalSettlementInput = {
 };
 
 /**
+ * 卖单超时处置结果。
+ * 类型用途：区分继续等待终态、直接结算或结算后转市价的后续动作。
+ * 数据来源：routeProcessor 在收到卖单超时终态后基于剩余数量计算。
+ * 使用范围：仅 orderMonitor/routeProcessor.ts 使用。
+ */
+export type SellTimeoutResolution =
+  | {
+      readonly kind: 'WAIT_RETRY';
+    }
+  | {
+      readonly kind: 'SETTLE_FILLED';
+      readonly settlementInput: TerminalSettlementInput;
+    }
+  | {
+      readonly kind: 'SETTLE_NO_REMAINDER';
+      readonly settlementInput: TerminalSettlementInput;
+    }
+  | {
+      readonly kind: 'SETTLE_AND_CONVERT';
+      readonly settlementInput: TerminalSettlementInput;
+      readonly marketConversionQuantity: number;
+    };
+
+/**
  * 单订单权威终态快照。
  * 类型用途：缓存撤单/改单业务失败后的权威终态查询结果。
  * 数据来源：orderStatusQuery.checkOrderState 返回的 TERMINAL 分支。
@@ -137,6 +161,17 @@ export type OrderMonitorTimerKind =
  * 使用范围：orderMonitor route runtime 目录内部。
  */
 export type OrderMonitorTimerKey = `${string}:${OrderMonitorTimerKind}`;
+
+/**
+ * route timer 计划。
+ * 类型用途：表达某个订单当前应投影到 route runtime 的 timer key 与触发时间。
+ * 数据来源：routeRuntime 按 tracked order 的 timeout、retry 与 quote retry 状态推导。
+ * 使用范围：仅 orderMonitor/routeRuntime.ts 使用。
+ */
+export type RouteTimerSchedule = Readonly<{
+  readonly key: OrderMonitorTimerKey;
+  readonly atMs: number;
+}>;
 
 /**
  * route timer 注册信息。

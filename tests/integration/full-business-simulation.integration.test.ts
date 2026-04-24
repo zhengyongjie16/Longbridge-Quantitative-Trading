@@ -447,6 +447,9 @@ describe('full business simulation integration', () => {
       sellTaskQueue,
       monitorTaskQueue,
       indicatorCache,
+      monitorDisplayRuntime: {
+        requestRender: () => {},
+      },
     });
 
     buyProcessor.start();
@@ -771,8 +774,8 @@ describe('full business simulation integration', () => {
       trader,
       lastState,
       marketMonitor: {
-        monitorPriceChanges: () => false,
-        monitorIndicatorChanges: () => false,
+        renderTradingQuote: () => {},
+        renderMonitorIndicators: () => {},
       },
       doomsdayProtection: createDoomsdayProtectionDouble(),
       signalProcessor,
@@ -1192,6 +1195,14 @@ describe('full business simulation integration', () => {
         start: () => {},
         stopAndDrain: async () => {},
       },
+      monitorDisplayRuntime: {
+        start: () => {},
+        stopAndDrain: async () => {},
+      },
+      tradingQuoteDisplayRuntime: {
+        start: () => {},
+        stopAndDrain: async () => {},
+      },
       switchWakeupRuntime: {
         start: () => {},
         stopAndDrain: async () => {},
@@ -1285,10 +1296,6 @@ describe('full business simulation integration', () => {
         marketDataClient,
         trader,
         lastState,
-        marketMonitor: {
-          monitorPriceChanges: () => false,
-          monitorIndicatorChanges: () => false,
-        },
         doomsdayProtection: createDoomsdayProtectionDouble(),
         tradingConfig,
         monitorContexts,
@@ -1312,10 +1319,6 @@ describe('full business simulation integration', () => {
         marketDataClient,
         trader,
         lastState,
-        marketMonitor: {
-          monitorPriceChanges: () => false,
-          monitorIndicatorChanges: () => false,
-        },
         doomsdayProtection: createDoomsdayProtectionDouble(),
         tradingConfig,
         monitorContexts,
