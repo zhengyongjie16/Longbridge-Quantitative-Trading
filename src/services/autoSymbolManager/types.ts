@@ -6,6 +6,7 @@ import type {
   SeatState,
   SeatStateChangedEvent,
   SeatStatus,
+  SeatVersionChangedEvent,
   SymbolRegistry,
 } from '../../types/seat.js';
 import type {
@@ -60,6 +61,14 @@ export type SymbolSeatEntry = {
  * 使用范围：仅 autoSymbolManager 的 SymbolRegistry 实现使用。
  */
 export type SeatStateChangedListener = (event: SeatStateChangedEvent) => void;
+
+/**
+ * 席位版本变化监听器。
+ * 类型用途：SymbolRegistry 内部版本事件发射时保存 listener 集合。
+ * 数据来源：由 onSeatVersionChanged 注册。
+ * 使用范围：仅 autoSymbolManager 的 SymbolRegistry 实现使用。
+ */
+export type SeatVersionChangedListener = (event: SeatVersionChangedEvent) => void;
 
 /**
  * 自动换标管理器的依赖注入参数。

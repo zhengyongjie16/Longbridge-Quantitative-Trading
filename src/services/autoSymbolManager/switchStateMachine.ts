@@ -300,8 +300,9 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     readonly currentSeat: ReturnType<typeof symbolRegistry.getSeatState>;
     readonly nowDate: Date;
     readonly lastSwitchAt: number | null;
+    readonly bumpVersion: boolean;
   }): void {
-    const { direction, currentSeat, nowDate, lastSwitchAt } = params;
+    const { direction, currentSeat, nowDate, lastSwitchAt, bumpVersion } = params;
     const nowMs = nowDate.getTime();
     const hkDateKey = getHKDateKey(nowDate);
     const { nextFailCount, frozenTradingDayKey, shouldFreeze } = resolveNextSearchFailureState({
@@ -310,20 +311,22 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       maxSearchFailuresPerDay,
     });
 
-    updateSeatState(
-      direction,
-      buildSeatState({
-        symbol: null,
-        status: 'EMPTY',
-        lastSwitchAt,
-        lastSearchAt: nowMs,
-        lastSeatActivatedAt: currentSeat.lastSeatActivatedAt,
-        callPrice: null,
-        searchFailCountToday: nextFailCount,
-        frozenTradingDayKey,
-      }),
-      false,
-    );
+    const nextState = buildSeatState({
+      symbol: null,
+      status: 'EMPTY',
+      lastSwitchAt,
+      lastSearchAt: nowMs,
+      lastSeatActivatedAt: currentSeat.lastSeatActivatedAt,
+      callPrice: null,
+      searchFailCountToday: nextFailCount,
+      frozenTradingDayKey,
+    });
+
+    if (bumpVersion) {
+      symbolRegistry.updateSeatStateWithVersionBump(monitorSymbol, direction, nextState);
+    } else {
+      updateSeatState(direction, nextState, false);
+    }
 
     if (shouldFreeze) {
       logger.warn(
@@ -341,12 +344,12 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     const nowMs = nowDate.getTime();
     const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
 
-    symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
     clearSeatWithSearchFailure({
       direction,
       currentSeat,
       nowDate,
       lastSwitchAt: nowMs,
+      bumpVersion: true,
     });
     clearPeriodicPending(direction);
 
@@ -640,6 +643,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           currentSeat,
           nowDate,
           lastSwitchAt: currentSeat.lastSwitchAt,
+          bumpVersion: false,
         });
       } else {
         updateSeatState(

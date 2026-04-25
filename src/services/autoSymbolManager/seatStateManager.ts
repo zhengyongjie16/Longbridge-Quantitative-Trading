@@ -67,7 +67,8 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
   ): void => {
     const current = symbolRegistry.getSeatState(monitorSymbol, direction);
     if (bumpOnSymbolChange && current.symbol !== nextState.symbol) {
-      symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
+      symbolRegistry.updateSeatStateWithVersionBump(monitorSymbol, direction, nextState);
+      return;
     }
 
     symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
@@ -143,18 +144,20 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     const timestamp = now().getTime();
     const currentState = symbolRegistry.getSeatState(monitorSymbol, direction);
     const currentSymbol = currentState.symbol;
-    const nextVersion = symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
-    const nextState = buildSeatState({
-      symbol: currentState.symbol ?? null,
-      status: 'SWITCHING',
-      lastSwitchAt: timestamp,
-      lastSearchAt: null,
-      lastSeatActivatedAt: currentState.lastSeatActivatedAt,
-      callPrice: null,
-      searchFailCountToday: currentState.searchFailCountToday,
-      frozenTradingDayKey: currentState.frozenTradingDayKey,
-    });
-    symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
+    const { seatVersion: nextVersion } = symbolRegistry.updateSeatStateWithVersionBump(
+      monitorSymbol,
+      direction,
+      buildSeatState({
+        symbol: currentState.symbol ?? null,
+        status: 'SWITCHING',
+        lastSwitchAt: timestamp,
+        lastSearchAt: null,
+        lastSeatActivatedAt: currentState.lastSeatActivatedAt,
+        callPrice: null,
+        searchFailCountToday: currentState.searchFailCountToday,
+        frozenTradingDayKey: currentState.frozenTradingDayKey,
+      }),
+    );
     if (currentSymbol) {
       switchStates.set(direction, {
         direction,

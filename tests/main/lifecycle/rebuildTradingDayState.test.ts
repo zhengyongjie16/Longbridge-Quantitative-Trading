@@ -58,8 +58,13 @@ function createSymbolRegistry(
     getSeatVersion: () => 1,
     resolveSeatBySymbol: () => null,
     updateSeatState: () => readySeatState,
+    updateSeatStateWithVersionBump: () => ({ seatState: readySeatState, seatVersion: 2 }),
     bumpSeatVersion: () => 1,
     onSeatStateChanged: () => () => {},
+    onSeatVersionChanged: () => () => {},
+    onSeatTruthChanged: () => {
+      throw new Error('rebuildTradingDayState test must not subscribe to seat truth events');
+    },
   };
 }
 

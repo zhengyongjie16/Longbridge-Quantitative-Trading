@@ -29,6 +29,7 @@ import type {
   QuoteUpdatedEvent,
 } from '../../../src/types/services.js';
 import type { MonitorContext } from '../../../src/types/state.js';
+import type { SymbolRegistry } from '../../../src/types/seat.js';
 
 function createDeferred<voidValue = void>(): {
   readonly promise: Promise<voidValue>;
@@ -140,7 +141,7 @@ describe('switchWakeupRuntime', () => {
   function createBaseHarness(
     params: {
       readonly monitorContexts?: Map<string, MonitorContext>;
-      readonly symbolRegistry?: ReturnType<typeof createSymbolRegistryDouble>;
+      readonly symbolRegistry?: SymbolRegistry;
       readonly lastState?: {
         canTrade: boolean | null;
         isTradingEnabled: boolean;
@@ -155,7 +156,7 @@ describe('switchWakeupRuntime', () => {
     } = {},
   ): Readonly<{
     runtime: ReturnType<typeof createSwitchWakeupRuntime>;
-    symbolRegistry: ReturnType<typeof createSymbolRegistryDouble>;
+    symbolRegistry: SymbolRegistry;
     monitorContexts: Map<string, MonitorContext>;
     lastState: {
       canTrade: boolean | null;
@@ -519,11 +520,23 @@ describe('switchWakeupRuntime', () => {
         monitorSymbol === 'HSI.HK'
           ? longSymbolRegistry.updateSeatState(monitorSymbol, direction, nextState)
           : secondRegistry.updateSeatState(monitorSymbol, direction, nextState),
+      updateSeatStateWithVersionBump: (
+        monitorSymbol: string,
+        direction: 'LONG' | 'SHORT',
+        nextState: ReturnType<typeof longSymbolRegistry.getSeatState>,
+      ) =>
+        monitorSymbol === 'HSI.HK'
+          ? longSymbolRegistry.updateSeatStateWithVersionBump(monitorSymbol, direction, nextState)
+          : secondRegistry.updateSeatStateWithVersionBump(monitorSymbol, direction, nextState),
       bumpSeatVersion: (monitorSymbol: string, direction: 'LONG' | 'SHORT') =>
         monitorSymbol === 'HSI.HK'
           ? longSymbolRegistry.bumpSeatVersion(monitorSymbol, direction)
           : secondRegistry.bumpSeatVersion(monitorSymbol, direction),
       onSeatStateChanged: () => () => {},
+      onSeatVersionChanged: () => () => {},
+      onSeatTruthChanged: () => {
+        throw new Error('switchWakeupRuntime test must not subscribe to seat truth events');
+      },
     };
 
     const longAdvanceCalls: string[] = [];

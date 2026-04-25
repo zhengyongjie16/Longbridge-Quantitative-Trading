@@ -50,6 +50,11 @@ describe('createSeatDomain', () => {
       direction: string;
       nextState: SeatState;
     }> = [];
+    const atomicUpdateCalls: Array<{
+      monitorSymbol: string;
+      direction: string;
+      nextState: SeatState;
+    }> = [];
     const bumpCalls: Array<{ monitorSymbol: string; direction: string }> = [];
     const monitorContexts = new Map<string, MonitorContext>([
       [
@@ -90,7 +95,19 @@ describe('createSeatDomain', () => {
         bumpCalls.push({ monitorSymbol, direction });
         return 2;
       },
+      updateSeatStateWithVersionBump: (
+        monitorSymbol: string,
+        direction: 'LONG' | 'SHORT',
+        nextState: SeatState,
+      ) => {
+        atomicUpdateCalls.push({ monitorSymbol, direction, nextState });
+        return { seatState: nextState, seatVersion: 2 };
+      },
       onSeatStateChanged: () => () => {},
+      onSeatVersionChanged: () => () => {},
+      onSeatTruthChanged: () => {
+        throw new Error('seatDomain test must not subscribe to seat truth events');
+      },
     };
     const warrantListCache: WarrantListCache = {
       clear: () => {
@@ -112,14 +129,15 @@ describe('createSeatDomain', () => {
 
     expect(resetAllStateCount).toBe(1);
     expect(clearCount).toBe(1);
-    expect(updateCalls).toHaveLength(2);
+    expect(updateCalls).toHaveLength(0);
+    expect(atomicUpdateCalls).toHaveLength(2);
     expect(
-      updateCalls
+      atomicUpdateCalls
         .map((c) => `${c.monitorSymbol}-${c.direction}`)
         .sort((left, right) => left.localeCompare(right, 'en')),
     ).toEqual(['HSI.HK-LONG', 'HSI.HK-SHORT']);
-    const longAfterClear = updateCalls.find((item) => item.direction === 'LONG')?.nextState;
-    const shortAfterClear = updateCalls.find((item) => item.direction === 'SHORT')?.nextState;
+    const longAfterClear = atomicUpdateCalls.find((item) => item.direction === 'LONG')?.nextState;
+    const shortAfterClear = atomicUpdateCalls.find((item) => item.direction === 'SHORT')?.nextState;
     expect(longAfterClear?.status).toBe('EMPTY');
     expect(longAfterClear?.symbol).toBeNull();
     expect(longAfterClear?.lastSwitchAt).toBe(100);
@@ -130,7 +148,7 @@ describe('createSeatDomain', () => {
     expect(shortAfterClear?.lastSwitchAt).toBe(110);
     expect(shortAfterClear?.lastSearchAt).toBe(210);
     expect(shortAfterClear?.lastSeatActivatedAt).toBeNull();
-    expect(bumpCalls).toHaveLength(2);
+    expect(bumpCalls).toHaveLength(0);
   });
 
   it('openRebuild 为空操作，不抛错', async () => {

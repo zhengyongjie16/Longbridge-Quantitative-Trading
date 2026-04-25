@@ -67,6 +67,48 @@ export type SeatStateChangedEvent = Readonly<{
 }>;
 
 /**
+ * 席位版本变化事件。
+ * 类型用途：表达 SymbolRegistry 权威席位版本号发生变化，供依赖 seatVersion 隔离语义的 runtime 刷新派生状态。
+ * 数据来源：由 SymbolRegistry.bumpSeatVersion 或 updateSeatStateWithVersionBump 在版本递增完成后发布。
+ * 使用范围：TradingRiskEventRuntime 等需要响应 seatVersion 隔离边界变化的事件驱动链路。
+ */
+export type SeatVersionChangedEvent = Readonly<{
+  /** 监控标的代码 */
+  monitorSymbol: string;
+
+  /** 席位方向 */
+  direction: 'LONG' | 'SHORT';
+
+  /** 递增前版本号 */
+  previousVersion: number;
+
+  /** 递增后版本号 */
+  nextVersion: number;
+}>;
+
+/**
+ * 席位 truth 变化事件。
+ * 类型用途：表达 SymbolRegistry 已完成一次席位权威状态 mutation，监听方可同步读取最新 state/version 快照。
+ * 数据来源：由 SymbolRegistry 的 public mutation 在本次对应的状态或版本事件发布完成后发布。
+ * 使用范围：依赖完整席位 truth 重投影的事件驱动链路。
+ */
+export type SeatTruthChangedEvent = Readonly<{
+  /** 监控标的代码 */
+  monitorSymbol: string;
+
+  /** 席位方向 */
+  direction: 'LONG' | 'SHORT';
+}>;
+
+/**
+ * 席位 truth 变化监听器。
+ * 类型用途：订阅 SymbolRegistry 每次 public mutation 完成后的统一 truth 变化信号。
+ * 数据来源：由 onSeatTruthChanged 注册并由 SymbolRegistry 内部同步调用。
+ * 使用范围：需要按 seat truth 完整变更重投影派生状态的模块。
+ */
+export type SeatTruthChangedListener = (event: SeatTruthChangedEvent) => void;
+
+/**
  * 标的注册表接口。
  * 类型用途：依赖注入用接口，统一维护各监控标的做多/做空席位状态与版本号，供 resolveSeatBySymbol、换标流程等调用。
  * 数据来源：内部实现（如 recovery/seatPreparation）维护；状态数据来自运行时更新。
@@ -94,11 +136,27 @@ export interface SymbolRegistry {
     nextState: SeatState,
   ) => SeatState;
 
+  /** 原子更新席位状态并递增席位版本号 */
+  updateSeatStateWithVersionBump: (
+    monitorSymbol: string,
+    direction: 'LONG' | 'SHORT',
+    nextState: SeatState,
+  ) => {
+    readonly seatState: SeatState;
+    readonly seatVersion: number;
+  };
+
   /** 递增席位版本号 */
   bumpSeatVersion: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => number;
 
   /** 订阅席位状态变化事件 */
   onSeatStateChanged: (listener: (event: SeatStateChangedEvent) => void) => Unsubscribe;
+
+  /** 订阅席位版本变化事件 */
+  onSeatVersionChanged: (listener: (event: SeatVersionChangedEvent) => void) => Unsubscribe;
+
+  /** 订阅席位 truth 变化事件 */
+  onSeatTruthChanged: (listener: SeatTruthChangedListener) => Unsubscribe;
 }
 
 /**

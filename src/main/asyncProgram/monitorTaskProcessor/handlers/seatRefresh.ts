@@ -104,19 +104,23 @@ export function createSeatRefreshHandler({
       context.riskChecker.clearShortWarrantInfo();
     }
 
-    const nextVersion = context.symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
     const currentSeat = context.symbolRegistry.getSeatState(monitorSymbol, direction);
+    const nowMs = Date.now();
     const nextState = {
       symbol: null,
       status: 'EMPTY',
-      lastSwitchAt: Date.now(),
-      lastSearchAt: currentSeat.lastSearchAt ?? Date.now(),
+      lastSwitchAt: nowMs,
+      lastSearchAt: currentSeat.lastSearchAt ?? nowMs,
       lastSeatActivatedAt: null,
       callPrice: null,
       searchFailCountToday: currentSeat.searchFailCountToday,
       frozenTradingDayKey: currentSeat.frozenTradingDayKey,
     } as const;
-    context.symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
+    const { seatVersion: nextVersion } = context.symbolRegistry.updateSeatStateWithVersionBump(
+      monitorSymbol,
+      direction,
+      nextState,
+    );
     clearMonitorDirectionQueues(monitorSymbol, direction);
     logger.error(`[自动换标] ${monitorSymbol} ${direction} 换标失败（v${nextVersion}）：${reason}`);
   }

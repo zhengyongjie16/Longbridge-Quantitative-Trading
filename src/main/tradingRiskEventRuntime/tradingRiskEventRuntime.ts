@@ -3,7 +3,7 @@
  *
  * 职责：
  * - 监听 quoteClient 发布的标准化 quote 事件
- * - 每次事件到达时基于 symbolRegistry 重建路由索引
+ * - 启动和席位 truth 变化时基于 symbolRegistry 刷新路由索引缓存
  * - 对同一路由执行 single-flight + latest-only collapse
  * - 通过单方向浮亏执行器触发保护性清仓
  */
@@ -60,6 +60,9 @@ export function createTradingRiskEventRuntime(
 ): TradingRiskEventRuntime {
   let running = false;
   let unsubscribeQuoteUpdated: (() => void) | null = null;
+  let unsubscribeSeatTruthChanged: (() => void) | null = null;
+  let cachedRoutingIndex: TradingRiskRoutingIndex | null = null;
+  let routingIndexFatalError: Error | null = null;
   const routeStates = new Map<string, RouteExecutionState>();
   const activeRoutePromises = new Set<Promise<void>>();
 
@@ -98,17 +101,49 @@ export function createTradingRiskEventRuntime(
   }
 
   /**
-   * 基于当前 symbolRegistry 权威快照重建路由索引。
+   * 记录路由索引 fatal 并清空缓存，避免运行期风险路径继续使用旧 route。
+   *
+   * @param error 路由索引构建失败原因
+   * @returns 标准 Error 对象
+   */
+  function recordRoutingIndexFatal(error: unknown): Error {
+    const fatalError = error instanceof Error ? error : new Error(formatError(error));
+    cachedRoutingIndex = null;
+    routingIndexFatalError = fatalError;
+    return fatalError;
+  }
+
+  /**
+   * 基于当前 SymbolRegistry 权威快照同步刷新路由索引缓存。
    *
    * @returns 最新路由索引
    */
-  function rebuildRoutingIndex(): TradingRiskRoutingIndex {
-    const routingIndex = buildTradingRiskRoutingIndex({
-      monitorContexts: deps.monitorContexts,
-      symbolRegistry: deps.symbolRegistry,
-    });
-    pruneRouteStates(new Set(routingIndex.routesByKey.keys()));
-    return routingIndex;
+  function refreshRoutingIndex(): TradingRiskRoutingIndex {
+    try {
+      const routingIndex = buildTradingRiskRoutingIndex({
+        monitorContexts: deps.monitorContexts,
+        symbolRegistry: deps.symbolRegistry,
+      });
+      cachedRoutingIndex = routingIndex;
+      routingIndexFatalError = null;
+      pruneRouteStates(new Set(routingIndex.routesByKey.keys()));
+      return routingIndex;
+    } catch (error) {
+      throw recordRoutingIndexFatal(error);
+    }
+  }
+
+  /**
+   * 读取 quote 与 route 校验路径可使用的路由索引；fatal 状态下返回空。
+   *
+   * @returns 当前可用路由索引，fatal 或未初始化时返回 null
+   */
+  function getActiveRoutingIndex(): TradingRiskRoutingIndex | null {
+    if (routingIndexFatalError !== null) {
+      return null;
+    }
+
+    return cachedRoutingIndex;
   }
 
   /**
@@ -157,6 +192,21 @@ export function createTradingRiskEventRuntime(
   }
 
   /**
+   * 响应席位状态或版本 truth 变化并立即同步重投影路由索引。
+   */
+  function handleSeatTruthChanged(): void {
+    if (!running) {
+      return;
+    }
+
+    try {
+      refreshRoutingIndex();
+    } catch (error) {
+      logger.error('[TradingRiskEventRuntime] 路由索引进入 fatal 状态', formatError(error));
+    }
+  }
+
+  /**
    * 消费单条标准化行情事件。
    *
    * @param event quoteClient 发布的标准化 quote 事件
@@ -170,7 +220,11 @@ export function createTradingRiskEventRuntime(
       return;
     }
 
-    const routingIndex = rebuildRoutingIndex();
+    const routingIndex = getActiveRoutingIndex();
+    if (routingIndex === null) {
+      return;
+    }
+
     const route = resolveTradingRiskRoute(routingIndex, event.symbol);
     if (!route) {
       return;
@@ -218,8 +272,12 @@ export function createTradingRiskEventRuntime(
           return;
         }
 
-        const routingIndexBeforeFresh = rebuildRoutingIndex();
-        if (!isTradingRiskRouteCurrent(snapshotRoute, routingIndexBeforeFresh)) {
+        const routingIndexBeforeFreshness = getActiveRoutingIndex();
+        if (routingIndexBeforeFreshness === null) {
+          return;
+        }
+
+        if (!isTradingRiskRouteCurrent(snapshotRoute, routingIndexBeforeFreshness)) {
           return;
         }
 
@@ -237,8 +295,12 @@ export function createTradingRiskEventRuntime(
           return;
         }
 
-        const routingIndexAfterFresh = rebuildRoutingIndex();
-        if (!isTradingRiskRouteCurrent(snapshotRoute, routingIndexAfterFresh)) {
+        const routingIndexAfterFreshness = getActiveRoutingIndex();
+        if (routingIndexAfterFreshness === null) {
+          return;
+        }
+
+        if (!isTradingRiskRouteCurrent(snapshotRoute, routingIndexAfterFreshness)) {
           return;
         }
 
@@ -260,7 +322,14 @@ export function createTradingRiskEventRuntime(
       }
     } finally {
       routeState.inFlight = false;
-      if (routeState.dirty && running) {
+
+      const activeRoutingIndex = getActiveRoutingIndex();
+      const routeInactive =
+        activeRoutingIndex !== null && !activeRoutingIndex.routesByKey.has(routeKey);
+
+      if (routeInactive) {
+        routeStates.delete(routeKey);
+      } else if (routeStates.get(routeKey) === routeState && routeState.dirty && running) {
         routeState.inFlight = true;
         launchRouteProcessing(routeKey);
       }
@@ -275,8 +344,10 @@ export function createTradingRiskEventRuntime(
       return;
     }
 
-    rebuildRoutingIndex();
+    refreshRoutingIndex();
     running = true;
+    unsubscribeSeatTruthChanged = deps.symbolRegistry.onSeatTruthChanged(handleSeatTruthChanged);
+
     unsubscribeQuoteUpdated = deps.marketDataClient.onQuoteUpdated((event) => {
       handleQuoteUpdated(event);
     });
@@ -289,12 +360,16 @@ export function createTradingRiskEventRuntime(
     running = false;
     unsubscribeQuoteUpdated?.();
     unsubscribeQuoteUpdated = null;
+    unsubscribeSeatTruthChanged?.();
+    unsubscribeSeatTruthChanged = null;
 
     if (activeRoutePromises.size > 0) {
       await Promise.allSettled(activeRoutePromises);
     }
 
     routeStates.clear();
+    cachedRoutingIndex = null;
+    routingIndexFatalError = null;
   }
 
   return {

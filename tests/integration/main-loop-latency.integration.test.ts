@@ -191,6 +191,26 @@ function createMultiMonitorSymbolRegistry(
       entry.shortState = nextState;
       return entry.shortState;
     },
+    updateSeatStateWithVersionBump(
+      monitorSymbol: string,
+      direction: 'LONG' | 'SHORT',
+      nextState: SeatState,
+    ) {
+      const entry = seatMap.get(monitorSymbol);
+      if (!entry) {
+        throw new Error(`missing seat entry for monitorSymbol=${monitorSymbol}`);
+      }
+
+      if (direction === 'LONG') {
+        entry.longState = nextState;
+        entry.longVersion += 1;
+        return { seatState: entry.longState, seatVersion: entry.longVersion };
+      }
+
+      entry.shortState = nextState;
+      entry.shortVersion += 1;
+      return { seatState: entry.shortState, seatVersion: entry.shortVersion };
+    },
     bumpSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
       const entry = seatMap.get(monitorSymbol);
       if (!entry) {
@@ -206,6 +226,10 @@ function createMultiMonitorSymbolRegistry(
       return entry.shortVersion;
     },
     onSeatStateChanged: () => () => {},
+    onSeatVersionChanged: () => () => {},
+    onSeatTruthChanged: () => {
+      throw new Error('main loop latency test must not subscribe to seat truth events');
+    },
   };
 }
 

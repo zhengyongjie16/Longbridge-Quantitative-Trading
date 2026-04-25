@@ -358,6 +358,107 @@ layout 负责把 `DashboardState` 映射成终端坐标。
 3. 名称可截断，代码必须保留。
 4. LONG/SHORT 席位不强制左右并排，直接上下两行更稳定。
 
+### 6.8 终端 UI 示例
+
+本节只约束首版 dashboard 的信息层级与行语义，不约束固定终端宽高。实现时必须根据当前 `columns` / `rows` 重新计算坐标；下面样例仅按常见 120 列终端展示最终视觉目标。
+
+#### 6.8.1 标准宽度样例
+
+```text
+Longbridge TTY Dashboard | HK 2026-04-24 09:45:18 | status=RUNNING | trade=ON | canTrade=YES | day=FULL
+cash HKD 128,420.55 | net 312,880.20 | pos 184,459.65 | lifecycle=TRADING | stdout=dashboard
+
+Positions
+[SEC] HSI Bull 62000 (64213.HK) qty 20,000.00 avail 20,000.00 px 0.086 mkt 1,720.00 weight 0.55%
+[SEC] HSI Bear 59000 (64456.HK) qty 18,000.00 avail 18,000.00 px 0.073 mkt 1,314.00 weight 0.42%
+
+Monitor HSI.HK Hang Seng Index | K 09:45:00 | px 17,245.330 | chg +0.38% | signal BUYCALL | plan price changePercent EMA20 RSI14 MACD
+  indicators  EMA20 17,210.233 | RSI14 61.284 | MACD 12.331 | DIF 8.442 | DEA 3.889
+  做多席位行  ACTIVE 64213.HK HSI Bull 62000 | quote 09:45:17 | px 0.086 | chg +8.86% | dist 12.44% | pnl +420.00 | buyOrders 0
+  做空席位行  ACTIVE 64456.HK HSI Bear 59000 | quote 09:45:16 | px 0.073 | chg -6.41% | dist 18.02% | pnl -155.00 | buyOrders 1
+
+Monitor TECH.HK Hang Seng Tech | K 09:45:00 | px 3,682.120 | chg -0.21% | signal - | plan price changePercent EMA20 RSI14
+  indicators  EMA20 3,688.412 | RSI14 42.177
+  做多席位行  EMPTY  - | quote - | px - | chg - | dist - | pnl - | buyOrders 0
+  做空席位行  SEARCHING - | quote - | px - | chg - | dist - | pnl - | buyOrders 0
+
+Recent Events
+09:45:18 quote 64213.HK -> 做多席位行 px 0.086 chg +8.86%
+09:45:16 kline HSI.HK committed snapshot 09:45:00
+09:44:59 order BUYPUT 64456.HK pending count=1
+```
+
+行语义：
+
+1. 第一行是运行摘要，必须常驻顶部。
+2. 第二行是账户摘要，缺少账户快照时仍保留该行并显示 `-`。
+3. `Positions` 区域按当前持仓显示，超出可见上限时只显示前 N 行，并在最后一行显示 `... more positions: X`。
+4. 每个 `Monitor` 块按配置顺序排列，块内固定为监控标的行、指标行、做多席位行、做空席位行。
+5. `Recent Events` 固定在底部 N 行，是 ring buffer，不追加滚动屏幕。
+
+#### 6.8.2 窄终端样例
+
+当宽度不足时，不做左右分栏，不保留长指标列表。优先级是：代码、价格、涨跌幅、信号、席位状态、距回收价、持仓盈亏。
+
+```text
+Longbridge | HK 09:45:18 | RUNNING | trade ON | can YES
+HKD cash 128,420.55 | net 312,880.20 | pos 184,459.65
+
+Pos 64213.HK qty 20,000.00 px 0.086 mkt 1,720.00
+Pos 64456.HK qty 18,000.00 px 0.073 mkt 1,314.00
+
+HSI.HK | K 09:45:00 | px 17,245.330 | chg +0.38% | sig BUYCALL
+  ind EMA20 17,210.233 | RSI14 61.284 | MACD 12.331
+  LONG  ACTIVE 64213.HK | px 0.086 | chg +8.86% | dist 12.44% | pnl +420.00
+  SHORT ACTIVE 64456.HK | px 0.073 | chg -6.41% | dist 18.02% | pnl -155.00
+
+TECH.HK | K 09:45:00 | px 3,682.120 | chg -0.21% | sig -
+  LONG  EMPTY | px - | dist - | pnl -
+  SHORT SEARCHING | px - | dist - | pnl -
+
+Events
+09:45:18 quote 64213.HK px 0.086
+09:45:16 kline HSI.HK snapshot 09:45:00
+```
+
+窄屏规则：
+
+1. 名称优先截断或省略，代码必须保留。
+2. 指标行只展示 `displayPlan` 中能放下的前 N 个字段；被省略的字段不进入最近事件区。
+3. `做多席位行` / `做空席位行` 可以显示为 `LONG` / `SHORT`，但内部方向语义不得改变。
+4. 终端高度不足时，先减少持仓可见行数和最近事件行数，再减少 monitor 块数量；被隐藏的 monitor 块必须显示 `... more monitors: X`。
+
+#### 6.8.3 局部刷新示意
+
+一次 quote push 只允许刷新对应字段或对应席位行，不允许重绘无关 monitor，也不允许恢复“做多、做空一起输出”的旧语义。
+
+```text
+事件: quote 64213.HK price 0.086 -> 0.087
+
+允许 dirty:
+  monitor=HSI.HK direction=LONG field=quoteTimestamp
+  monitor=HSI.HK direction=LONG field=lastPrice
+  monitor=HSI.HK direction=LONG field=changePercent
+  monitor=HSI.HK direction=LONG field=warrantDistance
+  monitor=HSI.HK direction=LONG field=positionPnl
+
+不允许 dirty:
+  monitor=HSI.HK direction=SHORT *
+  monitor=TECH.HK *
+  positions *
+  recentEvents，除非本次事件需要作为业务事件摘要展示
+```
+
+如果 renderer 当前实现以整行刷新作为首版策略，则上述 dirty field 可以合并成一条 dirty row：
+
+```text
+row=monitor:HSI.HK:seat:LONG
+clearLine()
+write("  做多席位行  ACTIVE 64213.HK ... px 0.087 ...")
+```
+
+这仍然满足局部刷新要求，因为刷新边界是单个席位行，而不是整屏或整个 monitor 列表。
+
 ## 7. 输出权责调整
 
 ### 7.1 logger

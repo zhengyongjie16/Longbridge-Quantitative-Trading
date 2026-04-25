@@ -41,12 +41,11 @@ function clearAllSeatBindings(
   for (const monitorConfig of tradingConfig.monitors) {
     for (const direction of ['LONG', 'SHORT'] as const) {
       const previous = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, direction);
-      symbolRegistry.updateSeatState(
+      symbolRegistry.updateSeatStateWithVersionBump(
         monitorConfig.monitorSymbol,
         direction,
         buildEmptySeatState(previous),
       );
-      symbolRegistry.bumpSeatVersion(monitorConfig.monitorSymbol, direction);
       changed += 1;
     }
   }
