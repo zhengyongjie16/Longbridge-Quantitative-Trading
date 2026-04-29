@@ -51,7 +51,6 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
   const {
     monitorTaskQueue,
     getMonitorContext,
-    clearMonitorDirectionQueues,
     trader,
     marketDataClient,
     quoteSubscriptionRuntime,
@@ -59,6 +58,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     lastState,
     tradingConfig,
     getCanProcessTask,
+    getCanTradeNow,
     onProcessed,
   } = deps;
 
@@ -75,11 +75,10 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
   const { handleAutoSymbolTick } = createAutoSymbolHandlers({
     getContextOrSkip,
     switchWakeupRuntime,
-    ...(getCanProcessTask ? { getCanProcessTask } : {}),
+    getCanTradeNow,
   });
   const handleSeatRefresh = createSeatRefreshHandler({
     getContextOrSkip,
-    clearMonitorDirectionQueues,
     tradingConfig,
     marketDataClient,
     quoteSubscriptionRuntime,
@@ -121,7 +120,10 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
       }
 
       const status = await processTask(task, helpers).catch((err: unknown) => {
-        logger.error('[MonitorTaskProcessor] 处理任务失败', formatError(err));
+        logger.error(
+          `[MonitorTaskProcessor] 处理任务失败 type=${task.type} monitor=${task.monitorSymbol} dedupe=${task.dedupeKey}`,
+          formatError(err),
+        );
         return 'failed' as const;
       });
 

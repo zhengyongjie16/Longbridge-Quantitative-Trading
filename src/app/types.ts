@@ -5,7 +5,7 @@ import type {
   RuntimeSymbolValidationResult,
 } from '../config/types.js';
 import type { Position } from '../types/account.js';
-import type { GateMode, SymbolRegistry } from '../types/seat.js';
+import type { SymbolRegistry } from '../types/seat.js';
 import type { LastState, MonitorContext, MonitorState } from '../types/state.js';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../types/config.js';
 import type { Quote } from '../types/quote.js';
@@ -32,7 +32,6 @@ import type {
 } from '../services/autoSymbolFinder/types.js';
 import type { LiquidationCooldownTracker } from '../services/liquidationCooldown/types.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../core/trader/protectiveLiquidationEpisodeTracker/types.js';
-import type { MarketMonitor } from '../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
 import type { SignalProcessor } from '../core/signalProcessor/types.js';
 import type { IndicatorCache } from '../main/asyncProgram/indicatorCache/types.js';
@@ -61,6 +60,7 @@ import type {
 } from '../main/businessEventProgram/types.js';
 import type { QuoteSubscriptionRuntime } from '../main/quoteSubscriptionRuntime/types.js';
 import type { SeatActivationDispatcher } from '../main/seatActivationDispatcher/types.js';
+import type { SeatRuntimeCleanupDispatcher } from '../main/seatRuntimeCleanupDispatcher/types.js';
 import type { TradingGateEventRuntime } from '../main/tradingGateEventRuntime/types.js';
 import type {
   LoadTradingDayRuntimeSnapshotParams,
@@ -84,17 +84,6 @@ import type { TimeDriverProgramContext } from '../main/timeDriverProgram/types.j
 import type { DisplayAccountAndPositionsParams } from '../services/accountDisplay/types.js';
 
 /**
- * 启动门禁策略。
- * 类型用途：表达 startup gate 与 runtime gate 的组合策略。
- * 数据来源：由 app 组装层根据 STARTUP_GATE_MODE / RUNTIME_GATE_MODE（缺省时回退默认）解析生成。
- * 使用范围：仅 app 启动装配链路使用。
- */
-export type GatePolicies = Readonly<{
-  startupGate: GateMode;
-  runtimeGate: GateMode;
-}>;
-
-/**
  * app 环境参数。
  * 类型用途：统一表达从入口传入 app 组装层的环境变量对象。
  * 数据来源：由 src/index.ts 调用 runApp 时传入 process.env。
@@ -108,7 +97,7 @@ export type AppEnvironmentParams = Readonly<{
  * 交易日信息缓存条目。
  * 类型用途：按交易日缓存 `isTradingDay/isHalfDay`，避免重复调用交易日接口。
  * 数据来源：由 createTradingDayInfoResolver 查询并缓存。
- * 使用范围：仅 app 启动门禁装配使用。
+ * 使用范围：app 启动状态初始化与运行期交易日状态更新。
  */
 export type CachedTradingDayInfo = Readonly<{
   dateStr: string;
@@ -116,10 +105,21 @@ export type CachedTradingDayInfo = Readonly<{
 }>;
 
 /**
+ * 启动期交易日快照。
+ * 类型用途：携带交易日信息及其对应港股日期键，防止跨日装配时缓存错日状态。
+ * 数据来源：createPreGateRuntime 在启动阶段解析交易日接口得到。
+ * 使用范围：pre-gate 到 post-gate 的启动状态传递。
+ */
+type StartupTradingDayInfo = Readonly<{
+  dateKey: string;
+  info: TradingDayInfo;
+}>;
+
+/**
  * 交易日信息解析器依赖。
  * 类型用途：创建带缓存的交易日解析函数时注入依赖。
  * 数据来源：由 app 启动组装 marketDataClient、日期键函数和错误回调。
- * 使用范围：仅 app 启动门禁装配使用。
+ * 使用范围：仅 app 启动交易日状态初始化使用。
  */
 export type TradingDayInfoResolverDeps = Readonly<{
   marketDataClient: Pick<MarketDataClient, 'isTradingDay'>;
@@ -129,9 +129,9 @@ export type TradingDayInfoResolverDeps = Readonly<{
 
 /**
  * 交易日信息解析函数签名。
- * 类型用途：统一 startup gate 所需的 resolveTradingDayInfo 函数类型。
+ * 类型用途：统一交易日信息解析函数类型。
  * 数据来源：由 createTradingDayInfoResolver 创建并返回。
- * 使用范围：仅 app 启动门禁装配使用。
+ * 使用范围：app 启动状态初始化与生命周期交易日状态更新。
  */
 export type TradingDayInfoResolver = (currentTime: Date) => Promise<TradingDayInfo>;
 
@@ -258,6 +258,7 @@ export type CleanupContext = Readonly<{
   switchWakeupRuntime: SwitchWakeupRuntime;
   quoteSubscriptionRuntime: QuoteSubscriptionRuntime;
   seatActivationDispatcher: SeatActivationDispatcher;
+  seatRuntimeCleanupDispatcher: SeatRuntimeCleanupDispatcher;
   autoSearchWakeupRuntime: AutoSearchWakeupRuntime;
   postTradeConsistencyRuntime: PostTradeConsistencyRuntime;
   marketDataClient: MarketDataClient;
@@ -330,7 +331,7 @@ export type RegisterDelayedSignalHandlersParams = Readonly<{
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
   logger: Pick<Logger, 'debug' | 'warn'>;
-  doomsdayProtectionEnabled?: boolean;
+  doomsdayProtectionEnabled: boolean;
   now?: () => Date;
 }>;
 
@@ -360,14 +361,13 @@ export type PreGateRuntime = Readonly<{
   warrantListCache: WarrantListCache;
   warrantListCacheConfig: WarrantListCacheConfig;
   marketDataClient: MarketDataClient;
-  gatePolicies: GatePolicies;
-  startupTradingDayInfo: TradingDayInfo;
+  startupTradingDayInfo: StartupTradingDayInfo | null;
 }>;
 
 /**
  * post-gate runtime 创建参数。
  * 类型用途：封装 createPostGateRuntime 所需的环境、pre-gate runtime 与统一时间源。
- * 数据来源：由 app 顶层装配在 startup gate 通过后组装传入。
+ * 数据来源：由 app 顶层装配在 pre-gate runtime 创建后组装传入。
  * 使用范围：仅 post-gate runtime 创建链路使用。
  */
 export type CreatePostGateRuntimeParams = Readonly<{
@@ -400,6 +400,7 @@ type PostGateRuntime = Readonly<{
   tradingGateEventRuntime: TradingGateEventRuntime;
   quoteSubscriptionRuntime: QuoteSubscriptionRuntime;
   seatActivationDispatcher: SeatActivationDispatcher;
+  seatRuntimeCleanupDispatcher: SeatRuntimeCleanupDispatcher;
   autoSearchWakeupRuntime: AutoSearchWakeupRuntime;
   tradingRiskEventRuntime: TradingRiskEventRuntime;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
@@ -412,7 +413,6 @@ type PostGateRuntime = Readonly<{
   loadTradingDayRuntimeSnapshot: (
     params: LoadTradingDayRuntimeSnapshotParams,
   ) => Promise<LoadTradingDayRuntimeSnapshotResult>;
-  marketMonitor: MarketMonitor;
   doomsdayProtection: DoomsdayProtection;
   signalProcessor: SignalProcessor;
   indicatorCache: IndicatorCache;
@@ -455,34 +455,15 @@ export type AsyncRuntimeFactoryDeps = Readonly<{
 }>;
 
 /**
- * 带日志的队列清理参数。
- * 类型用途：清理指定监控标的方向下的延迟/买卖/监控任务并输出日志。
- * 数据来源：由 app 顶层装配在创建 MonitorTaskProcessor 时传入。
- * 使用范围：仅 app/runtime/queueCleanup 使用。
- */
-export type ClearQueuesForDirectionWithLogParams = Readonly<{
-  monitorSymbol: string;
-  direction: 'LONG' | 'SHORT';
-  monitorContexts: ReadonlyMap<string, MonitorContext>;
-  buyTaskQueue: TaskQueue<BuyTaskType>;
-  sellTaskQueue: TaskQueue<SellTaskType>;
-  monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
-  logger: Pick<Logger, 'debug'>;
-}>;
-
-/**
  * 成交后一致性运行时状态快照。
- * 类型用途：向调用方暴露启动态、在途态、是否存在积压刷新以及 freshness 版本号。
+ * 类型用途：向调用方暴露启动态与 freshness 版本号。
  * 数据来源：由 PostTradeConsistencyRuntime.getStatus 返回。
  * 使用范围：仅 app 装配层与相关测试使用。
  */
 export type PostTradeConsistencyRuntimeStatus = Readonly<{
   started: boolean;
-  inFlight: boolean;
-  hasPendingRefresh: boolean;
   currentVersion: number;
   staleVersion: number;
-  abortReason: 'STOP_AND_DRAIN' | 'FATAL_INVARIANT' | null;
 }>;
 
 /**

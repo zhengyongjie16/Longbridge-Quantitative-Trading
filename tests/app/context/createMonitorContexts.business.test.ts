@@ -28,6 +28,7 @@ import {
   createQuoteSubscriptionRuntimeDouble,
   createSdkConfigDouble,
   createSeatActivationDispatcherDouble,
+  createSeatRuntimeCleanupDispatcherDouble,
   createSymbolRegistryDouble,
   createTradingGateEventRuntimeDouble,
   createTraderDouble,
@@ -113,13 +114,12 @@ function createRuntime(
       nowMs: () => Date.now(),
     },
     marketDataClient,
-    gatePolicies: {
-      startupGate: 'strict',
-      runtimeGate: 'strict',
-    },
     startupTradingDayInfo: {
-      isTradingDay: true,
-      isHalfDay: false,
+      dateKey: '2026-03-09',
+      info: {
+        isTradingDay: true,
+        isHalfDay: false,
+      },
     },
   };
 
@@ -141,6 +141,7 @@ function createRuntime(
     tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
     quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
     seatActivationDispatcher: createSeatActivationDispatcherDouble(),
+    seatRuntimeCleanupDispatcher: createSeatRuntimeCleanupDispatcherDouble(),
     autoSearchWakeupRuntime: createAutoSearchWakeupRuntimeDouble(),
     tradingRiskEventRuntime: {
       start: () => {},
@@ -169,11 +170,8 @@ function createRuntime(
       recordSettlementRefreshNeed: () => {},
       getStatus: () => ({
         started: false,
-        inFlight: false,
-        hasPendingRefresh: false,
         currentVersion: 0,
         staleVersion: 0,
-        abortReason: null,
       }),
       waitForFresh: async () => {},
       onFreshReached: () => () => {},
@@ -208,10 +206,6 @@ function createRuntime(
       allOrders: [],
       quotesMap: new Map(),
     }),
-    marketMonitor: {
-      renderTradingQuote: () => {},
-      renderMonitorIndicators: () => {},
-    },
     doomsdayProtection: {
       isBuyCutoffWindowActive: () => false,
       executeClearance: async () => ({

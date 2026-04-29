@@ -514,18 +514,15 @@ export function createPostTradeConsistencyRuntime(
   /**
    * 读取运行时当前状态。
    *
-   * @returns 运行态、队列态与 freshness 版本号快照
+   * @returns 启动态与 freshness 版本号快照
    */
   function getStatus(): PostTradeConsistencyRuntimeStatus {
     const gateStatus = refreshGate.getStatus();
 
     return {
       started,
-      inFlight,
-      hasPendingRefresh: hasRefreshNeed(pendingNeed),
       currentVersion: gateStatus.currentVersion,
       staleVersion: gateStatus.staleVersion,
-      abortReason: gateStatus.abortReason,
     };
   }
 

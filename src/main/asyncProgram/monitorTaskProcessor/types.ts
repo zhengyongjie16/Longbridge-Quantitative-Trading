@@ -18,7 +18,7 @@ export type SeatSnapshot = Readonly<{
 
 /**
  * 自动换标 Tick 任务数据。
- * 类型用途：每秒由主循环触发的监控任务数据，携带当前席位状态与时间信息，供处理器判断是否需换标。
+ * 类型用途：每秒由主循环触发的监控任务数据，携带入队时席位快照与时间信息；不携带交易时段快照。
  * 数据来源：由 processMonitor 在 AUTO_SYMBOL_TICK 调度时组装并入队。
  * 使用范围：仅 monitorTaskProcessor、processMonitor 内部使用。
  */
@@ -28,8 +28,6 @@ export type AutoSymbolTickTaskData = Readonly<{
   seatVersion: number;
   symbol: string | null;
   currentTimeMs: number;
-  canTradeNow: boolean;
-  openProtectionActive: boolean;
 }>;
 
 /**
@@ -117,7 +115,6 @@ export type RefreshHelpers = Readonly<{
 export type MonitorTaskProcessorDeps = Readonly<{
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
   getMonitorContext: (monitorSymbol: string) => MonitorTaskContext | null;
-  clearMonitorDirectionQueues: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => void;
   trader: Trader;
   marketDataClient: MarketDataClient;
   quoteSubscriptionRuntime: Pick<
@@ -130,6 +127,9 @@ export type MonitorTaskProcessorDeps = Readonly<{
 
   /** 生命周期门禁：false 时任务直接跳过 */
   getCanProcessTask?: () => boolean;
+
+  /** 周期换标消费期交易时段门禁 */
+  getCanTradeNow: () => boolean;
   onProcessed?: (task: MonitorTask<MonitorTaskDataMap>, status: MonitorTaskStatus) => void;
 }>;
 

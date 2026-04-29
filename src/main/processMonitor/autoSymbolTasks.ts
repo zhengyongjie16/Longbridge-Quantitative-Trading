@@ -13,18 +13,10 @@ import type { AutoSymbolTasksParams } from './types.js';
  * 调度单监控标的的自动换标相关任务。
  * 为 LONG/SHORT 方向调度心跳任务（AUTO_SYMBOL_TICK），供异步队列执行周期换标检查。
  *
- * @param params 调度参数，包含监控标的、上下文、当前时间、交易状态等
+ * @param params 调度参数，包含监控标的、上下文与当前时间等
  */
 export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {
-  const {
-    monitorSymbol,
-    monitorContext,
-    mainContext,
-    autoSearchEnabled,
-    currentTimeMs,
-    canTradeNow,
-    openProtectionActive,
-  } = params;
+  const { monitorSymbol, monitorContext, mainContext, autoSearchEnabled, currentTimeMs } = params;
 
   if (!autoSearchEnabled || monitorContext.config.autoSearchConfig.switchIntervalMinutes <= 0) {
     return;
@@ -46,8 +38,6 @@ export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {
       seatVersion: symbolRegistry.getSeatVersion(monitorSymbol, 'LONG'),
       symbol: longSeatSnapshot.symbol ?? null,
       currentTimeMs,
-      canTradeNow,
-      openProtectionActive,
     },
   });
 
@@ -61,8 +51,6 @@ export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {
       seatVersion: symbolRegistry.getSeatVersion(monitorSymbol, 'SHORT'),
       symbol: shortSeatSnapshot.symbol ?? null,
       currentTimeMs,
-      canTradeNow,
-      openProtectionActive,
     },
   });
 }

@@ -40,7 +40,9 @@ function scheduleSeatRefresh(params: {
 }): void {
   const nextSymbol = resolveNextSymbol(params.nextState);
   if (nextSymbol === null) {
-    return;
+    throw new Error(
+      `[SeatActivationDispatcher] ACTIVATING 席位缺少标的: monitorSymbol=${params.monitorSymbol} direction=${params.direction} seatVersion=${params.seatVersion}`,
+    );
   }
 
   const dedupeKey = `${params.monitorSymbol}:SEAT_REFRESH:${params.direction}`;
@@ -130,28 +132,6 @@ export function createSeatActivationDispatcher(
     });
   }
 
-  function seedActivatingSeats(): void {
-    for (const monitorConfig of deps.tradingConfig.monitors) {
-      for (const direction of ['LONG', 'SHORT'] as const) {
-        const seatState = deps.symbolRegistry.getSeatState(monitorConfig.monitorSymbol, direction);
-        const seatVersion = deps.symbolRegistry.getSeatVersion(
-          monitorConfig.monitorSymbol,
-          direction,
-        );
-        if (seatState.status === 'ACTIVATING') {
-          scheduleSeatRefresh({
-            deps,
-            monitorSymbol: monitorConfig.monitorSymbol,
-            direction,
-            seatVersion,
-            previousSymbol: null,
-            nextState: seatState,
-          });
-        }
-      }
-    }
-  }
-
   function start(): void {
     if (running) {
       return;
@@ -160,7 +140,6 @@ export function createSeatActivationDispatcher(
     running = true;
     pendingActivations.clear();
     unsubscribeSeatStateChanged = deps.symbolRegistry.onSeatStateChanged(handleSeatStateChanged);
-    seedActivatingSeats();
   }
 
   function stop(): void {

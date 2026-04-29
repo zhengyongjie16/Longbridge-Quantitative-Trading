@@ -17,6 +17,7 @@ export type CreateBusinessProcessorParams = Readonly<{
   readonly quoteSubscriptionRuntime?: MonitorTaskProcessorDeps['quoteSubscriptionRuntime'];
   readonly onProcessed?: MonitorTaskProcessorDeps['onProcessed'];
   readonly getCanProcessTask?: MonitorTaskProcessorDeps['getCanProcessTask'];
+  readonly getCanTradeNow?: MonitorTaskProcessorDeps['getCanTradeNow'];
 }>;
 
 /**

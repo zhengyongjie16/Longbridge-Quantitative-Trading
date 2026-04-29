@@ -28,21 +28,19 @@ export function registerDelayedSignalHandlers(params: RegisterDelayedSignalHandl
     buyTaskQueue,
     sellTaskQueue,
     logger,
-    doomsdayProtectionEnabled = false,
+    doomsdayProtectionEnabled,
     now = () => new Date(),
   } = params;
 
   for (const [monitorSymbol, monitorContext] of monitorContexts) {
     monitorContext.delayedSignalVerifier.onVerified((signal, signalMonitorSymbol) => {
+      const signalLabel = `${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`;
       const context = monitorContexts.get(signalMonitorSymbol);
       if (!context) {
-        logger.warn(
-          `[延迟验证通过] 未找到监控上下文，丢弃信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`,
-        );
+        logger.warn(`[延迟验证通过] 未找到监控上下文，丢弃信号: ${signalLabel}`);
         return;
       }
 
-      const signalLabel = `${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`;
       const discardSignal = (prefix: string): void => {
         logger.debug(`${prefix}: ${signalLabel}`);
       };
@@ -54,7 +52,7 @@ export function registerDelayedSignalHandlers(params: RegisterDelayedSignalHandl
           doomsdayProtectionEnabled,
         })
       ) {
-        discardSignal('[延迟验证通过] 生命周期门禁关闭，丢弃信号');
+        discardSignal('[延迟验证通过] 普通信号门禁关闭，丢弃信号');
         return;
       }
 

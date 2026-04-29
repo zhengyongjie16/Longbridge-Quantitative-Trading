@@ -64,7 +64,7 @@ describe('SeatActivationDispatcher', () => {
     expect(task.data.callPrice).toBe(20_000);
   });
 
-  it('启动时 seed 已存在的 ACTIVATING seat 不会伪造旧标的', () => {
+  it('启动时不扫描既存 ACTIVATING seat', () => {
     const monitorConfig = createMonitorConfigDouble({
       monitorSymbol: 'HSI.HK',
       longSymbol: 'OLD_BULL.HK',
@@ -77,7 +77,7 @@ describe('SeatActivationDispatcher', () => {
       monitorTaskQueue,
     });
 
-    const nextVersion = symbolRegistry.bumpSeatVersion(monitorConfig.monitorSymbol, 'LONG');
+    symbolRegistry.bumpSeatVersion(monitorConfig.monitorSymbol, 'LONG');
     symbolRegistry.updateSeatState(monitorConfig.monitorSymbol, 'LONG', {
       symbol: 'NEW_BULL.HK',
       status: 'ACTIVATING',
@@ -92,17 +92,44 @@ describe('SeatActivationDispatcher', () => {
     dispatcher.start();
     dispatcher.stop();
 
-    const task = monitorTaskQueue.pop();
-    expect(task?.type).toBe('SEAT_REFRESH');
-    if (task?.type !== 'SEAT_REFRESH') {
-      throw new Error('expected SEAT_REFRESH task');
+    expect(monitorTaskQueue.isEmpty()).toBeTrue();
+  });
+
+  it('ACTIVATING seat 缺少标的时由 SymbolRegistry 写入边界拒绝', () => {
+    const monitorConfig = createMonitorConfigDouble({
+      monitorSymbol: 'HSI.HK',
+      longSymbol: 'OLD_BULL.HK',
+    });
+    const symbolRegistry = createSymbolRegistry([monitorConfig]);
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const dispatcher = createSeatActivationDispatcher({
+      tradingConfig: createTradingConfig({ monitors: [monitorConfig] }),
+      symbolRegistry,
+      monitorTaskQueue,
+    });
+
+    dispatcher.start();
+    let caught: unknown = null;
+    try {
+      symbolRegistry.updateSeatStateWithVersionBump(monitorConfig.monitorSymbol, 'LONG', {
+        symbol: null,
+        status: 'ACTIVATING',
+        lastSwitchAt: 123,
+        lastSearchAt: 456,
+        lastSeatActivatedAt: null,
+        callPrice: 20_000,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      });
+    } catch (err) {
+      caught = err;
+    } finally {
+      dispatcher.stop();
     }
 
-    expect(task.data.monitorSymbol).toBe('HSI.HK');
-    expect(task.data.direction).toBe('LONG');
-    expect(task.data.nextSymbol).toBe('NEW_BULL.HK');
-    expect(task.data.previousSymbol).toBeNull();
-    expect(task.data.seatVersion).toBe(nextVersion);
-    expect(task.data.callPrice).toBe(20_000);
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toContain('ACTIVATING 必须绑定标的');
+    expect(symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG').status).toBe('ACTIVE');
+    expect(monitorTaskQueue.isEmpty()).toBeTrue();
   });
 });

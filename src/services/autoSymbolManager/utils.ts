@@ -274,8 +274,14 @@ export function resolveSeatOnStartup({
  * @param status 席位状态（EMPTY/SEARCHING/SWITCHING/ACTIVATING/ACTIVE）
  * @returns 初始化的席位状态对象
  */
+function assertSeatStateInvariant(seatState: SeatState): void {
+  if ((seatState.status === 'ACTIVE' || seatState.status === 'ACTIVATING') && !seatState.symbol) {
+    throw new Error(`SymbolRegistry 席位状态无效：${seatState.status} 必须绑定标的`);
+  }
+}
+
 function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
-  return {
+  const seatState = {
     symbol,
     status,
     lastSwitchAt: null,
@@ -285,6 +291,8 @@ function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
     searchFailCountToday: 0,
     frozenTradingDayKey: null,
   };
+  assertSeatStateInvariant(seatState);
+  return seatState;
 }
 
 /**
@@ -307,7 +315,7 @@ function createSeatEntry(symbol: string | null, status: SeatStatus): SeatEntry {
  * @returns 可写入注册表的完整席位状态
  */
 function normalizeSeatState(nextState: SeatState): SeatState {
-  return {
+  const normalizedState = {
     symbol: nextState.symbol,
     status: nextState.status,
     lastSwitchAt: nextState.lastSwitchAt ?? null,
@@ -317,6 +325,8 @@ function normalizeSeatState(nextState: SeatState): SeatState {
     searchFailCountToday: nextState.searchFailCountToday,
     frozenTradingDayKey: nextState.frozenTradingDayKey,
   };
+  assertSeatStateInvariant(normalizedState);
+  return normalizedState;
 }
 
 /**
@@ -373,7 +383,6 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
         listener(event);
       } catch (error) {
         logger.error('SymbolRegistry 席位状态 listener 执行失败', formatError(error));
-        continue;
       }
     }
   }
@@ -388,7 +397,6 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
         listener(event);
       } catch (error) {
         logger.error('SymbolRegistry 席位版本 listener 执行失败', formatError(error));
-        continue;
       }
     }
   }
@@ -403,7 +411,6 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
         listener(event);
       } catch (error) {
         logger.error('SymbolRegistry 席位 truth listener 执行失败', formatError(error));
-        continue;
       }
     }
   }

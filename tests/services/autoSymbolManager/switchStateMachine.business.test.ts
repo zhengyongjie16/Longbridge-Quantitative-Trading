@@ -182,7 +182,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
-      openProtectionActive: false,
     });
 
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
@@ -1464,7 +1463,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
-      openProtectionActive: false,
     });
 
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();

@@ -56,7 +56,10 @@ function createLastState(): LastState {
     cachedAccount: null,
     cachedPositions: [],
     positionCache: createPositionCacheDouble(),
-    cachedTradingDayInfo: null,
+    cachedTradingDayInfo: {
+      isTradingDay: true,
+      isHalfDay: false,
+    },
     monitorStates: new Map(),
     allTradingSymbols: new Set(),
   };
@@ -126,7 +129,6 @@ describe('multi-monitor isolation integration', () => {
         onQuoteUpdated: () => () => {},
         onCandlestickUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
-        getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
         resetRuntimeSubscriptionsAndCaches: async () => {},
@@ -143,22 +145,6 @@ describe('multi-monitor isolation integration', () => {
         [configA.monitorSymbol, createMonitorContextDouble({ config: configA })],
         [configB.monitorSymbol, createMonitorContextDouble({ config: configB })],
       ]),
-      buyTaskQueue: {
-        push: () => {},
-        pop: () => null,
-        isEmpty: () => true,
-        removeTasks: () => 0,
-        clearAll: () => 0,
-        onTaskAdded: () => () => {},
-      },
-      sellTaskQueue: {
-        push: () => {},
-        pop: () => null,
-        isEmpty: () => true,
-        removeTasks: () => 0,
-        clearAll: () => 0,
-        onTaskAdded: () => () => {},
-      },
       monitorTaskQueue: {
         scheduleLatest: () => {},
         pop: () => null,
@@ -167,7 +153,6 @@ describe('multi-monitor isolation integration', () => {
         clearAll: () => 0,
         onTaskAdded: () => () => {},
       },
-      runtimeGateMode: 'skip',
       tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       dayLifecycleManager: {

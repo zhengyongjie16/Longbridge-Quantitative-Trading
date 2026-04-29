@@ -124,6 +124,94 @@ function createOrdinarySignalTradingConfig(): ReturnType<typeof createTradingCon
 }
 
 describe('businessEventProgram business flow', () => {
+  it('does not clean existing direction tasks when ordinary signal projection sees empty seat', async () => {
+    let listener: (event: CandlestickUpdatedEvent) => void = (_event: CandlestickUpdatedEvent) => {
+      throw new Error('expected candlestick listener');
+    };
+    const marketDataClient = requireCandlestickEventClient(
+      createMarketDataClientDouble({
+        getCandlestickSnapshot: () => ({
+          symbol: 'HSI.HK',
+          period: Period.Min_1,
+          version: 7,
+          candles: createCandles(90, 120, 0.2),
+          lastBarTimestamp: 1_708_005_340_000,
+          lastBarConfirmed: true,
+          initialized: true,
+        }),
+        getQuotes: async () => {
+          throw new Error('businessEventProgram must not read realtime quotes');
+        },
+        onCandlestickUpdated: (nextListener) => {
+          listener = nextListener;
+          return () => {
+            listener = (_event: CandlestickUpdatedEvent) => {
+              throw new Error('candlestick listener already unsubscribed');
+            };
+          };
+        },
+      }),
+    );
+    const delayedCancelCalls: string[] = [];
+    const monitorContext = createMonitorContext({
+      delayedSignalVerifier: createDelayedSignalVerifierDouble({
+        cancelAllForDirection: (_monitorSymbol, direction) => {
+          delayedCancelCalls.push(direction);
+          return 1;
+        },
+      }),
+    });
+    monitorContext.symbolRegistry.updateSeatStateWithVersionBump('HSI.HK', 'LONG', {
+      symbol: null,
+      status: 'EMPTY',
+      lastSwitchAt: null,
+      lastSearchAt: null,
+      lastSeatActivatedAt: null,
+      callPrice: null,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    });
+    const buyTaskQueue = createBuyTaskQueue();
+    buyTaskQueue.push({
+      type: 'IMMEDIATE_BUY',
+      monitorSymbol: 'HSI.HK',
+      data: createSignalDouble('BUYCALL', 'OLD_BULL.HK'),
+    });
+    const program = createBusinessEventProgram({
+      marketDataClient,
+      monitorContexts: new Map([['HSI.HK', monitorContext]]),
+      lastState: createLastState(),
+      tradingConfig: createOrdinarySignalTradingConfig(),
+      buyTaskQueue,
+      sellTaskQueue: createSellTaskQueue(),
+      indicatorCache: createIndicatorCacheRecorder().indicatorCache,
+      monitorDisplayRuntime: {
+        requestRender: () => {},
+      },
+    });
+
+    try {
+      program.start();
+      const snapshot = marketDataClient.getCandlestickSnapshot('HSI.HK', Period.Min_1);
+      if (snapshot === null) {
+        throw new Error('expected candlestick snapshot');
+      }
+
+      listener({
+        symbol: 'HSI.HK',
+        period: Period.Min_1,
+        snapshot,
+      });
+
+      await waitUntil(() => monitorContext.state.lastMonitorSnapshot !== null);
+      expect(buyTaskQueue.pop()?.data.symbol).toBe('OLD_BULL.HK');
+      expect(buyTaskQueue.isEmpty()).toBeTrue();
+      expect(delayedCancelCalls).toHaveLength(0);
+    } finally {
+      await program.stopAndDrain();
+    }
+  });
+
   it('requests monitor display after indicator pipeline succeeds', async () => {
     let listener: (event: CandlestickUpdatedEvent) => void = (_event: CandlestickUpdatedEvent) => {
       throw new Error('expected candlestick listener');
@@ -165,7 +253,6 @@ describe('businessEventProgram business flow', () => {
       tradingConfig: createOrdinarySignalTradingConfig(),
       buyTaskQueue: createBuyTaskQueue(),
       sellTaskQueue: createSellTaskQueue(),
-      monitorTaskQueue: createMonitorTaskQueue(),
       indicatorCache: createIndicatorCacheRecorder().indicatorCache,
       monitorDisplayRuntime: {
         requestRender: (params: {
@@ -252,7 +339,6 @@ describe('businessEventProgram business flow', () => {
       tradingConfig: createOrdinarySignalTradingConfig(),
       buyTaskQueue,
       sellTaskQueue: createSellTaskQueue(),
-      monitorTaskQueue: createMonitorTaskQueue(),
       indicatorCache,
       monitorDisplayRuntime: {
         requestRender: () => {},
@@ -338,7 +424,6 @@ describe('businessEventProgram business flow', () => {
       tradingConfig: createOrdinarySignalTradingConfig(),
       buyTaskQueue: createBuyTaskQueue(),
       sellTaskQueue: createSellTaskQueue(),
-      monitorTaskQueue: createMonitorTaskQueue(),
       indicatorCache,
       monitorDisplayRuntime: {
         requestRender: () => {},
@@ -402,7 +487,6 @@ describe('businessEventProgram business flow', () => {
       tradingConfig: createOrdinarySignalTradingConfig(),
       buyTaskQueue: createBuyTaskQueue(),
       sellTaskQueue: createSellTaskQueue(),
-      monitorTaskQueue: createMonitorTaskQueue(),
       indicatorCache,
       monitorDisplayRuntime: {
         requestRender: () => {},
@@ -473,7 +557,6 @@ describe('businessEventProgram business flow', () => {
       tradingConfig: createOrdinarySignalTradingConfig(),
       buyTaskQueue,
       sellTaskQueue: createSellTaskQueue(),
-      monitorTaskQueue: createMonitorTaskQueue(),
       indicatorCache,
       monitorDisplayRuntime: {
         requestRender: () => {},
@@ -529,7 +612,6 @@ describe('businessEventProgram business flow', () => {
       tradingConfig: createOrdinarySignalTradingConfig(),
       buyTaskQueue,
       sellTaskQueue: createSellTaskQueue(),
-      monitorTaskQueue: createMonitorTaskQueue(),
       indicatorCache,
       monitorDisplayRuntime: {
         requestRender: () => {},
@@ -615,13 +697,6 @@ describe('businessEventProgram business flow', () => {
       }),
     });
 
-    monitorContext.symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
-      ...monitorContext.symbolRegistry.getSeatState('HSI.HK', 'LONG'),
-      symbol: 'BULL.HK',
-      status: 'ACTIVATING',
-      callPrice: 20_000,
-    } as never);
-
     const tradingConfig = createOrdinarySignalTradingConfig();
     const lastState = createLastState();
     const seatActivationDispatcher = createSeatActivationDispatcher({
@@ -632,7 +707,6 @@ describe('businessEventProgram business flow', () => {
     const monitorTaskProcessor = createMonitorTaskProcessor({
       monitorTaskQueue,
       getMonitorContext: () => monitorContext,
-      clearMonitorDirectionQueues: () => {},
       trader: createTraderDouble(),
       marketDataClient: marketDataClientDouble,
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble({
@@ -643,6 +717,7 @@ describe('businessEventProgram business flow', () => {
       },
       lastState,
       tradingConfig,
+      getCanTradeNow: () => true,
     });
 
     const { indicatorCache } = createIndicatorCacheRecorder();
@@ -653,7 +728,6 @@ describe('businessEventProgram business flow', () => {
       tradingConfig,
       buyTaskQueue: createBuyTaskQueue(),
       sellTaskQueue: createSellTaskQueue(),
-      monitorTaskQueue,
       indicatorCache,
       monitorDisplayRuntime: {
         requestRender: () => {},
@@ -662,6 +736,12 @@ describe('businessEventProgram business flow', () => {
 
     try {
       seatActivationDispatcher.start();
+      monitorContext.symbolRegistry.updateSeatStateWithVersionBump('HSI.HK', 'LONG', {
+        ...monitorContext.symbolRegistry.getSeatState('HSI.HK', 'LONG'),
+        symbol: 'BULL.HK',
+        status: 'ACTIVATING',
+        callPrice: 20_000,
+      } as never);
       program.start();
 
       let snapshot = marketDataClient.getCandlestickSnapshot('HSI.HK', Period.Min_1);

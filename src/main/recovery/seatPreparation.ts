@@ -154,7 +154,7 @@ export async function prepareSeatsForRuntime(
     now,
     logger,
     getTradingMinutesSinceOpen,
-    isWithinMorningOpenProtection,
+    resolveCanAutoSearchNow,
     warrantListCacheConfig,
   } = deps;
   const snapshot = resolveSeatSnapshot({
@@ -333,7 +333,7 @@ export async function prepareSeatsForRuntime(
       return true;
     }
 
-    if (openDelayMinutes > 0 && isWithinMorningOpenProtection(currentTime, openDelayMinutes)) {
+    if (!resolveCanAutoSearchNow({ currentTime, openDelayMinutes })) {
       return true;
     }
 

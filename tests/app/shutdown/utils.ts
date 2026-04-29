@@ -81,7 +81,6 @@ function defaultDeps(steps: string[]): CleanupContext {
     onQuoteUpdated: () => () => {},
     onCandlestickUpdated: () => () => {},
     subscribeCandlesticks: async () => [],
-    getRealtimeCandlesticks: async () => [],
     getCandlestickSnapshot: () => null,
     isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
     resetRuntimeSubscriptionsAndCaches: async () => {
@@ -120,6 +119,12 @@ function defaultDeps(steps: string[]): CleanupContext {
       start: () => {},
       stopAndDrain: async () => {
         steps.push('tradingQuoteDisplayRuntime');
+      },
+    },
+    seatRuntimeCleanupDispatcher: {
+      start: () => {},
+      stop: () => {
+        steps.push('seatRuntimeCleanupDispatcher');
       },
     },
     quoteSubscriptionRuntime: {
@@ -186,11 +191,8 @@ function defaultDeps(steps: string[]): CleanupContext {
       recordSettlementRefreshNeed: () => {},
       getStatus: () => ({
         started: false,
-        inFlight: false,
-        hasPendingRefresh: false,
         currentVersion: 0,
         staleVersion: 0,
-        abortReason: null,
       }),
       waitForFresh: async () => {},
       onFreshReached: () => () => {},

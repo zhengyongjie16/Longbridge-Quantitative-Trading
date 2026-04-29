@@ -24,8 +24,6 @@ describe('monitorTaskQueue business behavior', () => {
         seatVersion: 1,
         symbol: 'BULL.HK',
         currentTimeMs: 100,
-        canTradeNow: true,
-        openProtectionActive: false,
       },
     });
 
@@ -39,8 +37,6 @@ describe('monitorTaskQueue business behavior', () => {
         seatVersion: 2,
         symbol: 'BULL.HK',
         currentTimeMs: 200,
-        canTradeNow: true,
-        openProtectionActive: false,
       },
     });
 
@@ -106,8 +102,6 @@ describe('monitorTaskQueue business behavior', () => {
         seatVersion: 1,
         symbol: 'BULL.HK',
         currentTimeMs: 1,
-        canTradeNow: true,
-        openProtectionActive: false,
       },
     });
 
@@ -121,8 +115,6 @@ describe('monitorTaskQueue business behavior', () => {
         seatVersion: 2,
         symbol: 'BEAR.HK',
         currentTimeMs: 2,
-        canTradeNow: true,
-        openProtectionActive: false,
       },
     });
 

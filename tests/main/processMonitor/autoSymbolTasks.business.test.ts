@@ -55,8 +55,6 @@ describe('autoSymbolTasks business scheduling', () => {
       mainContext,
       autoSearchEnabled: true,
       currentTimeMs: 123_456,
-      canTradeNow: true,
-      openProtectionActive: false,
     });
 
     const first = monitorTaskQueue.pop();
@@ -66,14 +64,12 @@ describe('autoSymbolTasks business scheduling', () => {
     expect(first?.dedupeKey).toBe('HSI.HK:AUTO_SYMBOL_TICK:LONG');
     expect((first?.data as { seatVersion: number }).seatVersion).toBe(5);
     expect((first?.data as { currentTimeMs: number }).currentTimeMs).toBe(123_456);
-    expect((first?.data as { openProtectionActive: boolean }).openProtectionActive).toBeFalse();
     expect((first?.data as { symbol: string | null }).symbol).toBe('BULL.HK');
 
     expect(second?.type).toBe('AUTO_SYMBOL_TICK');
     expect(second?.dedupeKey).toBe('HSI.HK:AUTO_SYMBOL_TICK:SHORT');
     expect((second?.data as { seatVersion: number }).seatVersion).toBe(8);
     expect((second?.data as { currentTimeMs: number }).currentTimeMs).toBe(123_456);
-    expect((second?.data as { openProtectionActive: boolean }).openProtectionActive).toBeFalse();
     expect((second?.data as { symbol: string | null }).symbol).toBe('BEAR.HK');
   });
 
@@ -101,8 +97,6 @@ describe('autoSymbolTasks business scheduling', () => {
       mainContext,
       autoSearchEnabled: true,
       currentTimeMs: 123_456,
-      canTradeNow: true,
-      openProtectionActive: false,
     });
 
     const first = monitorTaskQueue.pop();
@@ -128,11 +122,9 @@ describe('autoSymbolTasks business scheduling', () => {
       } as unknown as MonitorContext,
       mainContext: {
         monitorTaskQueue,
-      } as unknown as MonitorRuntimeContext,
+      },
       autoSearchEnabled: false,
       currentTimeMs: Date.now(),
-      canTradeNow: true,
-      openProtectionActive: false,
     });
 
     expect(monitorTaskQueue.isEmpty()).toBeTrue();

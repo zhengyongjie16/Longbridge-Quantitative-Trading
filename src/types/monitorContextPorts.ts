@@ -108,7 +108,6 @@ export interface AutoSymbolManagerPort {
     readonly direction: 'LONG' | 'SHORT';
     readonly currentTime: Date;
     readonly canTradeNow: boolean;
-    readonly openProtectionActive: boolean;
   }) => Promise<SwitchDriveResult>;
   startSwitchOnDistance: (params: {
     readonly direction: 'LONG' | 'SHORT';

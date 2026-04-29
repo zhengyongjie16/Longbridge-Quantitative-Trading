@@ -14,10 +14,10 @@ import type {
 
 /**
  * 创建带按日缓存的交易日信息解析函数。
- * 默认行为：同日命中缓存直接返回；接口异常时回调 onResolveError 并返回非交易日结果。
+ * 默认行为：同日命中缓存直接返回；接口异常时回调 onResolveError 并抛出原始错误。
  *
  * @param deps 依赖注入，包含交易日接口、日期键函数与错误回调
- * @returns 可直接用于 StartupGate 的 resolveTradingDayInfo 函数
+ * @returns 可直接用于启动状态初始化与运行期交易日状态更新的 resolveTradingDayInfo 函数
  */
 export function createTradingDayInfoResolver(
   deps: TradingDayInfoResolverDeps,
@@ -37,10 +37,7 @@ export function createTradingDayInfoResolver(
       return info;
     } catch (err) {
       onResolveError(err);
-      return {
-        isTradingDay: false,
-        isHalfDay: false,
-      };
+      throw err;
     }
   };
 }

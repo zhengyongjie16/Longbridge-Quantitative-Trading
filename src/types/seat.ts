@@ -92,7 +92,7 @@ export type SeatVersionChangedEvent = Readonly<{
  * 数据来源：由 SymbolRegistry 的 public mutation 在本次对应的状态或版本事件发布完成后发布。
  * 使用范围：依赖完整席位 truth 重投影的事件驱动链路。
  */
-export type SeatTruthChangedEvent = Readonly<{
+type SeatTruthChangedEvent = Readonly<{
   /** 监控标的代码 */
   monitorSymbol: string;
 
@@ -158,14 +158,6 @@ export interface SymbolRegistry {
   /** 订阅席位 truth 变化事件 */
   onSeatTruthChanged: (listener: SeatTruthChangedListener) => Unsubscribe;
 }
-
-/**
- * 门禁模式。
- * 类型用途：控制启动与跨日流程中的门禁行为（strict 严格校验 / skip 跳过），作为 gate 等函数的参数。
- * 数据来源：配置或调用方传入。
- * 使用范围：startup/gate、跨日流程等；全项目可引用。
- */
-export type GateMode = 'strict' | 'skip';
 
 /**
  * 生命周期状态。

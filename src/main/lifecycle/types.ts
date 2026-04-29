@@ -11,14 +11,14 @@ import type { ProtectiveLiquidationEpisodeTracker } from '../../core/trader/prot
 
 /**
  * 每次 tick 传入的运行时标志（生命周期 tick 的入参之一）。
- * 类型用途：供 DayLifecycleManager.tick 使用，表示当日键、是否可交易、是否交易日等；管理器只读不写。
+ * 类型用途：供 DayLifecycleManager.tick 使用，表示当日键、是否可交易、是否交易日等；isTradingDay 为 null 表示交易日状态未知；管理器只读不写。
  * 数据来源：由主循环根据当前时间与交易日历等计算后传入 tick(now, runtime)。
  * 使用范围：仅 lifecycle 模块及主程序调用 tick 处使用，内部使用。
  */
 export type LifecycleRuntimeFlags = Readonly<{
   dayKey: string | null;
   canTradeNow: boolean;
-  isTradingDay: boolean;
+  isTradingDay: boolean | null;
 }>;
 
 /**

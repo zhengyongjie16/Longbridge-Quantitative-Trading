@@ -108,16 +108,6 @@ export interface UnrealizedLossChecker {
 // ==================== 依赖类型定义 ====================
 
 /**
- * 牛熊证风险检查器依赖。
- * 类型用途：创建 WarrantRiskChecker 时的依赖注入（当前无外部依赖，空对象）。
- * 数据来源：如适用。
- * 使用范围：仅 riskController 模块内部使用。
- */
-export type WarrantRiskCheckerDeps = {
-  readonly [key: string]: never;
-};
-
-/**
  * 持仓限制检查器依赖。
  * 类型用途：用于创建 PositionLimitChecker 时的依赖注入。
  * 数据来源：如适用（如配置中的 maxPositionNotional）。

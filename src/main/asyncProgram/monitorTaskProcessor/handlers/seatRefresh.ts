@@ -3,8 +3,8 @@
  *
  * 功能：
  * - 作为 seat activation barrier，在 ACTIVATING 阶段完成 quote admission 与风险缓存初始化
- * - 在执行时拉取行情后刷新牛熊证信息并处理旧标的清理
- * - 成功后推进到 ACTIVE，失败则回 EMPTY 并 bump version
+ * - 在执行时拉取行情后刷新订单、账户、浮亏与牛熊证信息
+ * - 成功后推进到 ACTIVE，业务校验失败则回 EMPTY 并 bump version
  */
 import { logger } from '../../../../utils/logger/index.js';
 import { isSeatVersionMatch } from '../../../../utils/seat/guards.js';
@@ -49,25 +49,94 @@ function logSeatRefreshProcessed(params: {
   );
 }
 
+function setDirectionSymbolName(
+  context: MonitorTaskContext,
+  direction: 'LONG' | 'SHORT',
+  symbolName: string,
+): void {
+  if (direction === 'LONG') {
+    context.longSymbolName = symbolName;
+  } else {
+    context.shortSymbolName = symbolName;
+  }
+}
+
+/**
+ * 将指定监控标的的方向席位标记为空（刷新业务失败或数据无效时调用）。
+ * 该函数只更新 seat truth；方向运行态清理由 ACTIVE 退场事件 owner 处理。
+ *
+ * @param monitorSymbol 监控标的代码
+ * @param direction 多空方向
+ * @param reason 标记原因（用于日志）
+ * @param context 任务上下文
+ * @returns 无返回值
+ */
+function markSeatAsEmpty(
+  monitorSymbol: string,
+  direction: 'LONG' | 'SHORT',
+  reason: string,
+  context: MonitorTaskContext,
+): void {
+  const currentSeat = context.symbolRegistry.getSeatState(monitorSymbol, direction);
+  const nowMs = Date.now();
+  const nextState = {
+    symbol: null,
+    status: 'EMPTY',
+    lastSwitchAt: nowMs,
+    lastSearchAt: currentSeat.lastSearchAt ?? nowMs,
+    lastSeatActivatedAt: null,
+    callPrice: null,
+    searchFailCountToday: currentSeat.searchFailCountToday,
+    frozenTradingDayKey: currentSeat.frozenTradingDayKey,
+  } as const;
+  setDirectionSymbolName(context, direction, '');
+  const { seatVersion: nextVersion } = context.symbolRegistry.updateSeatStateWithVersionBump(
+    monitorSymbol,
+    direction,
+    nextState,
+  );
+  logger.error(`[自动换标] ${monitorSymbol} ${direction} 换标失败（v${nextVersion}）：${reason}`);
+}
+
+/**
+ * 校验任务快照与当前席位是否仍一致，并返回当前席位状态。
+ * 要求：seatVersion 匹配、状态为 ACTIVATING、symbol 与 nextSymbol 一致。
+ *
+ * @param context 监控上下文
+ * @param data 席位刷新任务数据
+ * @returns 快照仍有效时返回当前 seatState，否则返回 null
+ */
+function resolveActivatingSeatSnapshot(
+  context: MonitorTaskContext,
+  data: SeatRefreshTaskData,
+): ReturnType<MonitorTaskContext['symbolRegistry']['getSeatState']> | null {
+  const seatState = context.symbolRegistry.getSeatState(data.monitorSymbol, data.direction);
+  const seatVersion = context.symbolRegistry.getSeatVersion(data.monitorSymbol, data.direction);
+  if (!isSeatVersionMatch(data.seatVersion, seatVersion)) {
+    return null;
+  }
+
+  if (seatState.status !== 'ACTIVATING' || seatState.symbol !== data.nextSymbol) {
+    return null;
+  }
+
+  return seatState;
+}
+
 /**
  * 创建席位刷新任务处理器。
- * 在 seat 进入 ACTIVATING 后执行 admission、订单/风控缓存初始化与旧标的清理；仅当全部成功时才把 seat 推进到 ACTIVE。
+ * 在 seat 进入 ACTIVATING 后执行 admission、订单/风控缓存初始化与旧标的订单缓存收口；仅当全部成功时才把 seat 推进到 ACTIVE。
  *
- * @param deps 依赖注入，包含 getContextOrSkip、clearMonitorDirectionQueues、tradingConfig、marketDataClient
+ * @param deps 依赖注入，包含 getContextOrSkip、tradingConfig、marketDataClient
  * @returns 处理 SEAT_REFRESH 任务的异步函数
  */
 export function createSeatRefreshHandler({
   getContextOrSkip,
-  clearMonitorDirectionQueues,
   tradingConfig,
   marketDataClient,
   quoteSubscriptionRuntime,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
-  readonly clearMonitorDirectionQueues: (
-    monitorSymbol: string,
-    direction: 'LONG' | 'SHORT',
-  ) => void;
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly marketDataClient: MarketDataClient;
   readonly quoteSubscriptionRuntime: Pick<
@@ -78,78 +147,6 @@ export function createSeatRefreshHandler({
   task: MonitorTask<MonitorTaskDataMap, 'SEAT_REFRESH'>,
   helpers: RefreshHelpers,
 ) => Promise<MonitorTaskStatus> {
-  /**
-   * 将指定监控标的的方向席位标记为空（刷新失败或数据无效时调用）。
-   * 通过 context 更新 symbolRegistry 席位状态与版本，并清理风控缓存与方向队列。
-   *
-   * @param monitorSymbol 监控标的代码
-   * @param direction 多空方向
-   * @param reason 标记原因（用于日志）
-   * @param context 任务上下文，为 null 时直接返回
-   * @returns 无返回值
-   */
-  function markSeatAsEmpty(
-    monitorSymbol: string,
-    direction: 'LONG' | 'SHORT',
-    reason: string,
-    context: MonitorTaskContext | null,
-  ): void {
-    if (!context) {
-      return;
-    }
-
-    if (direction === 'LONG') {
-      context.riskChecker.clearLongWarrantInfo();
-    } else {
-      context.riskChecker.clearShortWarrantInfo();
-    }
-
-    const currentSeat = context.symbolRegistry.getSeatState(monitorSymbol, direction);
-    const nowMs = Date.now();
-    const nextState = {
-      symbol: null,
-      status: 'EMPTY',
-      lastSwitchAt: nowMs,
-      lastSearchAt: currentSeat.lastSearchAt ?? nowMs,
-      lastSeatActivatedAt: null,
-      callPrice: null,
-      searchFailCountToday: currentSeat.searchFailCountToday,
-      frozenTradingDayKey: currentSeat.frozenTradingDayKey,
-    } as const;
-    const { seatVersion: nextVersion } = context.symbolRegistry.updateSeatStateWithVersionBump(
-      monitorSymbol,
-      direction,
-      nextState,
-    );
-    clearMonitorDirectionQueues(monitorSymbol, direction);
-    logger.error(`[自动换标] ${monitorSymbol} ${direction} 换标失败（v${nextVersion}）：${reason}`);
-  }
-
-  /**
-   * 校验任务快照与当前席位是否仍一致，并返回当前席位状态。
-   * 要求：seatVersion 匹配、状态为 ACTIVATING、symbol 与 nextSymbol 一致。
-   *
-   * @param context 监控上下文
-   * @param data 席位刷新任务数据
-   * @returns 快照仍有效时返回当前 seatState，否则返回 null
-   */
-  function resolveActivatingSeatSnapshot(
-    context: MonitorTaskContext,
-    data: SeatRefreshTaskData,
-  ): ReturnType<MonitorTaskContext['symbolRegistry']['getSeatState']> | null {
-    const seatState = context.symbolRegistry.getSeatState(data.monitorSymbol, data.direction);
-    const seatVersion = context.symbolRegistry.getSeatVersion(data.monitorSymbol, data.direction);
-    if (!isSeatVersionMatch(data.seatVersion, seatVersion)) {
-      return null;
-    }
-
-    if (seatState.status !== 'ACTIVATING' || seatState.symbol !== data.nextSymbol) {
-      return null;
-    }
-
-    return seatState;
-  }
-
   return async function handleSeatRefresh(
     task: MonitorTask<MonitorTaskDataMap, 'SEAT_REFRESH'>,
     helpers: RefreshHelpers,
@@ -157,7 +154,9 @@ export function createSeatRefreshHandler({
     const data: SeatRefreshTaskData = task.data;
     const context = getContextOrSkip(data.monitorSymbol);
     if (!context) {
-      return 'skipped';
+      throw new Error(
+        `[SEAT_REFRESH] 未找到监控上下文: monitorSymbol=${data.monitorSymbol} direction=${data.direction} seatVersion=${data.seatVersion} nextSymbol=${data.nextSymbol}`,
+      );
     }
 
     const entrySeatState = resolveActivatingSeatSnapshot(context, data);
@@ -171,11 +170,6 @@ export function createSeatRefreshHandler({
     }
 
     const isLong = data.direction === 'LONG';
-    if (isLong) {
-      context.riskChecker.clearLongWarrantInfo();
-    } else {
-      context.riskChecker.clearShortWarrantInfo();
-    }
 
     const callPriceValid =
       data.callPrice !== null &&
@@ -277,6 +271,12 @@ export function createSeatRefreshHandler({
         return 'processed';
       }
 
+      setDirectionSymbolName(
+        context,
+        data.direction,
+        nextExecutionQuote?.name ?? data.symbolName ?? data.nextSymbol,
+      );
+
       context.symbolRegistry.updateSeatState(data.monitorSymbol, data.direction, {
         ...latestSeatState,
         status: 'ACTIVE',
@@ -289,15 +289,6 @@ export function createSeatRefreshHandler({
         result: 'activated',
       });
 
-      return 'processed';
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      markSeatAsEmpty(data.monitorSymbol, data.direction, reason, context);
-      logSeatRefreshProcessed({
-        data,
-        result: 'marked_empty',
-        reason,
-      });
       return 'processed';
     } finally {
       releaseSeatRefreshRetain?.();

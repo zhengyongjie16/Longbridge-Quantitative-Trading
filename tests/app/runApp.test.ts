@@ -90,7 +90,6 @@ function createHarnessState(): MutableRunAppHarnessState {
   return {
     events: [],
     startupRebuildPending: false,
-    runtimeGateMode: 'strict',
     preGateRuntimeEnv: null,
     postGateRuntimeEnv: null,
     createPostGateRuntimeNow: null,
@@ -98,10 +97,10 @@ function createHarnessState(): MutableRunAppHarnessState {
     rebuildCalls: [],
     rebuildShouldThrow: false,
     completeRebuildBaselineShouldThrow: false,
+    startupFailureCalls: [],
     registerDelayedCalls: 0,
     cleanupRegistered: 0,
     timeDriverProgramCalls: 0,
-    timeDriverProgramRuntimeGateModes: [],
     createBusinessEventProgramHasIndicatorCache: null,
     createBusinessEventProgramHasMonitorDisplayRuntime: null,
     timeDriverProgramHasIndicatorCache: null,
@@ -151,17 +150,12 @@ function createRunAppDeps(): RunAppDeps {
             throw new Error('runApp test should not request quote context');
           },
         }),
-        runMode: 'prod',
-        gatePolicies: {
-          startupGate: 'strict',
-          runtimeGate: harnessState.runtimeGateMode,
-        },
         startupTradingDayInfo: {
-          isTradingDay: true,
-          isHalfDay: false,
-        },
-        startupGate: {
-          wait: async () => ({ isTradingDay: true, isHalfDay: false }),
+          dateKey: '2026-03-09',
+          info: {
+            isTradingDay: true,
+            isHalfDay: false,
+          },
         },
       };
     },
@@ -212,6 +206,14 @@ function createRunAppDeps(): RunAppDeps {
           },
           stop: () => {
             harnessState.events.push('seatActivationDispatcher.stop');
+          },
+        },
+        seatRuntimeCleanupDispatcher: {
+          start: () => {
+            harnessState.events.push('seatRuntimeCleanupDispatcher.start');
+          },
+          stop: () => {
+            harnessState.events.push('seatRuntimeCleanupDispatcher.stop');
           },
         },
         autoSearchWakeupRuntime: {
@@ -274,11 +276,8 @@ function createRunAppDeps(): RunAppDeps {
           recordSettlementRefreshNeed: () => {},
           getStatus: () => ({
             started: false,
-            inFlight: false,
-            hasPendingRefresh: false,
             currentVersion: 0,
             staleVersion: 0,
-            abortReason: null,
           }),
           waitForFresh: async () => {},
           onFreshReached: () => createOnFreshReachedHandle(),
@@ -320,10 +319,6 @@ function createRunAppDeps(): RunAppDeps {
           allOrders: [],
           quotesMap: new Map(),
         }),
-        marketMonitor: {
-          renderTradingQuote: () => {},
-          renderMonitorIndicators: () => {},
-        },
         doomsdayProtection: {
           isBuyCutoffWindowActive: () => false,
           executeClearance: async () => ({ executed: false, signalCount: 0 }),
@@ -446,12 +441,10 @@ function createRunAppDeps(): RunAppDeps {
       };
     },
     timeDriverProgram: async (params: {
-      readonly runtimeGateMode: 'strict' | 'skip';
       readonly lastState: LastState;
       readonly indicatorCache?: unknown;
     }) => {
       harnessState.timeDriverProgramCalls += 1;
-      harnessState.timeDriverProgramRuntimeGateModes.push(params.runtimeGateMode);
       harnessState.timeDriverProgramHasIndicatorCache = 'indicatorCache' in params;
       params.lastState.canTrade = true;
       harnessState.events.push('timeDriverProgram');
@@ -469,7 +462,14 @@ function createRunAppDeps(): RunAppDeps {
     },
     formatError: String,
     validateRuntimeSymbolsFromQuotesMap: () => harnessState.validationResult,
-    applyStartupSnapshotFailureState: () => {},
+    applyStartupSnapshotFailureState: (lastState, now) => {
+      harnessState.startupFailureCalls.push(now);
+      harnessState.events.push('applyStartupSnapshotFailureState');
+      lastState.pendingOpenRebuild = true;
+      lastState.lifecycleState = 'OPEN_REBUILD_FAILED';
+      lastState.isTradingEnabled = false;
+      lastState.targetTradingDayKey = '2026-03-09';
+    },
   };
 }
 
@@ -508,6 +508,7 @@ describe('app runApp assembly', () => {
       'quoteSubscriptionRuntime.reconcileFromCurrentTruth',
       'tradingQuoteDisplayRuntime.start',
       'quoteSubscriptionRuntime.start',
+      'seatRuntimeCleanupDispatcher.start',
       'seatActivationDispatcher.start',
       'autoSearchWakeupRuntime.start',
       'monitorDisplayRuntime.start',
@@ -520,21 +521,97 @@ describe('app runApp assembly', () => {
       'sellProcessor.start',
       'trader.startOrderMonitorRuntime',
       'timeDriverProgram',
-      `sleep:${TRADING.INTERVAL_MS}`,
+      `sleep:${harnessState.sleepDurations[0]}`,
     ]);
+    expect(harnessState.sleepDurations).toHaveLength(1);
+    expect(harnessState.sleepDurations[0]).toBeGreaterThanOrEqual(0);
+    expect(harnessState.sleepDurations[0]).toBeLessThanOrEqual(TRADING.INTERVAL_MS);
     expect(harnessState.registerDelayedCalls).toBe(1);
     expect(harnessState.cleanupRegistered).toBe(1);
-    expect(harnessState.timeDriverProgramRuntimeGateModes).toEqual(['strict']);
     expect(harnessState.createBusinessEventProgramHasMonitorDisplayRuntime).toBe(true);
+  });
+
+  it('keeps the app alive when initial rebuild fails without starting runtime processors', async () => {
+    harnessState.rebuildShouldThrow = true;
+    const runApp = createRunApp(createRunAppDeps());
+    let caught: unknown = null;
+
+    try {
+      await runApp({ env: {} });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBe(STOP_AFTER_FIRST_LOOP);
+    expect(harnessState.rebuildCalls).toHaveLength(1);
+    if (harnessState.loadStartupSnapshotNow === null) {
+      throw new Error('loadStartupSnapshotNow should be captured');
+    }
+
+    expect(harnessState.startupFailureCalls[0]).toBe(harnessState.loadStartupSnapshotNow);
+    expect(harnessState.events).toEqual([
+      'loadStartupSnapshot',
+      'createMonitorContexts',
+      'postTradeConsistencyRuntime.bindBusinessDeps',
+      'createRebuildTradingDayState',
+      'createAsyncRuntime',
+      'createBusinessEventProgram',
+      'createLifecycleRuntime',
+      'registerDelayedSignalHandlers',
+      'createCleanup',
+      'registerExitHandlers',
+      'rebuildTradingDayState',
+      'applyStartupSnapshotFailureState',
+      'timeDriverProgram',
+      `sleep:${harnessState.sleepDurations[0]}`,
+    ]);
+    expect(harnessState.events).not.toContain('postTradeConsistencyRuntime.start');
+    expect(harnessState.events).not.toContain('monitorTaskProcessor.start');
+    expect(harnessState.events).not.toContain('buyProcessor.start');
+    expect(harnessState.events).not.toContain('sellProcessor.start');
+    expect(harnessState.sleepDurations).toHaveLength(1);
+    expect(harnessState.sleepDurations[0]).toBeGreaterThanOrEqual(0);
+    expect(harnessState.sleepDurations[0]).toBeLessThanOrEqual(TRADING.INTERVAL_MS);
+  });
+
+  it('does not convert runtime owner startup failure into startup rebuild failure', async () => {
+    harnessState.completeRebuildBaselineShouldThrow = true;
+    const runApp = createRunApp(createRunAppDeps());
+    let caught: unknown = null;
+
+    try {
+      await runApp({ env: {} });
+    } catch (error) {
+      caught = error;
+    }
+
+    if (!(caught instanceof Error)) {
+      throw new Error('completeRebuildBaseline failure should be rethrown');
+    }
+
+    expect(caught.message).toBe('completeRebuildBaseline failed');
+    expect(harnessState.startupFailureCalls).toHaveLength(0);
+    expect(harnessState.events).toEqual([
+      'loadStartupSnapshot',
+      'createMonitorContexts',
+      'postTradeConsistencyRuntime.bindBusinessDeps',
+      'createRebuildTradingDayState',
+      'createAsyncRuntime',
+      'createBusinessEventProgram',
+      'createLifecycleRuntime',
+      'registerDelayedSignalHandlers',
+      'createCleanup',
+      'registerExitHandlers',
+      'rebuildTradingDayState',
+      'postTradeConsistencyRuntime.start',
+      'postTradeConsistencyRuntime.completeRebuildBaseline',
+    ]);
+    expect(harnessState.events).not.toContain('applyStartupSnapshotFailureState');
+    expect(harnessState.events).not.toContain('timeDriverProgram');
   });
 
   it('keeps the app alive during startupRebuildPending without starting runtime processors', async () => {
     harnessState.startupRebuildPending = true;
-    harnessState.validationResult = {
-      valid: false,
-      warnings: [],
-      errors: ['missing quote'],
-    };
     const runApp = createRunApp(createRunAppDeps());
     let caught: unknown = null;
 
@@ -563,7 +640,6 @@ describe('app runApp assembly', () => {
     expect(harnessState.sleepDurations).toHaveLength(1);
     expect(harnessState.sleepDurations[0]).toBeGreaterThanOrEqual(0);
     expect(harnessState.sleepDurations[0]).toBeLessThanOrEqual(TRADING.INTERVAL_MS);
-    expect(harnessState.timeDriverProgramRuntimeGateModes).toEqual(['strict']);
   });
 
   it('fails fast with AppStartupAbortError when runtime symbol validation fails', async () => {

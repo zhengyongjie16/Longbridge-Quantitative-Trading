@@ -29,6 +29,7 @@ import { createTradingRiskEventRuntime } from '../../main/tradingRiskEventRuntim
 import { createAutoSearchWakeupRuntime } from '../../main/autoSearchWakeupRuntime/index.js';
 import { createQuoteSubscriptionRuntime } from '../../main/quoteSubscriptionRuntime/index.js';
 import { createSeatActivationDispatcher } from '../../main/seatActivationDispatcher/index.js';
+import { createSeatRuntimeCleanupDispatcher } from '../../main/seatRuntimeCleanupDispatcher/index.js';
 import { createTradingGateEventRuntime } from '../../main/tradingGateEventRuntime/index.js';
 import { createDefaultMonitorQuoteEventRuntime } from '../../main/monitorQuoteEventRuntime/monitorQuoteEventRuntime.js';
 import { createSwitchWakeupRuntime } from '../../main/monitorQuoteEventRuntime/switchWakeupRuntime.js';
@@ -42,7 +43,7 @@ import { createPositionCache } from '../../utils/positionCache/index.js';
 import { initMonitorState, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { resolveLogRootDir } from '../../utils/runtime/index.js';
 import { buildTradeLogPath } from '../../utils/trading/tradeLogPath.js';
-import { getHKDateKey, toHongKongTimeIso } from '../../utils/time/index.js';
+import { getRequiredHKDateKey, toHongKongTimeIso } from '../../utils/time/index.js';
 import { logger, retainLatestLogFiles } from '../../utils/logger/index.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
 import type { OrderStateChangedEvent } from '../../types/services.js';
@@ -204,7 +205,11 @@ export async function createPostGateRuntime(
   });
   const protectiveLiquidationEpisodeTracker = createProtectiveLiquidationEpisodeTracker();
   const monitorContexts = new Map<string, MonitorContext>();
-  const initialDayKey = getHKDateKey(now);
+  const initialDayKey = getRequiredHKDateKey(now);
+  const initialTradingDayInfo =
+    startupTradingDayInfo !== null && startupTradingDayInfo.dateKey === initialDayKey
+      ? startupTradingDayInfo.info
+      : null;
   const lastState: LastState = {
     canTrade: null,
     isHalfDay: null,
@@ -217,8 +222,11 @@ export async function createPostGateRuntime(
     cachedAccount: null,
     cachedPositions: [],
     positionCache: createPositionCache(),
-    cachedTradingDayInfo: startupTradingDayInfo,
-    tradingCalendarSnapshot: new Map([[initialDayKey, startupTradingDayInfo]]),
+    cachedTradingDayInfo: initialTradingDayInfo,
+    tradingCalendarSnapshot:
+      initialTradingDayInfo === null
+        ? new Map()
+        : new Map([[initialDayKey, initialTradingDayInfo]]),
     monitorStates: new Map(
       tradingConfig.monitors.map((monitorConfig) => [
         monitorConfig.monitorSymbol,
@@ -281,6 +289,7 @@ export async function createPostGateRuntime(
   });
   const marketMonitor = createMarketMonitor();
   const doomsdayProtection = createDoomsdayProtection();
+  const doomsdayProtectionEnabled = tradingConfig.global.doomsdayProtection;
   const tradingGateEventRuntime = createTradingGateEventRuntime();
   const quoteSubscriptionRuntime = createQuoteSubscriptionRuntime({
     tradingConfig,
@@ -297,7 +306,7 @@ export async function createPostGateRuntime(
     monitorContexts,
     lastState,
     postTradeConsistencyRuntime,
-    doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
+    doomsdayProtectionEnabled,
     now: () => new Date(),
   });
   const switchWakeupRuntime = createSwitchWakeupRuntime({
@@ -307,7 +316,7 @@ export async function createPostGateRuntime(
     monitorContexts,
     lastState,
     postTradeConsistencyRuntime,
-    doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
+    doomsdayProtectionEnabled,
     quoteSubscriptionRuntime,
     now: () => new Date(),
     scheduleTimer: (callback, delayMs) => {
@@ -323,7 +332,7 @@ export async function createPostGateRuntime(
     trader,
     lastState,
     postTradeConsistencyRuntime,
-    doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
+    doomsdayProtectionEnabled,
     quoteSubscriptionRuntime,
     now: () => new Date(),
     handoffPendingSwitch: switchWakeupRuntime.handoffPendingSwitch,
@@ -388,6 +397,13 @@ export async function createPostGateRuntime(
     symbolRegistry,
     monitorTaskQueue,
   });
+  const seatRuntimeCleanupDispatcher = createSeatRuntimeCleanupDispatcher({
+    symbolRegistry,
+    monitorContexts,
+    buyTaskQueue,
+    sellTaskQueue,
+    monitorTaskQueue,
+  });
   const autoSearchWakeupRuntime = createAutoSearchWakeupRuntime({
     tradingConfig,
     symbolRegistry,
@@ -411,6 +427,7 @@ export async function createPostGateRuntime(
     tradingGateEventRuntime,
     quoteSubscriptionRuntime,
     seatActivationDispatcher,
+    seatRuntimeCleanupDispatcher,
     autoSearchWakeupRuntime,
     tradingRiskEventRuntime,
     monitorQuoteEventRuntime,
@@ -421,7 +438,6 @@ export async function createPostGateRuntime(
     lastState,
     trader,
     loadTradingDayRuntimeSnapshot,
-    marketMonitor,
     doomsdayProtection,
     signalProcessor,
     indicatorCache,

@@ -29,6 +29,7 @@ import {
   createQuoteSubscriptionRuntimeDouble,
   createSdkConfigDouble,
   createSeatActivationDispatcherDouble,
+  createSeatRuntimeCleanupDispatcherDouble,
   createSymbolRegistryDouble,
   createTradingGateEventRuntimeDouble,
   createTraderDouble,
@@ -120,11 +121,8 @@ function createPostTradeConsistencyRuntimeDouble(): PostTradeConsistencyRuntime 
     recordSettlementRefreshNeed: () => {},
     getStatus: () => ({
       started: false,
-      inFlight: false,
-      hasPendingRefresh: false,
       currentVersion: 0,
       staleVersion: 0,
-      abortReason: null,
     }),
     waitForFresh: async () => {},
     onFreshReached: () => () => {},
@@ -193,13 +191,12 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
         nowMs: () => 0,
       },
       marketDataClient: createMarketDataClientDouble(),
-      gatePolicies: {
-        startupGate: 'strict',
-        runtimeGate: 'strict',
-      },
       startupTradingDayInfo: {
-        isTradingDay: true,
-        isHalfDay: false,
+        dateKey: '2026-03-09',
+        info: {
+          isTradingDay: true,
+          isHalfDay: false,
+        },
       },
     },
     businessEventProgram: {
@@ -224,6 +221,7 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
       tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       seatActivationDispatcher: createSeatActivationDispatcherDouble(),
+      seatRuntimeCleanupDispatcher: createSeatRuntimeCleanupDispatcherDouble(),
       autoSearchWakeupRuntime: createAutoSearchWakeupRuntimeDouble(),
       tradingRiskEventRuntime: createTradingRiskEventRuntimeDouble(),
       monitorQuoteEventRuntime: createMonitorQuoteEventRuntimeDouble(),
@@ -237,10 +235,6 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
         allOrders: [],
         quotesMap: new Map(),
       }),
-      marketMonitor: {
-        renderTradingQuote: () => {},
-        renderMonitorIndicators: () => {},
-      },
       doomsdayProtection: {
         isBuyCutoffWindowActive: () => false,
         executeClearance: async () => ({ executed: false, signalCount: 0 }),

@@ -19,10 +19,6 @@ import type {
 import { TRADING } from '../../src/constants/index.js';
 import { timeDriverProgram } from '../../src/main/timeDriverProgram/index.js';
 import { createDefaultTradingSignalStrategyFactory } from '../../src/core/strategy/index.js';
-import {
-  createBuyTaskQueue,
-  createSellTaskQueue,
-} from '../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createMonitorTaskQueue } from '../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import { initMonitorState } from '../../src/utils/helpers/index.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
@@ -418,8 +414,6 @@ describe('main loop latency full-chain integration', () => {
     }
 
     const initialQuotes = createQuotesForSymbols(monitorConfigs, 0);
-    const buyTaskQueue = createBuyTaskQueue();
-    const sellTaskQueue = createSellTaskQueue();
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
 
     const monitorContexts = new Map<string, MonitorContext>();
@@ -573,16 +567,6 @@ describe('main loop latency full-chain integration', () => {
           candleCacheVersions.set(key, (candleCacheVersions.get(key) ?? 0) + 1);
           return candles.map(createMockCandlestickFromCandleData);
         }),
-      getRealtimeCandlesticks: async (symbol: string, period: Period, count: number) => {
-        const key = makeCandleKey(symbol, period);
-        const candles = candleCache.get(key);
-        if (!candles || candles.length === 0) {
-          return [];
-        }
-
-        const startIndex = Math.max(candles.length - count, 0);
-        return candles.slice(startIndex).map(createMockCandlestickFromCandleData);
-      },
       getCandlestickSnapshot: (symbol: string, period: Period) => {
         const key = makeCandleKey(symbol, period);
         const candles = candleCache.get(key);
@@ -614,10 +598,7 @@ describe('main loop latency full-chain integration', () => {
       doomsdayProtection: createDoomsdayProtectionDouble(),
       tradingConfig,
       monitorContexts,
-      buyTaskQueue,
-      sellTaskQueue,
       monitorTaskQueue,
-      runtimeGateMode: 'skip',
       tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       dayLifecycleManager: {

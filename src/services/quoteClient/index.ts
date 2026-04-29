@@ -10,7 +10,6 @@
  * - Quote 当前价由 SDK realtime 状态提供，标准化 quote push 事件由应用层按订阅与缓存状态派发
  * - K 线数据采用「subscribe 初始 seed + setOnCandlestick push 更新」的应用层本地缓存，并在 push 后发布标准化更新事件
  * - getQuotes() 只读取 SDK realtimeQuote 状态，无 HTTP 请求
- * - getRealtimeCandlesticks() 从 SDK 内部缓存读取，无 HTTP 请求
  *
  * 缓存机制：
  * - 动态 Quote：不在应用层缓存，按次从 SDK realtime 状态读取
@@ -22,7 +21,6 @@
  * 核心方法：
  * - getQuotes()：批量获取多个标的实时行情（从 SDK realtimeQuote 状态读取）
  * - subscribeCandlesticks()：订阅 K 线推送
- * - getRealtimeCandlesticks()：获取实时 K 线数据（从 SDK 内部缓存读取）
  * - isTradingDay()：检查是否为交易日
  */
 import {
@@ -54,7 +52,7 @@ import type {
   PushQuoteEventLike,
 } from './types.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
-import { getHKDateKey } from '../../utils/time/index.js';
+import { getRequiredHKDateKey } from '../../utils/time/index.js';
 import { extractLotSize, extractName, formatPeriodForLog, resolveHKNaiveDate } from './utils.js';
 import {
   applyCandlestickPush,
@@ -692,23 +690,6 @@ export async function createMarketDataClient(
     return returnedCandles;
   }
 
-  /**
-   * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）。
-   *
-   * @param symbol 标的代码
-   * @param period K 线周期
-   * @param count 返回的 K 线根数
-   * @returns 实时 K 线数组
-   */
-  async function getRealtimeCandlesticks(
-    symbol: string,
-    period: Period,
-    count: number,
-  ): Promise<ReadonlyArray<Candlestick>> {
-    const realtimeCandles = await ctx.realtimeCandlesticks(symbol, period, count);
-    return realtimeCandles.filter(isCandlestickLike);
-  }
-
   function readLocalCandlestickSnapshot(symbol: string, period: Period) {
     return getCandlestickSnapshot({
       store: candlestickCacheStore,
@@ -823,7 +804,7 @@ export async function createMarketDataClient(
    */
   async function isTradingDay(date: Date, market: Market = Market.HK): Promise<TradingDayInfo> {
     // 格式化为港股日期键 YYYY-MM-DD
-    const dateStr = getHKDateKey(date);
+    const dateStr = getRequiredHKDateKey(date);
 
     // 先检查缓存
     const cached = tradingDayCache.get(dateStr);
@@ -856,7 +837,6 @@ export async function createMarketDataClient(
     onQuoteUpdated,
     onCandlestickUpdated,
     subscribeCandlesticks,
-    getRealtimeCandlesticks,
     getCandlestickSnapshot: readLocalCandlestickSnapshot,
     isTradingDay,
     getTradingDays,

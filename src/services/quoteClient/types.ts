@@ -80,11 +80,6 @@ export interface QuoteContextLike {
     tradeSessions: TradeSessions,
   ) => Promise<ReadonlyArray<unknown>>;
   readonly unsubscribeCandlesticks: (symbol: string, period: Period) => Promise<void>;
-  readonly realtimeCandlesticks: (
-    symbol: string,
-    period: Period,
-    count: number,
-  ) => Promise<ReadonlyArray<unknown>>;
   readonly warrantQuote: (symbols: string[]) => Promise<ReadonlyArray<QuoteContextWarrantQuote>>;
   readonly warrantList: QuoteContext['warrantList'];
   readonly setOnQuote: (callback: (err: null | Error, event: PushQuoteEvent) => void) => void;

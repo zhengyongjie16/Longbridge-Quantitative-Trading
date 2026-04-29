@@ -19,11 +19,14 @@ import {
 import { createMonitorConfig } from '../../../mock/factories/configFactory.js';
 import { createDefaultMonitorQuoteEventRuntime } from '../../../src/main/monitorQuoteEventRuntime/monitorQuoteEventRuntime.js';
 import type {
+  CreateDefaultMonitorQuoteEventRuntimeDeps,
   MonitorQuoteEventRuntime,
-  MonitorQuoteFreshnessDeps,
 } from '../../../src/main/monitorQuoteEventRuntime/types.js';
 import type { StartSwitchOnDistanceResult } from '../../../src/types/monitorContextPorts.js';
 import type { QuoteUpdatedEvent } from '../../../src/types/services.js';
+
+type MonitorQuoteFreshnessDeps =
+  CreateDefaultMonitorQuoteEventRuntimeDeps['postTradeConsistencyRuntime'];
 
 type RuntimeHarness = Readonly<{
   runtime: MonitorQuoteEventRuntime;

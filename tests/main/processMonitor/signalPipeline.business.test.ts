@@ -16,10 +16,8 @@ import { createTradingConfig } from '../../../mock/factories/configFactory.js';
 import type { Signal } from '../../../src/types/signal.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { MonitorContext } from '../../../src/types/state.js';
-import type {
-  MonitorRuntimeContext,
-  SeatSyncResult,
-} from '../../../src/main/processMonitor/types.js';
+import type { SignalSeatInfo } from '../../../src/main/processMonitor/types.js';
+import type { SignalPipelineParams } from '../../../src/main/businessEventProgram/types.js';
 
 import {
   createIndicatorUsageProfileDouble,
@@ -41,8 +39,8 @@ function createSnapshot(): IndicatorSnapshot {
   };
 }
 
-function createSeatInfo(overrides: Partial<SeatSyncResult> = {}): SeatSyncResult {
-  const base: SeatSyncResult = {
+function createSeatInfo(overrides: Partial<SignalSeatInfo> = {}): SignalSeatInfo {
+  const base: SignalSeatInfo = {
     longSeatState: {
       symbol: 'BULL.HK',
       status: 'ACTIVE',
@@ -63,8 +61,6 @@ function createSeatInfo(overrides: Partial<SeatSyncResult> = {}): SeatSyncResult
     },
     longSeatVersion: 7,
     shortSeatVersion: 11,
-    longSeatActive: true,
-    shortSeatActive: true,
     longSymbol: 'BULL.HK',
     shortSymbol: 'BEAR.HK',
   };
@@ -78,7 +74,7 @@ function createSeatInfo(overrides: Partial<SeatSyncResult> = {}): SeatSyncResult
 function createPipelineHarness(params: {
   immediateSignals: ReadonlyArray<Signal>;
   delayedSignals: ReadonlyArray<Signal>;
-  seatInfo?: SeatSyncResult;
+  seatInfo?: SignalSeatInfo;
   canTradeNow?: boolean;
   openProtectionActive?: boolean;
   isTradingEnabled?: boolean;
@@ -86,18 +82,23 @@ function createPipelineHarness(params: {
   buyTaskQueue: ReturnType<typeof createBuyTaskQueue>;
   sellTaskQueue: ReturnType<typeof createSellTaskQueue>;
   delayedAdded: Signal[];
+  getGenerateSignalsCallCount: () => number;
 } {
   const buyTaskQueue = createBuyTaskQueue();
   const sellTaskQueue = createSellTaskQueue();
 
   const delayedAdded: Signal[] = [];
+  let generateSignalsCallCount = 0;
 
   const monitorContext = {
     strategy: {
-      generateSignals: () => ({
-        immediateSignals: params.immediateSignals,
-        delayedSignals: params.delayedSignals,
-      }),
+      generateSignals: () => {
+        generateSignalsCallCount += 1;
+        return {
+          immediateSignals: params.immediateSignals,
+          delayedSignals: params.delayedSignals,
+        };
+      },
     },
     orderRecorder: createOrderRecorderDouble(),
     indicatorProfile: createIndicatorUsageProfileDouble(),
@@ -110,13 +111,13 @@ function createPipelineHarness(params: {
 
   const tradingConfig = createTradingConfig();
 
-  const mainContext = {
+  const mainContext: SignalPipelineParams['mainContext'] = {
     lastState: {
       isTradingEnabled: params.isTradingEnabled ?? true,
       canTrade: params.canTradeNow ?? true,
       openProtectionActive: params.openProtectionActive ?? false,
       isHalfDay: false,
-    },
+    } as SignalPipelineParams['mainContext']['lastState'],
     tradingConfig: {
       ...tradingConfig,
       global: {
@@ -126,7 +127,7 @@ function createPipelineHarness(params: {
     },
     buyTaskQueue,
     sellTaskQueue,
-  } as unknown as MonitorRuntimeContext;
+  };
 
   runSignalPipeline({
     monitorSymbol: 'HSI.HK',
@@ -147,6 +148,7 @@ function createPipelineHarness(params: {
     buyTaskQueue,
     sellTaskQueue,
     delayedAdded,
+    getGenerateSignalsCallCount: () => generateSignalsCallCount,
   };
 }
 
@@ -218,5 +220,6 @@ describe('signalPipeline business flow', () => {
 
     expect(harness.buyTaskQueue.isEmpty()).toBeTrue();
     expect(harness.sellTaskQueue.isEmpty()).toBeTrue();
+    expect(harness.getGenerateSignalsCallCount()).toBe(0);
   });
 });

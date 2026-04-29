@@ -1,12 +1,17 @@
+/**
+ * 席位运行态队列清理模块
+ *
+ * 职责：
+ * - 按监控标的和方向清理延迟验证、买卖任务与监控任务
+ * - 为席位退场事件 owner 提供统一清理统计
+ */
 import { isRecord } from '../../utils/helpers/index.js';
-import { SIGNAL_ACTION_DESCRIPTIONS } from '../../constants/index.js';
 import { getQueueClearTotalRemoved } from '../../utils/utils.js';
-import type { SignalType } from '../../types/signal.js';
 import type { DelayedSignalVerifierPort } from '../../types/monitorContextPorts.js';
-import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';
+import type { QueueClearResult } from '../../types/queue.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
-import type { QueueClearResult } from '../../types/queue.js';
+import type { BuyTaskType, SellTaskType, TaskQueue } from '../asyncProgram/tradeTaskQueue/types.js';
 
 /**
  * 判断订单动作是否属于指定方向。
@@ -24,15 +29,16 @@ function isDirectionAction(
   }
 
   const isLongAction = action === 'BUYCALL' || action === 'SELLCALL';
-  return direction === 'LONG' ? isLongAction : !isLongAction;
+  const isShortAction = action === 'BUYPUT' || action === 'SELLPUT';
+  return direction === 'LONG' ? isLongAction : isShortAction;
 }
 
 /**
- * 判断监控任务是否属于指定方向（含共享任务）。
+ * 判断监控任务是否属于指定方向。
  *
  * @param task 监控任务对象
  * @param direction 方向（LONG 或 SHORT）
- * @returns 方向匹配或为共享任务时返回 true
+ * @returns 方向匹配时返回 true
  */
 function isMonitorTaskForDirection(
   task: { readonly type?: unknown; readonly data: unknown },
@@ -73,10 +79,10 @@ function removeSignalTasks(
 }
 
 /**
- * 清理指定监控标的和方向的所有队列任务（延迟验证、买入、卖出、监控任务队列）。
+ * 清理指定监控标的和方向的可取消队列任务，并保留 SEAT_REFRESH。
  *
  * @param params 清理参数，包含 monitorSymbol、direction 与各队列实例
- * @returns 各队列移除的任务数量汇总（removedDelayed、removedBuy、removedSell、removedMonitorTasks）
+ * @returns 各队列移除的任务数量汇总
  */
 export function clearMonitorDirectionQueues(params: {
   readonly monitorSymbol: string;
@@ -108,29 +114,6 @@ export function clearMonitorDirectionQueues(params: {
     removedSell,
     removedMonitorTasks,
   };
-}
-
-/**
- * 格式化信号日志（标的显示为「中文名称(代码）」）。默认行为：reason 为空时使用「策略信号」。
- *
- * @param signal 包含 action、symbol、symbolName、reason 的对象
- * @returns 格式化后的信号日志字符串
- */
-export function formatSignalLog(signal: {
-  readonly action: SignalType;
-  readonly symbol: string;
-  readonly symbolName?: string | null;
-  readonly reason?: string | null;
-}): string {
-  const actionDesc = SIGNAL_ACTION_DESCRIPTIONS[signal.action];
-  const symbolDisplay = signal.symbolName
-    ? `${signal.symbolName}(${signal.symbol})`
-    : signal.symbol;
-  const reason =
-    signal.reason === null || signal.reason === undefined || signal.reason === ''
-      ? '策略信号'
-      : signal.reason;
-  return `${actionDesc} ${symbolDisplay} - ${reason}`;
 }
 
 /**

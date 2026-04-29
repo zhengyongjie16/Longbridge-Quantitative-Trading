@@ -5,8 +5,10 @@
  * failOnOrderFetchError 且订单拉取失败时抛错、正常返回 allOrders 与 quotesMap
  */
 import { describe, it, expect } from 'bun:test';
-import { OrderSide, OrderStatus, OrderType } from 'longbridge';
+import { OrderSide, OrderStatus, OrderType, WarrantStatus, WarrantType } from 'longbridge';
 import { createLoadTradingDayRuntimeSnapshot } from '../../../src/main/lifecycle/loadTradingDayRuntimeSnapshot.js';
+import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
+import { toMockDecimal } from '../../../mock/longbridge/decimal.js';
 import { createSymbolRegistry } from '../../../src/services/autoSymbolManager/utils.js';
 import { TRADING } from '../../../src/constants/index.js';
 import type {
@@ -25,6 +27,7 @@ import {
   createMonitorConfigDouble,
   createPositionCacheDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
+  createQuoteContextDouble,
   createTraderDouble,
 } from '../../helpers/testDoubles.js';
 
@@ -126,6 +129,48 @@ function createProtectiveMonitor(): LoadTradingDayRuntimeSnapshotDeps['tradingCo
     monitorSymbol: 'HSI.HK',
     orderOwnershipMapping: ['HSI'],
   });
+}
+
+function createAutoSearchMonitor(): LoadTradingDayRuntimeSnapshotDeps['tradingConfig']['monitors'][number] {
+  return createMonitorConfigDouble({
+    monitorSymbol: 'HSI.HK',
+    autoSearchConfig: {
+      autoSearchEnabled: true,
+      autoSearchMinDistancePctBull: 0.35,
+      autoSearchMinDistancePctBear: -0.35,
+      autoSearchMinTurnoverPerMinuteBull: 100_000,
+      autoSearchMinTurnoverPerMinuteBear: 100_000,
+      autoSearchExpiryMinMonths: 3,
+      autoSearchOpenDelayMinutes: 5,
+      switchIntervalMinutes: 0,
+      switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+      switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+    },
+  });
+}
+
+function createWarrantInfo(params: {
+  readonly symbol: string;
+  readonly warrantType: WarrantType;
+  readonly apiDistanceRatio: number;
+  readonly turnover: number;
+  readonly callPrice: number;
+}): Parameters<ReturnType<typeof createQuoteContextMock>['seedWarrantList']>[1][number] {
+  const warrantType = params.warrantType === WarrantType.Bull ? 'Bull' : 'Bear';
+  return {
+    symbol: params.symbol,
+    name: params.symbol,
+    lastDone: toMockDecimal(0.1),
+    toCallPrice: toMockDecimal(params.apiDistanceRatio),
+    turnover: toMockDecimal(params.turnover),
+    callPrice: toMockDecimal(params.callPrice),
+    warrantType,
+    status: WarrantStatus.Normal,
+  };
+}
+
+function toApiDistanceRatio(percentValue: number): number {
+  return percentValue / 100;
 }
 
 function createProtectiveOrder(params: ProtectiveOrderParams): RawOrderFromAPI {
@@ -247,6 +292,78 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     expect(load(createLoadParams({ failOnOrderFetchError: true }))).rejects.toThrow(
       /全量订单获取失败/,
     );
+  });
+
+  it('only runs startup auto-search after continuous session and morning delay are both satisfied', async () => {
+    const monitor = createAutoSearchMonitor();
+    const tradingConfig = createTradingConfig([monitor]);
+    const quoteContext = createQuoteContextMock();
+    quoteContext.seedWarrantList('HSI.HK', [
+      createWarrantInfo({
+        symbol: 'AUTO_BULL.HK',
+        warrantType: WarrantType.Bull,
+        apiDistanceRatio: toApiDistanceRatio(0.55),
+        turnover: 30_000_000,
+        callPrice: 20_500,
+      }),
+      createWarrantInfo({
+        symbol: 'AUTO_BEAR.HK',
+        warrantType: WarrantType.Bear,
+        apiDistanceRatio: toApiDistanceRatio(-0.55),
+        turnover: 30_000_000,
+        callPrice: 19_500,
+      }),
+    ]);
+
+    let isTradingDayCalls = 0;
+    const marketDataClient = createMarketDataClientDouble({
+      getQuoteContext: async () => createQuoteContextDouble(quoteContext),
+      isTradingDay: async () => {
+        isTradingDayCalls += 1;
+        return { isTradingDay: true, isHalfDay: false };
+      },
+    });
+    const blockedLastState = createMinimalLastState();
+    blockedLastState.cachedTradingDayInfo = { isTradingDay: true, isHalfDay: false };
+    const blockedDeps = createBaseDeps({
+      lastState: blockedLastState,
+      tradingConfig,
+      marketDataClient,
+      trader: createReadyTrader(),
+      symbolRegistry: createSymbolRegistry(tradingConfig.monitors),
+    });
+    const blockedLoad = createLoadTradingDayRuntimeSnapshot(blockedDeps);
+    await blockedLoad(
+      createLoadParams({
+        now: new Date('2026-02-16T01:31:00.000Z'),
+        requireTradingDay: false,
+      }),
+    );
+
+    expect(isTradingDayCalls).toBe(0);
+    expect(quoteContext.getCalls('warrantList')).toHaveLength(0);
+
+    const allowedLastState = createMinimalLastState();
+    allowedLastState.cachedTradingDayInfo = { isTradingDay: true, isHalfDay: false };
+    const allowedDeps = createBaseDeps({
+      lastState: allowedLastState,
+      tradingConfig,
+      marketDataClient,
+      trader: createReadyTrader(),
+      symbolRegistry: createSymbolRegistry(tradingConfig.monitors),
+    });
+    const allowedLoad = createLoadTradingDayRuntimeSnapshot(allowedDeps);
+    await allowedLoad(
+      createLoadParams({
+        now: new Date('2026-02-16T01:35:00.000Z'),
+        requireTradingDay: false,
+      }),
+    );
+
+    expect(isTradingDayCalls).toBe(0);
+    expect(quoteContext.getCalls('warrantList')).toHaveLength(2);
+    expect(allowedDeps.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVATING');
+    expect(allowedDeps.symbolRegistry.getSeatState('HSI.HK', 'SHORT').status).toBe('ACTIVATING');
   });
 
   it('load 阶段不再承担交易日历预热职责', async () => {

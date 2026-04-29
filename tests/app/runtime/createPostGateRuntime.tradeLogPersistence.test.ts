@@ -71,13 +71,12 @@ function createRuntimeParams(): CreatePostGateRuntimeParams {
         nowMs: () => 0,
       },
       marketDataClient: createMarketDataClientDouble(),
-      gatePolicies: {
-        startupGate: 'strict',
-        runtimeGate: 'strict',
-      },
       startupTradingDayInfo: {
-        isTradingDay: true,
-        isHalfDay: false,
+        dateKey: '2026-03-13',
+        info: {
+          isTradingDay: true,
+          isHalfDay: false,
+        },
       },
     },
   };

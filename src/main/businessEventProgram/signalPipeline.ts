@@ -22,7 +22,7 @@ import { VALID_SIGNAL_ACTIONS } from '../../constants/index.js';
 import { ordinarySignalGuard } from '../ordinarySignalGuard/index.js';
 import { isSeatActive } from '../../utils/seat/guards.js';
 import { describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
-import { formatSignalLog } from '../processMonitor/utils.js';
+import { formatSignalLog } from './utils.js';
 import type { Signal } from '../../types/signal.js';
 import type { SignalPipelineParams } from './types.js';
 import { formatSymbolDisplay, isSellAction } from '../../utils/display/index.js';

@@ -249,12 +249,12 @@ describe('type organization regressions', () => {
     expectNoNamedExport(quoteTypesSource, 'QuoteStaticInfo');
   });
 
-  it('keeps unused startup run mode parsing removed from production surface', async () => {
-    const startupModesSource = await readProjectFile('src/app/startup/startupModes.ts');
+  it('keeps unused startup and runtime gate parsing removed from production surface', async () => {
     const seatTypesSource = await readProjectFile('src/types/seat.ts');
 
-    expectNoNamedExport(startupModesSource, 'resolveRunMode');
+    expect(await exists('src/app/startup/startupModes.ts')).toBe(false);
     expectNoNamedExport(seatTypesSource, 'RunMode');
+    expectNoNamedExport(seatTypesSource, 'GateMode');
   });
 
   it('keeps non-app modules free of confirmed dead public surface', async () => {

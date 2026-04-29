@@ -149,11 +149,8 @@ describe('createPostTradeConsistencyRuntime', () => {
     expect(positionRefreshCalls).toBe(0);
     expect(runtime.getStatus()).toEqual({
       started: false,
-      inFlight: false,
-      hasPendingRefresh: true,
       currentVersion: 0,
       staleVersion: 1,
-      abortReason: null,
     });
 
     runtime.start();
@@ -175,11 +172,8 @@ describe('createPostTradeConsistencyRuntime', () => {
 
     expect(runtime.getStatus()).toEqual({
       started: false,
-      inFlight: false,
-      hasPendingRefresh: false,
       currentVersion: 1,
       staleVersion: 1,
-      abortReason: null,
     });
   });
 
@@ -227,7 +221,7 @@ describe('createPostTradeConsistencyRuntime', () => {
     });
     runtime.start();
 
-    await waitForCondition(() => runtime.getStatus().inFlight);
+    await waitForCondition(() => accountRefreshCalls === 1);
 
     runtime.recordSettlementRefreshNeed({
       refreshAccount: true,
@@ -247,7 +241,7 @@ describe('createPostTradeConsistencyRuntime', () => {
       }),
     ]);
 
-    await waitForCondition(() => !runtime.getStatus().inFlight && accountRefreshCalls >= 2);
+    await runtime.waitForFresh();
 
     expect(accountRefreshCalls).toBe(2);
     expect(positionRefreshCalls).toBe(2);
@@ -256,11 +250,8 @@ describe('createPostTradeConsistencyRuntime', () => {
     expect(lastState.positionCache.get('BULL.HK')?.quantity).toBe(500);
     expect(runtime.getStatus()).toEqual({
       started: true,
-      inFlight: false,
-      hasPendingRefresh: false,
       currentVersion: 2,
       staleVersion: 2,
-      abortReason: null,
     });
 
     await runtime.waitForFresh();
@@ -351,11 +342,8 @@ describe('createPostTradeConsistencyRuntime', () => {
     expect(lastState.cachedAccount?.buyPower).toBe(66_000);
     expect(runtime.getStatus()).toEqual({
       started: false,
-      inFlight: false,
-      hasPendingRefresh: false,
       currentVersion: 1,
       staleVersion: 1,
-      abortReason: null,
     });
   });
 
@@ -597,11 +585,8 @@ describe('createPostTradeConsistencyRuntime', () => {
 
     expect(runtime.getStatus()).toEqual({
       started: false,
-      inFlight: false,
-      hasPendingRefresh: true,
       currentVersion: 0,
       staleVersion: 1,
-      abortReason: null,
     });
     expect(freshEvents).toEqual([]);
 
@@ -618,11 +603,8 @@ describe('createPostTradeConsistencyRuntime', () => {
 
     expect(runtime.getStatus()).toEqual({
       started: false,
-      inFlight: false,
-      hasPendingRefresh: false,
       currentVersion: 1,
       staleVersion: 1,
-      abortReason: null,
     });
   });
 
@@ -647,11 +629,8 @@ describe('createPostTradeConsistencyRuntime', () => {
 
     expect(runtime.getStatus()).toEqual({
       started: false,
-      inFlight: false,
-      hasPendingRefresh: true,
       currentVersion: 0,
       staleVersion: 1,
-      abortReason: 'STOP_AND_DRAIN',
     });
   });
 

@@ -986,7 +986,6 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     direction,
     currentTime,
     canTradeNow,
-    openProtectionActive,
   }: SwitchOnIntervalParams): Promise<SwitchDriveResult> {
     if (!autoSearchConfig.autoSearchEnabled || autoSearchConfig.switchIntervalMinutes <= 0) {
       clearPeriodicPending(direction);
@@ -1017,7 +1016,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
     const pendingStateAfterReset = resolvePeriodicPending(direction);
     if (pendingStateAfterReset.pending) {
-      if (!canTradeNow || openProtectionActive) {
+      if (!canTradeNow) {
         return createNoopDriveResult();
       }
 
@@ -1053,7 +1052,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       });
     }
 
-    if (!canTradeNow || openProtectionActive) {
+    if (!canTradeNow) {
       return createNoopDriveResult();
     }
 

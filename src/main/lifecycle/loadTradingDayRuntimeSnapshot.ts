@@ -24,6 +24,7 @@ import { PENDING_ORDER_STATUSES, TRADING } from '../../constants/index.js';
 import {
   getHKDateKey,
   getTradingMinutesSinceOpen,
+  isInContinuousHKSession,
   isWithinMorningOpenProtection,
 } from '../../utils/time/index.js';
 import { logger } from '../../utils/logger/index.js';
@@ -167,7 +168,18 @@ export function createLoadTradingDayRuntimeSnapshot(
       now: () => now,
       logger,
       getTradingMinutesSinceOpen,
-      isWithinMorningOpenProtection,
+      resolveCanAutoSearchNow: ({ currentTime, openDelayMinutes }) => {
+        const tradingDayInfo = lastState.cachedTradingDayInfo;
+        if (tradingDayInfo?.isTradingDay !== true) {
+          return false;
+        }
+
+        if (!isInContinuousHKSession(currentTime, tradingDayInfo.isHalfDay)) {
+          return false;
+        }
+
+        return !isWithinMorningOpenProtection(currentTime, openDelayMinutes);
+      },
       warrantListCacheConfig,
     });
     protectiveLiquidationEpisodeTracker.resetAll();

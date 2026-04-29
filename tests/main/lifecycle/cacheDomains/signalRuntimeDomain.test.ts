@@ -269,6 +269,14 @@ describe('createSignalRuntimeDomain', () => {
           globalCalls.push('seatActivationDispatcher.stop');
         },
       },
+      seatRuntimeCleanupDispatcher: {
+        start: () => {
+          globalCalls.push('seatRuntimeCleanupDispatcher.start');
+        },
+        stop: () => {
+          globalCalls.push('seatRuntimeCleanupDispatcher.stop');
+        },
+      },
       trader,
       postTradeConsistencyRuntime,
       indicatorCache: {
@@ -300,6 +308,7 @@ describe('createSignalRuntimeDomain', () => {
       'autoSearchWakeupRuntime.stopAndDrain',
       'seatActivationDispatcher.stop',
       'monitorTaskProcessor.stopAndDrain',
+      'seatRuntimeCleanupDispatcher.stop',
       'buyProcessor.stopAndDrain',
       'sellProcessor.stopAndDrain',
       'trader.stopOrderMonitorRuntimeAndDrain',
@@ -421,6 +430,14 @@ describe('createSignalRuntimeDomain', () => {
           globalCalls.push('seatActivationDispatcher.stop');
         },
       },
+      seatRuntimeCleanupDispatcher: {
+        start: () => {
+          globalCalls.push('seatRuntimeCleanupDispatcher.start');
+        },
+        stop: () => {
+          globalCalls.push('seatRuntimeCleanupDispatcher.stop');
+        },
+      },
       trader,
       postTradeConsistencyRuntime: {
         abortWaiting: () => {
@@ -473,6 +490,7 @@ describe('createSignalRuntimeDomain', () => {
       'quoteSubscriptionRuntime.reconcileFromCurrentTruth',
       'tradingQuoteDisplayRuntime.start',
       'quoteSubscriptionRuntime.start',
+      'seatRuntimeCleanupDispatcher.start',
       'seatActivationDispatcher.start',
       'autoSearchWakeupRuntime.start',
       'monitorDisplayRuntime.start',

@@ -31,7 +31,7 @@ import type {
   WarrantDistanceLiquidationResult,
   WarrantRefreshResult,
 } from '../../types/services.js';
-import type { WarrantInfo, WarrantRiskChecker, WarrantRiskCheckerDeps } from './types.js';
+import type { WarrantInfo, WarrantRiskChecker } from './types.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
 import { formatError } from '../../utils/error/index.js';
 import {
@@ -363,10 +363,9 @@ async function checkWarrantType(
 
 /**
  * 创建牛熊证风险检查器（风控：距离回收价检查）
- * @param _deps 可选依赖，当前未使用
  * @returns WarrantRiskChecker 接口实例
  */
-export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): WarrantRiskChecker {
+export function createWarrantRiskChecker(): WarrantRiskChecker {
   // 闭包捕获的私有状态
   let longWarrantInfo: WarrantInfo | null = null;
   let shortWarrantInfo: WarrantInfo | null = null;

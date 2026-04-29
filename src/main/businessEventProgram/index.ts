@@ -14,7 +14,7 @@ import { formatError } from '../../utils/error/index.js';
 import { projectVerificationSampleValues } from '../asyncProgram/indicatorCache/utils.js';
 import { runIndicatorPipeline } from './indicatorPipeline.js';
 import { runSignalPipeline } from './signalPipeline.js';
-import { syncSignalSeatState } from '../processMonitor/seatSync.js';
+import { resolveSignalSeatInfo } from '../processMonitor/seatProjection.js';
 import type {
   BusinessEventProgram,
   BusinessEventProgramDeps,
@@ -35,7 +35,6 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
     tradingConfig,
     buyTaskQueue,
     sellTaskQueue,
-    monitorTaskQueue,
     indicatorCache,
     monitorDisplayRuntime,
   } = deps;
@@ -142,14 +141,9 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
           observedAtMs,
         );
 
-        const seatInfo = syncSignalSeatState({
+        const seatInfo = resolveSignalSeatInfo({
           monitorSymbol,
           monitorContext,
-          mainContext: {
-            buyTaskQueue,
-            sellTaskQueue,
-            monitorTaskQueue,
-          },
         });
 
         monitorDisplayRuntime.requestRender({

@@ -213,7 +213,6 @@ export interface MarketDataClient {
    * 订阅指定标的的 K 线推送
    *
    * 订阅后客户端会用返回值 seed 应用层本地 K 线缓存，并通过 push 事件持续更新。
-   * getRealtimeCandlesticks 仍保留为 SDK 内部缓存读取能力（非主循环主路径）。
    *
    * @param symbol 标的代码
    * @param period K 线周期
@@ -224,21 +223,6 @@ export interface MarketDataClient {
     symbol: string,
     period: Period,
     tradeSessions?: TradeSessions,
-  ) => Promise<ReadonlyArray<Candlestick>>;
-
-  /**
-   * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
-   *
-   * 需先调用 subscribeCandlesticks 订阅，否则返回空数据。
-   *
-   * @param symbol 标的代码
-   * @param period K 线周期
-   * @param count 获取数量
-   */
-  getRealtimeCandlesticks: (
-    symbol: string,
-    period: Period,
-    count: number,
   ) => Promise<ReadonlyArray<Candlestick>>;
 
   /**

@@ -133,14 +133,13 @@ export type SwitchProcessParams = Readonly<{
 
 /**
  * 周期换标触发检查入参。
- * 类型用途：包含方向、当前时间、交易时段与开盘保护状态，由 switchStateMachine.maybeSwitchOnInterval 消费。
+ * 类型用途：包含方向、当前时间与交易时段状态，由 switchStateMachine.maybeSwitchOnInterval 消费。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SwitchOnIntervalParams = {
   readonly direction: 'LONG' | 'SHORT';
   readonly currentTime: Date;
   readonly canTradeNow: boolean;
-  readonly openProtectionActive: boolean;
 };
 
 /**

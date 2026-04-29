@@ -80,6 +80,7 @@ import {
   WarrantStatus,
   WarrantType,
 } from 'longbridge';
+import type { createMarketDataClient as actualCreateMarketDataClient } from '../../../src/services/quoteClient/index.js';
 
 import {
   createPushCandlestickEvent,
@@ -88,8 +89,13 @@ import {
   createWarrantQuote,
 } from '../../../mock/factories/quoteFactory.js';
 import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
-import { createMarketDataClient } from '../../../src/services/quoteClient/index.js';
 import { createSdkConfigDouble } from '../../helpers/testDoubles.js';
+
+const quoteClientModulePath =
+  '../../../src/services/quoteClient/index.js?quote-client-business-test';
+const { createMarketDataClient } = (await import(quoteClientModulePath)) as {
+  readonly createMarketDataClient: typeof actualCreateMarketDataClient;
+};
 
 let quoteMock: ReturnType<typeof createQuoteContextMock>;
 

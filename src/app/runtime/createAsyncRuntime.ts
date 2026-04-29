@@ -8,8 +8,7 @@
 import { createBuyProcessor } from '../../main/asyncProgram/buyProcessor/index.js';
 import { createMonitorTaskProcessor } from '../../main/asyncProgram/monitorTaskProcessor/index.js';
 import { createSellProcessor } from '../../main/asyncProgram/sellProcessor/index.js';
-import { clearMonitorDirectionQueuesWithLog } from './queueCleanup.js';
-import { logger } from '../../utils/logger/index.js';
+import { ordinarySignalGuard } from '../../main/ordinarySignalGuard/index.js';
 import type { AsyncRuntime, AsyncRuntimeFactoryDeps } from '../types.js';
 
 /**
@@ -20,7 +19,7 @@ import type { AsyncRuntime, AsyncRuntimeFactoryDeps } from '../types.js';
  */
 export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntime {
   const { preGateRuntime, postGateRuntime } = params;
-  const { tradingConfig } = preGateRuntime;
+  const { tradingConfig, marketDataClient } = preGateRuntime;
   const {
     monitorContexts,
     trader,
@@ -34,48 +33,45 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     switchWakeupRuntime,
     quoteSubscriptionRuntime,
   } = postGateRuntime;
+  const canProcessOrdinaryTradeTask = (): boolean =>
+    ordinarySignalGuard({
+      lastState,
+      now: new Date(),
+      doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
+    });
+
   const monitorTaskProcessor = createMonitorTaskProcessor({
     monitorTaskQueue,
     getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
-    clearMonitorDirectionQueues: (monitorSymbol, direction) => {
-      clearMonitorDirectionQueuesWithLog({
-        monitorSymbol,
-        direction,
-        monitorContexts,
-        buyTaskQueue,
-        sellTaskQueue,
-        monitorTaskQueue,
-        logger,
-      });
-    },
     trader,
-    marketDataClient: preGateRuntime.marketDataClient,
+    marketDataClient,
     switchWakeupRuntime,
     quoteSubscriptionRuntime,
     lastState,
     tradingConfig,
     getCanProcessTask: () => lastState.isTradingEnabled,
+    getCanTradeNow: () => lastState.canTrade === true,
   });
   const buyProcessor = createBuyProcessor({
     taskQueue: buyTaskQueue,
     getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
     signalProcessor,
     trader,
-    marketDataClient: preGateRuntime.marketDataClient,
+    marketDataClient,
     doomsdayProtection,
     getLastState: () => lastState,
     getIsHalfDay: () => lastState.isHalfDay ?? false,
-    getCanProcessTask: () => lastState.isTradingEnabled,
+    getCanProcessTask: canProcessOrdinaryTradeTask,
   });
   const sellProcessor = createSellProcessor({
     taskQueue: sellTaskQueue,
     getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
     signalProcessor,
     trader,
-    marketDataClient: preGateRuntime.marketDataClient,
+    marketDataClient,
     getLastState: () => lastState,
     postTradeConsistencyRuntime,
-    getCanProcessTask: () => lastState.isTradingEnabled,
+    getCanProcessTask: canProcessOrdinaryTradeTask,
   });
 
   return {

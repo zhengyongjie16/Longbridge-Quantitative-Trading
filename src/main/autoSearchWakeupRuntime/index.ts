@@ -9,7 +9,7 @@
 import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, TIME } from '../../constants/index.js';
 import type { SeatStateChangedEvent } from '../../types/seat.js';
 import {
-  getHKDateKey,
+  getRequiredHKDateKey,
   resolveHKDayStartUtcMs,
   isWithinMorningOpenProtection,
 } from '../../utils/time/index.js';
@@ -34,7 +34,7 @@ function resolveOpenDelayEndMs(currentTime: Date, delayMinutes: number): number 
     return null;
   }
 
-  const dayStartMs = resolveHKDayStartUtcMs(getHKDateKey(currentTime));
+  const dayStartMs = resolveHKDayStartUtcMs(getRequiredHKDateKey(currentTime));
   if (dayStartMs === null) {
     return null;
   }

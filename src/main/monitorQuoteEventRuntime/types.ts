@@ -36,7 +36,7 @@ type MonitorQuoteFreshnessStatus = Readonly<{
  * 数据来源：由 app 层 postTradeConsistencyRuntime 实现并注入。
  * 使用范围：monitorQuoteEventRuntime 模块内部依赖与相关测试使用。
  */
-export type MonitorQuoteFreshnessDeps = Readonly<{
+type MonitorQuoteFreshnessDeps = Readonly<{
   /** 等待 freshness 追平 */
   waitForFresh: PostTradeConsistencyFreshnessPort['waitForFresh'];
 

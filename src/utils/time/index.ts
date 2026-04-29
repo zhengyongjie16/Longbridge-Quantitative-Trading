@@ -78,6 +78,11 @@ export function getHKTime(date: Date | null | undefined): HKTime | null {
   };
 }
 
+function buildHKDateKey(date: Date): string {
+  const { year, month, day } = getHongKongDateTimeParts(date);
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * 获取港股日期键（UTC+8，YYYY-MM-DD）。
  * 默认行为：date 为 null/undefined 时返回 null。
@@ -85,15 +90,22 @@ export function getHKTime(date: Date | null | undefined): HKTime | null {
  * @param date 时间对象
  * @returns YYYY-MM-DD 格式日期键，无效时返回 null
  */
-export function getHKDateKey(date: Date): string;
-export function getHKDateKey(date: Date | null | undefined): string | null;
 export function getHKDateKey(date: Date | null | undefined): string | null {
   if (!date) {
     return null;
   }
 
-  const { year, month, day } = getHongKongDateTimeParts(date);
-  return `${year}-${month}-${day}`;
+  return buildHKDateKey(date);
+}
+
+/**
+ * 获取非空 Date 的港股日期键（UTC+8，YYYY-MM-DD）。
+ *
+ * @param date 已确认非空的时间对象
+ * @returns YYYY-MM-DD 格式日期键
+ */
+export function getRequiredHKDateKey(date: Date): string {
+  return buildHKDateKey(date);
 }
 
 /**
@@ -258,7 +270,7 @@ export function calculateTradingDurationMsBetween(params: TradingDurationBetween
 
   while (cursorMs < endMs) {
     const cursorDate = new Date(cursorMs);
-    const dayKey = getHKDateKey(cursorDate);
+    const dayKey = getRequiredHKDateKey(cursorDate);
     const dayStartUtcMs = resolveHKDayStartUtcMs(dayKey);
     if (dayStartUtcMs === null) {
       break;

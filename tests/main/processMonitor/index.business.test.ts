@@ -2,7 +2,7 @@
  * processMonitor/index 业务测试
  *
  * 功能：
- * - 验证 processMonitor 主流程相关场景意图、边界条件与业务期望。
+ * - 验证 processMonitor 只保留时间语义任务调度，不再承担席位同步或信号清理。
  */
 import { describe, expect, it } from 'bun:test';
 
@@ -13,25 +13,17 @@ import {
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import type { ProcessMonitorParams } from '../../../src/main/processMonitor/types.js';
-import type { MarketDataClient } from '../../../src/types/services.js';
-import type { IndicatorSnapshot, Quote } from '../../../src/types/quote.js';
-import type { LastState, MonitorContext } from '../../../src/types/state.js';
+import type { IndicatorSnapshot } from '../../../src/types/quote.js';
+import type { MonitorContext } from '../../../src/types/state.js';
 import {
-  createMarketDataClientDouble,
+  createDelayedSignalVerifierDouble,
   createMonitorConfigDouble,
-  createPositionCacheDouble,
-  createQuoteDouble,
+  createRiskCheckerDouble,
+  createSignalDouble,
 } from '../../helpers/testDoubles.js';
-import { createTradingConfig } from '../../../mock/factories/configFactory.js';
-import {
-  createLastState,
-  createMonitorContext as createMonitorContextFromAsync,
-} from '../asyncProgram/utils.js';
+import { createMonitorContext as createMonitorContextFromAsync } from '../asyncProgram/utils.js';
 
-type ProcessMonitorFn = (
-  context: ProcessMonitorParams,
-  quotesMap: ReadonlyMap<string, Quote | null>,
-) => void;
+type ProcessMonitorFn = (context: ProcessMonitorParams) => void;
 
 async function loadProcessMonitor(): Promise<ProcessMonitorFn> {
   const modulePath = '../../../src/main/processMonitor/index.js?real-process-monitor';
@@ -39,44 +31,19 @@ async function loadProcessMonitor(): Promise<ProcessMonitorFn> {
   return module.processMonitor as ProcessMonitorFn;
 }
 
-function createProcessMonitorParams(params: {
-  readonly monitorContext: MonitorContext;
-  readonly marketDataClient?: Partial<MarketDataClient>;
-}): Readonly<{
+function createProcessMonitorParams(monitorContext: MonitorContext): Readonly<{
   readonly params: ProcessMonitorParams;
-  readonly buyTaskQueue: ReturnType<typeof createBuyTaskQueue>;
-  readonly sellTaskQueue: ReturnType<typeof createSellTaskQueue>;
   readonly monitorTaskQueue: ReturnType<typeof createMonitorTaskQueue<MonitorTaskDataMap>>;
 }> {
-  const buyTaskQueue = createBuyTaskQueue();
-  const sellTaskQueue = createSellTaskQueue();
   const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
-  const marketDataClient = createMarketDataClientDouble(params.marketDataClient);
-  const lastState: LastState = createLastState({
-    positionCache: createPositionCacheDouble(),
-  });
-
   return {
     params: {
       context: {
-        marketDataClient,
-        buyTaskQueue,
-        sellTaskQueue,
         monitorTaskQueue,
-        lastState,
-        tradingConfig: createTradingConfig({ monitors: [params.monitorContext.config] }),
       },
-      monitorContext: params.monitorContext,
-      runtimeFlags: {
-        currentTime: new Date('2026-02-16T01:00:00.000Z'),
-        isHalfDay: false,
-        canTradeNow: true,
-        openProtectionActive: false,
-        isTradingEnabled: true,
-      },
+      monitorContext,
+      currentTime: new Date('2026-02-16T01:00:00.000Z'),
     },
-    buyTaskQueue,
-    sellTaskQueue,
     monitorTaskQueue,
   };
 }
@@ -96,10 +63,13 @@ function createIndicatorSnapshot(overrides: Partial<IndicatorSnapshot> = {}): In
   };
 }
 
-function createMonitorContext(params: {
-  readonly autoSearchEnabled: boolean;
-  readonly switchIntervalMinutes?: number;
-}): MonitorContext {
+function createMonitorContext(
+  params: {
+    readonly autoSearchEnabled: boolean;
+    readonly switchIntervalMinutes?: number;
+  },
+  overrides: Partial<MonitorContext> = {},
+): MonitorContext {
   return createMonitorContextFromAsync({
     config: createMonitorConfigDouble({
       monitorSymbol: 'HSI.HK',
@@ -123,21 +93,22 @@ function createMonitorContext(params: {
       lastMonitorSnapshot: null,
       incrementalIndicatorRuntime: null,
     },
+    ...overrides,
   });
 }
 
 describe('processMonitor end-to-end orchestration', () => {
-  it('does not enqueue buy/sell signals when only running auto-symbol and risk scheduling', async () => {
+  it('does not enqueue buy/sell signals when only running auto-symbol scheduling', async () => {
     const processMonitor = await loadProcessMonitor();
     const monitorContext = createMonitorContext({
       autoSearchEnabled: false,
     });
+    const buyTaskQueue = createBuyTaskQueue();
+    const sellTaskQueue = createSellTaskQueue();
 
-    const { params, buyTaskQueue, sellTaskQueue, monitorTaskQueue } = createProcessMonitorParams({
-      monitorContext,
-    });
+    const { params, monitorTaskQueue } = createProcessMonitorParams(monitorContext);
 
-    processMonitor(params, new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_010)]]));
+    processMonitor(params);
 
     expect(monitorTaskQueue.isEmpty()).toBeTrue();
     expect(buyTaskQueue.isEmpty()).toBeTrue();
@@ -150,25 +121,15 @@ describe('processMonitor end-to-end orchestration', () => {
       autoSearchEnabled: true,
       switchIntervalMinutes: 30,
     });
+    const buyTaskQueue = createBuyTaskQueue();
+    const sellTaskQueue = createSellTaskQueue();
 
-    const { params, buyTaskQueue, sellTaskQueue, monitorTaskQueue } = createProcessMonitorParams({
-      monitorContext,
+    const { params, monitorTaskQueue } = createProcessMonitorParams(monitorContext);
+
+    processMonitor({
+      ...params,
+      currentTime: new Date('2026-02-16T01:00:01.000Z'),
     });
-
-    processMonitor(
-      {
-        ...params,
-        runtimeFlags: {
-          ...params.runtimeFlags,
-          currentTime: new Date('2026-02-16T01:00:01.000Z'),
-        },
-      },
-      new Map([
-        ['HSI.HK', createQuoteDouble('HSI.HK', 20_050)],
-        ['BULL.HK', createQuoteDouble('BULL.HK', 1.1)],
-        ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9)],
-      ]),
-    );
 
     expect(monitorTaskQueue.pop()?.type).toBe('AUTO_SYMBOL_TICK');
     expect(monitorTaskQueue.pop()?.type).toBe('AUTO_SYMBOL_TICK');
@@ -182,20 +143,52 @@ describe('processMonitor end-to-end orchestration', () => {
       autoSearchEnabled: false,
     });
     monitorContext.state.lastMonitorSnapshot = createIndicatorSnapshot();
+    const buyTaskQueue = createBuyTaskQueue();
+    const sellTaskQueue = createSellTaskQueue();
 
-    const { params, buyTaskQueue, sellTaskQueue } = createProcessMonitorParams({
-      monitorContext,
-      marketDataClient: {
-        getCandlestickSnapshot: () => {
-          throw new Error('processMonitor should not read candlestick cache for display');
-        },
-      },
-    });
-    const monitorQuote = createQuoteDouble('HSI.HK', 20_010);
+    const { params } = createProcessMonitorParams(monitorContext);
 
-    processMonitor(params, new Map([['HSI.HK', monitorQuote]]));
+    processMonitor(params);
 
     expect(buyTaskQueue.isEmpty()).toBeTrue();
     expect(sellTaskQueue.isEmpty()).toBeTrue();
+  });
+
+  it('does not clean stale direction runtime when cached seat leaves ACTIVE', async () => {
+    const processMonitor = await loadProcessMonitor();
+    let clearLongCalls = 0;
+    let delayedCancelCalls = 0;
+    const monitorContext = createMonitorContext(
+      {
+        autoSearchEnabled: false,
+      },
+      {
+        riskChecker: createRiskCheckerDouble({
+          clearLongWarrantInfo: () => {
+            clearLongCalls += 1;
+          },
+        }),
+        delayedSignalVerifier: createDelayedSignalVerifierDouble({
+          cancelAllForDirection: () => {
+            delayedCancelCalls += 1;
+            return 1;
+          },
+        }),
+      },
+    );
+    const buyTaskQueue = createBuyTaskQueue();
+    buyTaskQueue.push({
+      type: 'IMMEDIATE_BUY',
+      monitorSymbol: monitorContext.config.monitorSymbol,
+      data: createSignalDouble('BUYCALL', 'BULL.HK'),
+    });
+
+    const { params } = createProcessMonitorParams(monitorContext);
+
+    processMonitor(params);
+
+    expect(clearLongCalls).toBe(0);
+    expect(delayedCancelCalls).toBe(0);
+    expect(buyTaskQueue.pop()?.data.action).toBe('BUYCALL');
   });
 });

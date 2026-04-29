@@ -16,6 +16,8 @@ import {
   createTraderDouble,
 } from '../helpers/testDoubles.js';
 
+import type { LifecycleRuntimeFlags } from '../../src/main/lifecycle/types.js';
+import type { ProcessMonitorParams } from '../../src/main/processMonitor/types.js';
 import type { TimeDriverProgramContext } from '../../src/main/timeDriverProgram/types.js';
 import type * as TimeModule from '../../src/utils/time/index.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
@@ -24,8 +26,7 @@ import type { TimeDriverProgramModule } from './types.js';
 
 const processMonitorCalls: Array<{
   readonly monitorSymbol: string;
-  readonly openProtectionActive: boolean;
-  readonly canTradeNow: boolean;
+  readonly currentTimeMs: number;
 }> = [];
 
 const tradingTimeOverrides = {
@@ -85,20 +86,10 @@ async function loadTimeDriverProgram(): Promise<TimeDriverProgramModule> {
   const actualTimeModule = actualTimeModuleUnknown as typeof TimeModule;
 
   mock.module('../../src/main/processMonitor/index.js', () => ({
-    processMonitor: ({
-      monitorContext,
-      runtimeFlags,
-    }: {
-      readonly monitorContext: { readonly config: { readonly monitorSymbol: string } };
-      readonly runtimeFlags: {
-        readonly openProtectionActive: boolean;
-        readonly canTradeNow: boolean;
-      };
-    }): void => {
+    processMonitor: ({ monitorContext, currentTime }: ProcessMonitorParams): void => {
       processMonitorCalls.push({
         monitorSymbol: monitorContext.config.monitorSymbol,
-        openProtectionActive: runtimeFlags.openProtectionActive,
-        canTradeNow: runtimeFlags.canTradeNow,
+        currentTimeMs: currentTime.getTime(),
       });
     },
   }));
@@ -163,27 +154,8 @@ function createMonitorContext(
   } as unknown as MonitorContext;
 }
 
-function createQueues(): Pick<
-  TimeDriverProgramContext,
-  'buyTaskQueue' | 'sellTaskQueue' | 'monitorTaskQueue'
-> {
+function createQueues(): Pick<TimeDriverProgramContext, 'monitorTaskQueue'> {
   return {
-    buyTaskQueue: {
-      push: () => {},
-      pop: () => null,
-      isEmpty: () => true,
-      removeTasks: () => 0,
-      clearAll: () => 0,
-      onTaskAdded: () => () => {},
-    },
-    sellTaskQueue: {
-      push: () => {},
-      pop: () => null,
-      isEmpty: () => true,
-      removeTasks: () => 0,
-      clearAll: () => 0,
-      onTaskAdded: () => () => {},
-    },
     monitorTaskQueue: {
       scheduleLatest: () => {},
       pop: () => null,
@@ -212,7 +184,7 @@ describe('timeDriverProgram strict-mode integration', () => {
     mock.restore();
   });
 
-  it('clears pending delayed signals and exits early without enqueueing post-trade refresh when leaving continuous session', async () => {
+  it('clears pending delayed signals and still dispatches monitor maintenance when leaving continuous session', async () => {
     tradingTimeOverrides.dayKey = '2026-02-16';
     tradingTimeOverrides.isInContinuousSession = false;
 
@@ -227,11 +199,7 @@ describe('timeDriverProgram strict-mode integration', () => {
     });
 
     let getQuotesCalls = 0;
-    const dayLifecycleTicks: Array<{
-      canTradeNow: boolean;
-      isTradingDay: boolean;
-      dayKey: string | null;
-    }> = [];
+    const dayLifecycleTicks: LifecycleRuntimeFlags[] = [];
 
     const loadedTimeDriverProgram = await loadTimeDriverProgram();
     const { timeDriverProgram } = loadedTimeDriverProgram;
@@ -247,7 +215,6 @@ describe('timeDriverProgram strict-mode integration', () => {
         onQuoteUpdated: () => () => {},
         onCandlestickUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
-        getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
         resetRuntimeSubscriptionsAndCaches: async () => {},
@@ -264,25 +231,22 @@ describe('timeDriverProgram strict-mode integration', () => {
       }),
       monitorContexts,
       ...createQueues(),
-      runtimeGateMode: 'strict',
       tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       dayLifecycleManager: {
-        tick: async (
-          _now: Date,
-          runtime: {
-            readonly canTradeNow: boolean;
-            readonly isTradingDay: boolean;
-            readonly dayKey: string | null;
-          },
-        ) => {
+        tick: async (_now: Date, runtime: LifecycleRuntimeFlags) => {
           dayLifecycleTicks.push(runtime);
         },
       },
     });
 
     expect(cancelledSymbols).toEqual(['HSI.HK']);
-    expect(processMonitorCalls).toHaveLength(0);
+    expect(processMonitorCalls).toEqual([
+      {
+        monitorSymbol: 'HSI.HK',
+        currentTimeMs: expect.any(Number),
+      },
+    ]);
     expect(getQuotesCalls).toBe(0);
     expect(dayLifecycleTicks).toHaveLength(1);
     expect(dayLifecycleTicks[0]).toEqual({
@@ -290,6 +254,76 @@ describe('timeDriverProgram strict-mode integration', () => {
       isTradingDay: true,
       dayKey: '2026-02-16',
     });
+  });
+
+  it('keeps trading-day lookup failure as unknown when driving lifecycle', async () => {
+    tradingTimeOverrides.dayKey = '2026-02-16';
+    tradingTimeOverrides.isInContinuousSession = true;
+
+    const monitorContext = createMonitorContext('HSI.HK', 0, () => {});
+    const monitorContexts = new Map<string, MonitorContext>([['HSI.HK', monitorContext]]);
+    const lastState = createLastState({
+      cachedTradingDayInfo: null,
+    });
+    const dayLifecycleTicks: Array<{
+      readonly canTradeNow: boolean;
+      readonly isTradingDay: boolean | null;
+      readonly dayKey: string | null;
+    }> = [];
+    let getQuotesCalls = 0;
+
+    const loadedTimeDriverProgram = await loadTimeDriverProgram();
+    const { timeDriverProgram } = loadedTimeDriverProgram;
+    await timeDriverProgram({
+      marketDataClient: {
+        getQuoteContext: async () => ({}) as never,
+        getQuotes: async () => {
+          getQuotesCalls += 1;
+          return new Map<string, Quote | null>();
+        },
+        subscribeSymbols: async () => {},
+        unsubscribeSymbols: async () => {},
+        onQuoteUpdated: () => () => {},
+        onCandlestickUpdated: () => () => {},
+        subscribeCandlesticks: async () => [],
+        getCandlestickSnapshot: () => null,
+        isTradingDay: async () => {
+          throw new Error('trading day unavailable');
+        },
+        resetRuntimeSubscriptionsAndCaches: async () => {},
+      },
+      trader: createTraderDouble(),
+      lastState,
+      doomsdayProtection: createDoomsdayProtectionDouble(),
+      tradingConfig: createTradingConfig({
+        monitors: [createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' })],
+        global: {
+          ...createTradingConfig().global,
+          doomsdayProtection: false,
+        },
+      }),
+      monitorContexts,
+      ...createQueues(),
+      tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
+      dayLifecycleManager: {
+        tick: async (_now, runtime) => {
+          dayLifecycleTicks.push(runtime);
+        },
+      },
+    });
+
+    expect(lastState.cachedTradingDayInfo).toBeNull();
+    expect(lastState.canTrade).toBeFalse();
+    expect(getQuotesCalls).toBe(0);
+    expect(processMonitorCalls).toHaveLength(0);
+    expect(dayLifecycleTicks).toEqual([
+      {
+        canTradeNow: false,
+        isTradingDay: null,
+        dayKey: '2026-02-16',
+      },
+    ]);
   });
 
   it('uses committed quote set for doomsday clearance and short-circuits after clearance executes', async () => {
@@ -326,7 +360,6 @@ describe('timeDriverProgram strict-mode integration', () => {
         onQuoteUpdated: () => () => {},
         onCandlestickUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
-        getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
         resetRuntimeSubscriptionsAndCaches: async () => {},
@@ -354,7 +387,6 @@ describe('timeDriverProgram strict-mode integration', () => {
       }),
       monitorContexts,
       ...createQueues(),
-      runtimeGateMode: 'strict',
       tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       dayLifecycleManager: {
@@ -394,7 +426,6 @@ describe('timeDriverProgram strict-mode integration', () => {
         onQuoteUpdated: () => () => {},
         onCandlestickUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
-        getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
         resetRuntimeSubscriptionsAndCaches: async () => {},
@@ -410,10 +441,7 @@ describe('timeDriverProgram strict-mode integration', () => {
         },
       }),
       monitorContexts,
-      buyTaskQueue: queues.buyTaskQueue,
-      sellTaskQueue: queues.sellTaskQueue,
       monitorTaskQueue: queues.monitorTaskQueue,
-      runtimeGateMode: 'strict',
       tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       dayLifecycleManager: {
@@ -424,14 +452,13 @@ describe('timeDriverProgram strict-mode integration', () => {
     expect(processMonitorCalls).toEqual([
       {
         monitorSymbol: 'HSI.HK',
-        openProtectionActive: false,
-        canTradeNow: true,
+        currentTimeMs: expect.any(Number),
       },
     ]);
     expect(monitorContext.state.lastMonitorSnapshot).toBeNull();
   });
 
-  it('keeps held symbols from unsubscribe and propagates strict open-protection flag', async () => {
+  it('keeps held symbols subscribed while open protection does not block monitor maintenance', async () => {
     tradingTimeOverrides.dayKey = '2026-02-16';
     tradingTimeOverrides.isInContinuousSession = true;
     tradingTimeOverrides.morningOpenProtection = true;
@@ -487,7 +514,6 @@ describe('timeDriverProgram strict-mode integration', () => {
         onQuoteUpdated: () => () => {},
         onCandlestickUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
-        getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
         resetRuntimeSubscriptionsAndCaches: async () => {},
@@ -510,7 +536,6 @@ describe('timeDriverProgram strict-mode integration', () => {
       }),
       monitorContexts,
       ...createQueues(),
-      runtimeGateMode: 'strict',
       tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       dayLifecycleManager: {
@@ -518,14 +543,18 @@ describe('timeDriverProgram strict-mode integration', () => {
       },
     });
 
-    expect(processMonitorCalls).toHaveLength(1);
-    expect(processMonitorCalls[0]?.openProtectionActive).toBeTrue();
-    expect(processMonitorCalls[0]?.canTradeNow).toBeTrue();
+    expect(processMonitorCalls).toEqual([
+      {
+        monitorSymbol: 'HSI.HK',
+        currentTimeMs: expect.any(Number),
+      },
+    ]);
+    expect(lastState.openProtectionActive).toBeTrue();
 
     expect(subscribedBatches.flat()).toHaveLength(0);
     expect(unsubscribedBatches.flat()).toHaveLength(0);
 
-    expect(getQuotesSymbols).toContain('OLD.HK');
+    expect(getQuotesSymbols).toHaveLength(0);
     expect(lastState.allTradingSymbols.has('OLD.HK')).toBeTrue();
   });
 });

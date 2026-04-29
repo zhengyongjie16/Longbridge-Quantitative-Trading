@@ -34,7 +34,7 @@ export type SeatSnapshot = {
 
 /**
  * prepareSeatsForRuntime() 的依赖注入对象。
- * 类型用途：统一表达交易日快照加载时恢复席位所需的配置、持仓、订单、行情客户端与时间依赖。
+ * 类型用途：统一表达交易日快照加载时恢复席位所需的配置、持仓、订单、行情客户端、时间依赖与同步自动寻标准入判断。
  * 数据来源：由运行时快照加载链路组装传入。
  * 使用范围：仅席位恢复流程使用。
  */
@@ -47,7 +47,10 @@ export type PrepareSeatsForRuntimeDeps = {
   readonly now: () => Date;
   readonly logger: Logger;
   readonly getTradingMinutesSinceOpen: (currentTime: Date) => number;
-  readonly isWithinMorningOpenProtection: (currentTime: Date, minutes: number) => boolean;
+  readonly resolveCanAutoSearchNow: (params: {
+    readonly currentTime: Date;
+    readonly openDelayMinutes: number;
+  }) => boolean;
   readonly warrantListCacheConfig?: WarrantListCacheConfig;
 };
 

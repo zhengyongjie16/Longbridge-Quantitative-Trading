@@ -34,7 +34,6 @@ type MutableRunAppValidationResult = {
 export type MutableRunAppHarnessState = {
   events: string[];
   startupRebuildPending: boolean;
-  runtimeGateMode: 'strict' | 'skip';
   preGateRuntimeEnv: NodeJS.ProcessEnv | null;
   postGateRuntimeEnv: NodeJS.ProcessEnv | null;
   createPostGateRuntimeNow: Date | null;
@@ -42,10 +41,10 @@ export type MutableRunAppHarnessState = {
   rebuildCalls: RunAppRebuildCall[];
   rebuildShouldThrow: boolean;
   completeRebuildBaselineShouldThrow: boolean;
+  startupFailureCalls: Date[];
   registerDelayedCalls: number;
   cleanupRegistered: number;
   timeDriverProgramCalls: number;
-  timeDriverProgramRuntimeGateModes: Array<'strict' | 'skip'>;
   createBusinessEventProgramHasIndicatorCache: boolean | null;
   createBusinessEventProgramHasMonitorDisplayRuntime: boolean | null;
   timeDriverProgramHasIndicatorCache: boolean | null;

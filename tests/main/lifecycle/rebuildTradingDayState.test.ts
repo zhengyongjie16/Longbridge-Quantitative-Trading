@@ -14,7 +14,7 @@ import type { RebuildTradingDayStateDeps } from '../../../src/main/lifecycle/typ
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { SymbolRegistry } from '../../../src/types/seat.js';
 import type { Quote } from '../../../src/types/quote.js';
-import { getHKDateKey } from '../../../src/utils/time/index.js';
+import { getHKDateKey, getRequiredHKDateKey } from '../../../src/utils/time/index.js';
 import type {
   MarketDataClient,
   OrderRecord,
@@ -289,8 +289,8 @@ describe('createRebuildTradingDayState', () => {
     await rebuild({ allOrders: emptyOrders, quotesMap: emptyQuotesMap, now });
     expect(tradingDayCalls.length).toBeGreaterThan(1);
     for (const call of tradingDayCalls) {
-      const startMonthKey = getHKDateKey(call.startDate).slice(0, 7);
-      const endMonthKey = getHKDateKey(call.endDate).slice(0, 7);
+      const startMonthKey = getRequiredHKDateKey(call.startDate).slice(0, 7);
+      const endMonthKey = getRequiredHKDateKey(call.endDate).slice(0, 7);
       expect(startMonthKey).toBe(endMonthKey);
     }
   });

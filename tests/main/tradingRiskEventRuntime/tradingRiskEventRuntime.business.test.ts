@@ -28,10 +28,11 @@ import type { Logger } from '../../../src/utils/logger/types.js';
 import type {
   SeatState,
   SeatStateChangedEvent,
-  SeatTruthChangedEvent,
   SeatVersionChangedEvent,
   SymbolRegistry,
 } from '../../../src/types/seat.js';
+
+type TestSeatTruthChangedEvent = Parameters<Parameters<SymbolRegistry['onSeatTruthChanged']>[0]>[0];
 
 type TestTradingRiskConsistencyStatus = ReturnType<
   TradingRiskEventRuntimeDeps['postTradeConsistencyRuntime']['getStatus']
@@ -106,7 +107,7 @@ function createMultiMonitorSymbolRegistryDouble(params: {
   );
   const seatStateChangedListeners = new Set<(event: SeatStateChangedEvent) => void>();
   const seatVersionChangedListeners = new Set<(event: SeatVersionChangedEvent) => void>();
-  const seatTruthChangedListeners = new Set<(event: SeatTruthChangedEvent) => void>();
+  const seatTruthChangedListeners = new Set<(event: TestSeatTruthChangedEvent) => void>();
 
   function resolveEntry(monitorSymbol: string, direction: 'LONG' | 'SHORT') {
     const entry = entries.get(monitorSymbol);

@@ -44,7 +44,6 @@ const QUOTE_METHODS: ReadonlySet<MockMethodName> = new Set([
   'realtimeQuote',
   'subscribeCandlesticks',
   'unsubscribeCandlesticks',
-  'realtimeCandlesticks',
   'tradingDays',
   'warrantQuote',
   'warrantList',
@@ -254,22 +253,6 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     });
   }
 
-  function realtimeCandlesticks(
-    symbol: string,
-    period: Period,
-    count: number,
-  ): Promise<ReadonlyArray<unknown>> {
-    return withCall('realtimeCandlesticks', [symbol, period, count], () => {
-      const key = createCandleKey(symbol, period);
-      const data = candlesticksByKey.get(key) ?? [];
-      if (count <= 0 || data.length <= count) {
-        return data;
-      }
-
-      return data.slice(data.length - count);
-    });
-  }
-
   function tradingDays(
     market: Market,
     begin: unknown,
@@ -453,7 +436,6 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     realtimeQuote,
     subscribeCandlesticks,
     unsubscribeCandlesticks,
-    realtimeCandlesticks,
     tradingDays,
     warrantQuote,
     warrantList,

@@ -39,7 +39,6 @@ export type MockMethodName =
   | 'realtimeQuote'
   | 'subscribeCandlesticks'
   | 'unsubscribeCandlesticks'
-  | 'realtimeCandlesticks'
   | 'tradingDays'
   | 'warrantQuote'
   | 'warrantList'
@@ -163,11 +162,6 @@ export interface QuoteContextContract extends MockInvocationLog, MockFailureCont
     tradeSessions?: TradeSessions,
   ) => Promise<ReadonlyArray<unknown>>;
   unsubscribeCandlesticks: (symbol: string, period: Period) => Promise<void>;
-  realtimeCandlesticks: (
-    symbol: string,
-    period: Period,
-    count: number,
-  ) => Promise<ReadonlyArray<unknown>>;
   tradingDays: (
     market: Market,
     begin: unknown,

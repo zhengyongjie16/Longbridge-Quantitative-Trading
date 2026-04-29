@@ -9,7 +9,7 @@ import type { MarketDataClient, Trader, Unsubscribe } from '../../types/services
  * 数据来源：monitor 配置、席位状态、持仓、订单保留集合与事件 runtime 临时 retain。
  * 使用范围：QuoteSubscriptionRuntime 内部状态与外部 retain API。
  */
-export type QuoteSubscriptionRetainReason =
+type QuoteSubscriptionRetainReason =
   | 'MONITOR_BASE'
   | 'SEAT_BOUND'
   | 'POSITION_HOLD'

@@ -25,17 +25,17 @@ import { isSeatSnapshotValid } from '../helpers/seatSnapshot.js';
  * 创建周期换标任务处理器（AUTO_SYMBOL_TICK）。
  * 执行前校验席位快照，防止换标后执行旧任务；tick 仅触发周期换标检查。
  *
- * @param deps 依赖注入，包含 getContextOrSkip、switchWakeupRuntime、getCanProcessTask
+ * @param deps 依赖注入，包含 getContextOrSkip、switchWakeupRuntime、getCanTradeNow
  * @returns AUTO_SYMBOL_TICK 处理函数
  */
 export function createAutoSymbolHandlers({
   getContextOrSkip,
   switchWakeupRuntime,
-  getCanProcessTask,
+  getCanTradeNow,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
   readonly switchWakeupRuntime: Pick<SwitchWakeupRuntime, 'handoffPendingSwitch'>;
-  readonly getCanProcessTask?: () => boolean;
+  readonly getCanTradeNow: () => boolean;
 }): Readonly<{
   handleAutoSymbolTick: (
     task: MonitorTask<MonitorTaskDataMap, 'AUTO_SYMBOL_TICK'>,
@@ -115,18 +115,10 @@ export function createAutoSymbolHandlers({
       return 'skipped';
     }
 
-    if (getCanProcessTask && !getCanProcessTask()) {
-      logger.debug(
-        `[MonitorTaskProcessor] AUTO_SYMBOL_TICK 门禁关闭，跳过 type=${task.type} monitor=${task.monitorSymbol} direction=${data.direction} dedupe=${task.dedupeKey}`,
-      );
-      return 'skipped';
-    }
-
     const intervalResult = await context.autoSymbolManager.maybeSwitchOnInterval({
       direction: data.direction,
       currentTime: new Date(data.currentTimeMs),
-      canTradeNow: data.canTradeNow,
-      openProtectionActive: data.openProtectionActive,
+      canTradeNow: getCanTradeNow(),
     });
     handoffPendingWakeup({
       context,

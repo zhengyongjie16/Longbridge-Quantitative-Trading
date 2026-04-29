@@ -173,7 +173,7 @@ describe('auto search policy consistency integration', () => {
       now: () => currentTime,
       logger: startupLogger.logger,
       getTradingMinutesSinceOpen: () => 10,
-      isWithinMorningOpenProtection: () => false,
+      resolveCanAutoSearchNow: () => true,
     });
 
     const startupSeat = startupRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
@@ -423,7 +423,7 @@ describe('auto search policy consistency integration', () => {
       now: () => currentTime,
       logger: startupLogger.logger,
       getTradingMinutesSinceOpen: () => 10,
-      isWithinMorningOpenProtection: () => false,
+      resolveCanAutoSearchNow: () => true,
     });
 
     const startupSeat = startupRegistry.getSeatState(monitorConfig.monitorSymbol, 'SHORT');

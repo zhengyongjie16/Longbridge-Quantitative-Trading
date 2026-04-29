@@ -4,8 +4,6 @@ import type { MonitorContext, LastState } from '../../types/state.js';
 import type { MarketDataClient } from '../../types/services.js';
 import type { SignalSeatInfo } from '../processMonitor/types.js';
 import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
-import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
-import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { BuyTaskType, SellTaskType, TaskQueue } from '../asyncProgram/tradeTaskQueue/types.js';
 
 /**
@@ -45,7 +43,7 @@ export type BusinessEventRouteState =
  * 数据来源：由 app 层注入 MonitorDisplayRuntime 实例。
  * 使用范围：仅 businessEventProgram 模块使用。
  */
-export type BusinessEventMonitorDisplayRuntime = Readonly<{
+type BusinessEventMonitorDisplayRuntime = Readonly<{
   requestRender: (params: {
     readonly monitorSymbol: string;
     readonly monitorSnapshot: IndicatorSnapshot;
@@ -65,7 +63,6 @@ export type BusinessEventProgramDeps = Readonly<{
   tradingConfig: MultiMonitorTradingConfig;
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
-  monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
   indicatorCache: IndicatorCache;
   monitorDisplayRuntime: BusinessEventMonitorDisplayRuntime;
 }>;
@@ -103,7 +100,7 @@ export type IndicatorPipelineParams = Readonly<{
 /**
  * 信号流水线参数（执行信号生成、延迟验证入队等时的入参）。
  * 类型用途：封装信号流水线所需的监控标的、上下文、席位信息与指标快照。
- * 数据来源：由 businessEventProgram 从无行情席位同步结果、指标流水线输出等组装。
+ * 数据来源：由 businessEventProgram 从席位投影结果、指标流水线输出等组装。
  * 使用范围：仅普通 K 线业务事件链路使用。
  */
 export type SignalPipelineParams = Readonly<{

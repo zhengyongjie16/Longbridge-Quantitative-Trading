@@ -176,7 +176,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       tradingConfig: preGateRuntime.tradingConfig,
       buyTaskQueue: postGateRuntime.buyTaskQueue,
       sellTaskQueue: postGateRuntime.sellTaskQueue,
-      monitorTaskQueue: postGateRuntime.monitorTaskQueue,
       indicatorCache: postGateRuntime.indicatorCache,
       monitorDisplayRuntime: postGateRuntime.monitorDisplayRuntime,
     });
@@ -210,6 +209,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       switchWakeupRuntime: postGateRuntime.switchWakeupRuntime,
       autoSearchWakeupRuntime: postGateRuntime.autoSearchWakeupRuntime,
       seatActivationDispatcher: postGateRuntime.seatActivationDispatcher,
+      seatRuntimeCleanupDispatcher: postGateRuntime.seatRuntimeCleanupDispatcher,
       quoteSubscriptionRuntime: postGateRuntime.quoteSubscriptionRuntime,
       postTradeConsistencyRuntime: postGateRuntime.postTradeConsistencyRuntime,
       marketDataClient: preGateRuntime.marketDataClient,
@@ -219,19 +219,33 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
     });
     cleanup.registerExitHandlers();
 
+    let initialRebuildSucceeded = false;
     if (startupSnapshot.startupRebuildPending) {
       appLogger.warn('启动阶段跳过初次重建，保持静止并等待生命周期重建任务自动恢复');
     } else {
-      await rebuildTradingDayState({
-        allOrders: startupSnapshot.allOrders,
-        quotesMap: startupSnapshot.quotesMap,
-        now: startupSnapshot.now,
-      });
+      try {
+        await rebuildTradingDayState({
+          allOrders: startupSnapshot.allOrders,
+          quotesMap: startupSnapshot.quotesMap,
+          now: startupSnapshot.now,
+        });
+        initialRebuildSucceeded = true;
+      } catch (err) {
+        applyStartupSnapshotFailure(postGateRuntime.lastState, startupSnapshot.now);
+        appLogger.error(
+          '启动初始重建失败：已阻断交易并切换为开盘重建重试模式',
+          formatAppError(err),
+        );
+      }
+    }
+
+    if (initialRebuildSucceeded) {
       postGateRuntime.postTradeConsistencyRuntime.start();
       postGateRuntime.postTradeConsistencyRuntime.completeRebuildBaseline();
       await postGateRuntime.quoteSubscriptionRuntime.reconcileFromCurrentTruth();
       postGateRuntime.tradingQuoteDisplayRuntime.start();
       postGateRuntime.quoteSubscriptionRuntime.start();
+      postGateRuntime.seatRuntimeCleanupDispatcher.start();
       postGateRuntime.seatActivationDispatcher.start();
       postGateRuntime.autoSearchWakeupRuntime.start();
       postGateRuntime.monitorDisplayRuntime.start();
@@ -256,10 +270,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
           doomsdayProtection: postGateRuntime.doomsdayProtection,
           tradingConfig: preGateRuntime.tradingConfig,
           monitorContexts: postGateRuntime.monitorContexts,
-          buyTaskQueue: postGateRuntime.buyTaskQueue,
-          sellTaskQueue: postGateRuntime.sellTaskQueue,
           monitorTaskQueue: postGateRuntime.monitorTaskQueue,
-          runtimeGateMode: preGateRuntime.gatePolicies.runtimeGate,
           tradingGateEventRuntime: postGateRuntime.tradingGateEventRuntime,
           quoteSubscriptionRuntime: postGateRuntime.quoteSubscriptionRuntime,
           dayLifecycleManager,

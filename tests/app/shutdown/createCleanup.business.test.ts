@@ -109,6 +109,7 @@ describe('cleanup business flow', () => {
       'autoSearchWakeupRuntime',
       'seatActivationDispatcher',
       'monitorTask',
+      'seatRuntimeCleanupDispatcher',
       'buy',
       'sell',
       'stopOrderMonitorRuntimeAndDrain',
@@ -164,6 +165,7 @@ describe('cleanup business flow', () => {
       'autoSearchWakeupRuntime',
       'seatActivationDispatcher',
       'monitorTask',
+      'seatRuntimeCleanupDispatcher',
       'buy',
       'sell',
       'stopOrderMonitorRuntimeAndDrain',
@@ -202,6 +204,7 @@ describe('cleanup business flow', () => {
         'autoSearchWakeupRuntime',
         'seatActivationDispatcher',
         'monitorTask',
+        'seatRuntimeCleanupDispatcher',
         'buy',
         'sell',
         'stopOrderMonitorRuntimeAndDrain',
@@ -268,6 +271,7 @@ describe('cleanup business flow', () => {
       'autoSearchWakeupRuntime',
       'seatActivationDispatcher',
       'monitorTask',
+      'seatRuntimeCleanupDispatcher',
       'buy',
       'sell',
       'stopOrderMonitorRuntimeAndDrain',
@@ -315,6 +319,7 @@ describe('cleanup business flow', () => {
         'autoSearchWakeupRuntime',
         'seatActivationDispatcher',
         'monitorTask',
+        'seatRuntimeCleanupDispatcher',
         'buy',
         'sell',
         'stopOrderMonitorRuntimeAndDrain',
@@ -402,6 +407,7 @@ describe('cleanup business flow', () => {
     expect(steps[7]).toBe('autoSearchWakeupRuntime');
     expect(steps[8]).toBe('seatActivationDispatcher');
     expect(steps[9]).toBe('monitorTask');
+    expect(steps[10]).toBe('seatRuntimeCleanupDispatcher');
     expect(steps[steps.indexOf('stopOrderMonitorRuntimeAndDrain') - 1]).toBe('sell');
     expect(steps).toContain('buy');
     expect(steps).toContain('postTradeConsistencyRuntime');

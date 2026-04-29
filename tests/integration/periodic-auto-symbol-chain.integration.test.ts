@@ -180,7 +180,6 @@ describe('periodic auto-symbol full chain integration', () => {
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
       getMonitorContext: () => monitorContext,
-      clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
@@ -191,6 +190,7 @@ describe('periodic auto-symbol full chain integration', () => {
       tradingConfig: {
         monitors: [monitorConfig],
       } as unknown as MultiMonitorTradingConfig,
+      getCanTradeNow: () => true,
       onProcessed: (_task, status) => {
         statuses.push(status);
       },
@@ -204,8 +204,6 @@ describe('periodic auto-symbol full chain integration', () => {
         mainContext,
         autoSearchEnabled: true,
         currentTimeMs: currentNowMs,
-        canTradeNow: true,
-        openProtectionActive: false,
       });
 
       await waitUntil(() => statuses.length >= 2);
@@ -227,8 +225,6 @@ describe('periodic auto-symbol full chain integration', () => {
         mainContext,
         autoSearchEnabled: true,
         currentTimeMs: currentNowMs,
-        canTradeNow: true,
-        openProtectionActive: false,
       });
 
       await waitUntil(() => statuses.length >= 2);
@@ -358,7 +354,6 @@ describe('periodic auto-symbol full chain integration', () => {
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
       getMonitorContext: () => monitorContext,
-      clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
@@ -369,6 +364,7 @@ describe('periodic auto-symbol full chain integration', () => {
       tradingConfig: {
         monitors: [monitorConfig],
       } as unknown as MultiMonitorTradingConfig,
+      getCanTradeNow: () => true,
       onProcessed: (_task, status) => {
         statuses.push(status);
       },
@@ -382,8 +378,6 @@ describe('periodic auto-symbol full chain integration', () => {
         mainContext,
         autoSearchEnabled: true,
         currentTimeMs: currentNowMs,
-        canTradeNow: true,
-        openProtectionActive: false,
       });
 
       await waitUntil(() => statuses.length >= 2);
@@ -511,7 +505,6 @@ describe('periodic auto-symbol full chain integration', () => {
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
       getMonitorContext: () => monitorContext,
-      clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
@@ -522,6 +515,7 @@ describe('periodic auto-symbol full chain integration', () => {
       tradingConfig: {
         monitors: [monitorConfig],
       } as unknown as MultiMonitorTradingConfig,
+      getCanTradeNow: () => true,
       onProcessed: (_task, status) => {
         statuses.push(status);
       },
@@ -535,8 +529,6 @@ describe('periodic auto-symbol full chain integration', () => {
         mainContext,
         autoSearchEnabled: true,
         currentTimeMs: currentNowMs,
-        canTradeNow: true,
-        openProtectionActive: false,
       });
 
       await waitUntil(() => statuses.length >= 2);
@@ -664,7 +656,6 @@ describe('periodic auto-symbol full chain integration', () => {
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
       getMonitorContext: () => monitorContext,
-      clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
@@ -675,6 +666,7 @@ describe('periodic auto-symbol full chain integration', () => {
       tradingConfig: {
         monitors: [monitorConfig],
       } as unknown as MultiMonitorTradingConfig,
+      getCanTradeNow: () => true,
       onProcessed: (_task, status) => {
         statuses.push(status);
       },
@@ -688,8 +680,6 @@ describe('periodic auto-symbol full chain integration', () => {
         mainContext,
         autoSearchEnabled: true,
         currentTimeMs: currentNowMs,
-        canTradeNow: true,
-        openProtectionActive: false,
       });
 
       await waitUntil(() => statuses.length >= 2);
@@ -706,8 +696,6 @@ describe('periodic auto-symbol full chain integration', () => {
         mainContext,
         autoSearchEnabled: true,
         currentTimeMs: currentNowMs,
-        canTradeNow: true,
-        openProtectionActive: false,
       });
 
       await waitUntil(() => statuses.length >= 2);
