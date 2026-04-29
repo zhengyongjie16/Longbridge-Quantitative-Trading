@@ -69,18 +69,13 @@ export type BusinessEventProgramDeps = Readonly<{
 
 /**
  * K 线业务事件运行时门禁参数。
- * 类型用途：表达普通 K 线事件链路执行信号流水线时需要的当前时刻与交易门禁快照。
+ * 类型用途：表达普通 K 线事件链路执行信号流水线时需要的当前时刻与开盘保护快照。
  * 数据来源：由 businessEventProgram 在事件处理时按 lastState 组装。
  * 使用范围：仅 businessEventProgram 信号流水线使用。
  */
 type BusinessEventRuntimeFlags = Readonly<{
   currentTime: Date;
-  isHalfDay: boolean;
-  canTradeNow: boolean;
   openProtectionActive: boolean;
-
-  /** 交易门禁透传：用于区分交易门禁与普通信号门禁的日志语义 */
-  isTradingEnabled: boolean;
 }>;
 
 /**

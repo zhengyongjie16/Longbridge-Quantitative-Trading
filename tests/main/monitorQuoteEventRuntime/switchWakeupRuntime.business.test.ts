@@ -281,7 +281,7 @@ describe('switchWakeupRuntime', () => {
     });
   }
 
-  function emitOrderStateChanged(symbol: string): void {
+  function emitOrderStateChanged(symbol: string | null): void {
     orderStateChangedListener?.({
       orderId: `order-${symbol}`,
       symbol,
@@ -763,6 +763,366 @@ describe('switchWakeupRuntime', () => {
 
     expect(advanceCalls).toEqual([]);
     await runtime.stopAndDrain();
+  });
+
+  it('switches symbol quote wakeup membership when WAIT wakeups change', async () => {
+    const advanceCalls: string[] = [];
+    const runtimeHarness = createBaseHarness({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: { kind: 'NOOP' },
+        }),
+        advancePendingSwitch: async (params) => {
+          advanceCalls[advanceCalls.length] = params.direction;
+          if (advanceCalls.length === 1) {
+            return {
+              advanced: true,
+              direction: params.direction,
+              stillPending: true,
+              driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BEAR.HK' }]),
+            };
+          }
+
+          return {
+            advanced: true,
+            direction: params.direction,
+            stillPending: false,
+            driveResult: { kind: 'COMPLETED' },
+          };
+        },
+        hasPendingSwitch: () => true,
+        resetAllState: () => {},
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+    });
+
+    emitQuoteUpdated('BULL.HK', 1.1);
+    await waitTick();
+    emitQuoteUpdated('BULL.HK', 1.2);
+    await waitTick();
+    emitQuoteUpdated('BEAR.HK', 1.3);
+    await waitTick();
+
+    expect(advanceCalls).toEqual(['LONG', 'LONG']);
+    await runtimeHarness.runtime.stopAndDrain();
+  });
+
+  it('removes old order event wakeup membership when WAIT wakeups change', async () => {
+    const advanceCalls: string[] = [];
+    const runtimeHarness = createBaseHarness({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: { kind: 'NOOP' },
+        }),
+        advancePendingSwitch: async (params) => {
+          advanceCalls[advanceCalls.length] = params.direction;
+          if (advanceCalls.length === 1) {
+            return {
+              advanced: true,
+              direction: params.direction,
+              stillPending: true,
+              driveResult: createWaitResult([{ kind: 'ORDER_EVENT', symbols: ['BEAR.HK'] }]),
+            };
+          }
+
+          return {
+            advanced: true,
+            direction: params.direction,
+            stillPending: false,
+            driveResult: { kind: 'COMPLETED' },
+          };
+        },
+        hasPendingSwitch: () => true,
+        resetAllState: () => {},
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'ORDER_EVENT', symbols: ['BULL.HK'] }]),
+    });
+
+    emitOrderStateChanged('BULL.HK');
+    await waitTick();
+    emitOrderStateChanged('BULL.HK');
+    await waitTick();
+    emitOrderStateChanged('BEAR.HK');
+    await waitTick();
+
+    expect(advanceCalls).toEqual(['LONG', 'LONG']);
+    await runtimeHarness.runtime.stopAndDrain();
+  });
+
+  it('ignores order events without a symbol', async () => {
+    let advanceCalls = 0;
+    const runtimeHarness = createBaseHarness({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: { kind: 'NOOP' },
+        }),
+        advancePendingSwitch: async (params) => {
+          advanceCalls += 1;
+          return {
+            advanced: true,
+            direction: params.direction,
+            stillPending: false,
+            driveResult: { kind: 'COMPLETED' },
+          };
+        },
+        hasPendingSwitch: () => true,
+        resetAllState: () => {},
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'ORDER_EVENT', symbols: ['BULL.HK'] }]),
+    });
+
+    emitOrderStateChanged(null);
+    await waitTick();
+
+    expect(advanceCalls).toBe(0);
+    await runtimeHarness.runtime.stopAndDrain();
+  });
+
+  it('keeps multiple routes independently matched by the same quote symbol', async () => {
+    const hsiRegistry = createSymbolRegistryDouble({ monitorSymbol: 'HSI.HK' });
+    const techRegistry = createSymbolRegistryDouble({ monitorSymbol: 'TECH.HK' });
+    const sharedSymbolRegistry = {
+      getSeatState: (monitorSymbol: string, direction: 'LONG' | 'SHORT') =>
+        monitorSymbol === 'HSI.HK'
+          ? hsiRegistry.getSeatState(monitorSymbol, direction)
+          : techRegistry.getSeatState(monitorSymbol, direction),
+      getSeatVersion: (monitorSymbol: string, direction: 'LONG' | 'SHORT') =>
+        monitorSymbol === 'HSI.HK'
+          ? hsiRegistry.getSeatVersion(monitorSymbol, direction)
+          : techRegistry.getSeatVersion(monitorSymbol, direction),
+      resolveSeatBySymbol: (symbol: string) =>
+        hsiRegistry.resolveSeatBySymbol(symbol) ?? techRegistry.resolveSeatBySymbol(symbol),
+      updateSeatState: (
+        monitorSymbol: string,
+        direction: 'LONG' | 'SHORT',
+        nextState: ReturnType<typeof hsiRegistry.getSeatState>,
+      ) =>
+        monitorSymbol === 'HSI.HK'
+          ? hsiRegistry.updateSeatState(monitorSymbol, direction, nextState)
+          : techRegistry.updateSeatState(monitorSymbol, direction, nextState),
+      updateSeatStateWithVersionBump: (
+        monitorSymbol: string,
+        direction: 'LONG' | 'SHORT',
+        nextState: ReturnType<typeof hsiRegistry.getSeatState>,
+      ) =>
+        monitorSymbol === 'HSI.HK'
+          ? hsiRegistry.updateSeatStateWithVersionBump(monitorSymbol, direction, nextState)
+          : techRegistry.updateSeatStateWithVersionBump(monitorSymbol, direction, nextState),
+      bumpSeatVersion: (monitorSymbol: string, direction: 'LONG' | 'SHORT') =>
+        monitorSymbol === 'HSI.HK'
+          ? hsiRegistry.bumpSeatVersion(monitorSymbol, direction)
+          : techRegistry.bumpSeatVersion(monitorSymbol, direction),
+      onSeatStateChanged: () => () => {},
+      onSeatVersionChanged: () => () => {},
+      onSeatTruthChanged: () => () => {},
+    };
+    const hsiAdvanceCalls: string[] = [];
+    const techAdvanceCalls: string[] = [];
+    const monitorContexts = new Map<string, MonitorContext>([
+      [
+        'HSI.HK',
+        createMonitorContextDouble({
+          config: createMonitorConfig({ monitorSymbol: 'HSI.HK' }),
+          symbolRegistry: sharedSymbolRegistry,
+          autoSymbolManager: {
+            maybeSearchOnEvent: async () => {},
+            maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+            startSwitchOnDistance: async (params) => ({
+              started: false,
+              direction: params.direction,
+              driveResult: { kind: 'NOOP' },
+            }),
+            advancePendingSwitch: async (params) => {
+              hsiAdvanceCalls[hsiAdvanceCalls.length] = params.direction;
+              return {
+                advanced: true,
+                direction: params.direction,
+                stillPending: false,
+                driveResult: { kind: 'COMPLETED' },
+              };
+            },
+            hasPendingSwitch: () => true,
+            resetAllState: () => {},
+          },
+        }),
+      ],
+      [
+        'TECH.HK',
+        createMonitorContextDouble({
+          config: createMonitorConfig({ monitorSymbol: 'TECH.HK' }),
+          symbolRegistry: sharedSymbolRegistry,
+          autoSymbolManager: {
+            maybeSearchOnEvent: async () => {},
+            maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+            startSwitchOnDistance: async (params) => ({
+              started: false,
+              direction: params.direction,
+              driveResult: { kind: 'NOOP' },
+            }),
+            advancePendingSwitch: async (params) => {
+              techAdvanceCalls[techAdvanceCalls.length] = params.direction;
+              return {
+                advanced: true,
+                direction: params.direction,
+                stillPending: false,
+                driveResult: { kind: 'COMPLETED' },
+              };
+            },
+            hasPendingSwitch: () => true,
+            resetAllState: () => {},
+          },
+        }),
+      ],
+    ]);
+    const runtimeHarness = createBaseHarness({
+      monitorContexts,
+      symbolRegistry: sharedSymbolRegistry,
+      lastState: {
+        canTrade: true,
+        isTradingEnabled: true,
+        isHalfDay: false,
+        cachedPositions: [],
+      },
+    });
+    const hsiMonitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    const techMonitorContext = runtimeHarness.monitorContexts.get('TECH.HK');
+    if (hsiMonitorContext === undefined || techMonitorContext === undefined) {
+      throw new Error('expected monitor contexts');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext: hsiMonitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+    });
+
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'TECH.HK',
+      direction: 'LONG',
+      monitorContext: techMonitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+    });
+
+    emitQuoteUpdated('BULL.HK', 1.23);
+    await waitTick();
+
+    expect(hsiAdvanceCalls).toEqual(['LONG']);
+    expect(techAdvanceCalls).toEqual(['LONG']);
+    await runtimeHarness.runtime.stopAndDrain();
+  });
+
+  it('prunes old seat-version wakeups and stops matching old events', async () => {
+    const timerHarness = createTimerHarness(40_000);
+    const symbolRegistry = createSymbolRegistryDouble({ longVersion: 1, shortVersion: 1 });
+    const advanceCalls: string[] = [];
+    const runtimeHarness = createBaseHarness({
+      symbolRegistry,
+      timerHarness,
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: { kind: 'NOOP' },
+        }),
+        advancePendingSwitch: async (params) => {
+          advanceCalls[advanceCalls.length] =
+            `${params.direction}:${symbolRegistry.getSeatVersion('HSI.HK', params.direction)}`;
+          return {
+            advanced: true,
+            direction: params.direction,
+            stillPending: false,
+            driveResult: { kind: 'COMPLETED' },
+          };
+        },
+        hasPendingSwitch: () => true,
+        resetAllState: () => {},
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([
+        { kind: 'ORDER_EVENT', symbols: ['BULL.HK'] },
+        { kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' },
+        { kind: 'RETRY_TIMER', atMs: 40_100 },
+      ]),
+    });
+
+    symbolRegistry.bumpSeatVersion('HSI.HK', 'LONG');
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BEAR.HK' }]),
+    });
+
+    emitOrderStateChanged('BULL.HK');
+    emitQuoteUpdated('BULL.HK', 1.1);
+    timerHarness.setNow(40_100);
+    timerHarness.fireDueTimers();
+    await waitTick();
+    emitQuoteUpdated('BEAR.HK', 1.2);
+    await waitTick();
+
+    expect(advanceCalls).toEqual(['LONG:2']);
+    expect(timerHarness.getPendingTimerCount()).toBe(0);
+    await runtimeHarness.runtime.stopAndDrain();
   });
 
   it('ignores old events and retry timers after stopAndDrain', async () => {

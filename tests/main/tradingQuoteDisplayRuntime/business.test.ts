@@ -33,6 +33,349 @@ function waitTick(): Promise<void> {
 }
 
 describe('tradingQuoteDisplayRuntime', () => {
+  it('uses the startup routing cache for trading quote events', async () => {
+    warnLogs.length = 0;
+    const { createTradingQuoteDisplayRuntime } =
+      await import('../../../src/main/tradingQuoteDisplayRuntime/index.js');
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: 'BEAR.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSeatActivatedAt: null,
+        lastSearchAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    let quoteUpdatedListener: ((event: QuoteUpdatedEvent) => void) | undefined;
+    const renders: string[] = [];
+    const monitorContexts = new Map([['HSI.HK', createMonitorContextDouble({ symbolRegistry })]]);
+    const runtime = createTradingQuoteDisplayRuntime({
+      marketDataClient: {
+        onQuoteUpdated: (listener: (event: QuoteUpdatedEvent) => void) => {
+          quoteUpdatedListener = listener;
+          return () => {
+            if (quoteUpdatedListener === listener) {
+              quoteUpdatedListener = undefined;
+            }
+          };
+        },
+        getQuotes: async () => new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_000)]]),
+      },
+      symbolRegistry,
+      monitorContexts,
+      lastState: {
+        isTradingEnabled: true,
+        canTrade: true,
+      },
+      renderTradingQuote: (params: { readonly tradingSymbol: string }) => {
+        renders.push(params.tradingSymbol);
+      },
+    });
+
+    runtime.start();
+    monitorContexts.clear();
+    quoteUpdatedListener?.({
+      symbol: 'BULL.HK',
+      quote: createQuoteDouble('BULL.HK', 1.01),
+    });
+    await waitTick();
+
+    expect(renders).toEqual(['BULL.HK']);
+    await runtime.stopAndDrain();
+  });
+
+  it('refreshes routing cache when seat truth changes', async () => {
+    warnLogs.length = 0;
+    const { createTradingQuoteDisplayRuntime } =
+      await import('../../../src/main/tradingQuoteDisplayRuntime/index.js');
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: 'BEAR.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    let quoteUpdatedListener: ((event: QuoteUpdatedEvent) => void) | undefined;
+    const renders: string[] = [];
+    const runtime = createTradingQuoteDisplayRuntime({
+      marketDataClient: {
+        onQuoteUpdated: (listener: (event: QuoteUpdatedEvent) => void) => {
+          quoteUpdatedListener = listener;
+          return () => {
+            if (quoteUpdatedListener === listener) {
+              quoteUpdatedListener = undefined;
+            }
+          };
+        },
+        getQuotes: async () => new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_000)]]),
+      },
+      symbolRegistry,
+      monitorContexts: new Map([['HSI.HK', createMonitorContextDouble({ symbolRegistry })]]),
+      lastState: {
+        isTradingEnabled: true,
+        canTrade: true,
+      },
+      renderTradingQuote: (params: { readonly tradingSymbol: string }) => {
+        renders.push(params.tradingSymbol);
+      },
+    });
+
+    runtime.start();
+
+    symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+      symbol: 'NEXT_BULL.HK',
+      status: 'ACTIVE',
+      lastSwitchAt: null,
+      lastSearchAt: null,
+      lastSeatActivatedAt: null,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    });
+
+    quoteUpdatedListener?.({
+      symbol: 'BULL.HK',
+      quote: createQuoteDouble('BULL.HK', 1.01),
+    });
+
+    quoteUpdatedListener?.({
+      symbol: 'NEXT_BULL.HK',
+      quote: createQuoteDouble('NEXT_BULL.HK', 1.02),
+    });
+    await waitTick();
+
+    expect(renders).toEqual(['NEXT_BULL.HK']);
+    await runtime.stopAndDrain();
+  });
+
+  it('logs and disables rendering when startup routing cache build fails', async () => {
+    warnLogs.length = 0;
+    const { createTradingQuoteDisplayRuntime } =
+      await import('../../../src/main/tradingQuoteDisplayRuntime/index.js');
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: 'BEAR.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    let quoteUpdatedListener: ((event: QuoteUpdatedEvent) => void) | undefined;
+    const renders: string[] = [];
+    const runtime = createTradingQuoteDisplayRuntime({
+      marketDataClient: {
+        onQuoteUpdated: (listener: (event: QuoteUpdatedEvent) => void) => {
+          quoteUpdatedListener = listener;
+          return () => {
+            if (quoteUpdatedListener === listener) {
+              quoteUpdatedListener = undefined;
+            }
+          };
+        },
+        getQuotes: async () => new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_000)]]),
+      },
+      symbolRegistry,
+      monitorContexts: new Map([
+        ['HSI.HK', createMonitorContextDouble({ symbolRegistry })],
+        ['TECH.HK', createMonitorContextDouble({ symbolRegistry })],
+      ]),
+      lastState: {
+        isTradingEnabled: true,
+        canTrade: true,
+      },
+      renderTradingQuote: (params: { readonly tradingSymbol: string }) => {
+        renders.push(params.tradingSymbol);
+      },
+    });
+
+    expect(() => {
+      runtime.start();
+    }).not.toThrow();
+
+    quoteUpdatedListener?.({
+      symbol: 'BULL.HK',
+      quote: createQuoteDouble('BULL.HK', 1.01),
+    });
+    await waitTick();
+
+    expect(warnLogs).toHaveLength(1);
+    expect(renders).toEqual([]);
+    await runtime.stopAndDrain();
+  });
+
+  it('does not reuse the old routing cache when seat truth refresh fails', async () => {
+    warnLogs.length = 0;
+    const { createTradingQuoteDisplayRuntime } =
+      await import('../../../src/main/tradingQuoteDisplayRuntime/index.js');
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: 'BEAR.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    let quoteUpdatedListener: ((event: QuoteUpdatedEvent) => void) | undefined;
+    const renders: string[] = [];
+    const monitorContexts = new Map([['HSI.HK', createMonitorContextDouble({ symbolRegistry })]]);
+    const runtime = createTradingQuoteDisplayRuntime({
+      marketDataClient: {
+        onQuoteUpdated: (listener: (event: QuoteUpdatedEvent) => void) => {
+          quoteUpdatedListener = listener;
+          return () => {
+            if (quoteUpdatedListener === listener) {
+              quoteUpdatedListener = undefined;
+            }
+          };
+        },
+        getQuotes: async () => new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_000)]]),
+      },
+      symbolRegistry,
+      monitorContexts,
+      lastState: {
+        isTradingEnabled: true,
+        canTrade: true,
+      },
+      renderTradingQuote: (params: { readonly tradingSymbol: string }) => {
+        renders.push(params.tradingSymbol);
+      },
+    });
+
+    runtime.start();
+    monitorContexts.set('TECH.HK', createMonitorContextDouble({ symbolRegistry }));
+    symbolRegistry.bumpSeatVersion('HSI.HK', 'LONG');
+    quoteUpdatedListener?.({
+      symbol: 'BULL.HK',
+      quote: createQuoteDouble('BULL.HK', 1.01),
+    });
+    await waitTick();
+
+    expect(warnLogs).toHaveLength(1);
+    expect(renders).toEqual([]);
+    await runtime.stopAndDrain();
+  });
+
+  it('stops responding to quote events after stopAndDrain', async () => {
+    warnLogs.length = 0;
+    const { createTradingQuoteDisplayRuntime } =
+      await import('../../../src/main/tradingQuoteDisplayRuntime/index.js');
+    const symbolRegistry = createSymbolRegistryDouble();
+    let quoteUpdatedListener: ((event: QuoteUpdatedEvent) => void) | undefined;
+    const renders: string[] = [];
+    const runtime = createTradingQuoteDisplayRuntime({
+      marketDataClient: {
+        onQuoteUpdated: (listener: (event: QuoteUpdatedEvent) => void) => {
+          quoteUpdatedListener = listener;
+          return () => {
+            if (quoteUpdatedListener === listener) {
+              quoteUpdatedListener = undefined;
+            }
+          };
+        },
+        getQuotes: async () => new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_000)]]),
+      },
+      symbolRegistry,
+      monitorContexts: new Map([['HSI.HK', createMonitorContextDouble({ symbolRegistry })]]),
+      lastState: {
+        isTradingEnabled: true,
+        canTrade: true,
+      },
+      renderTradingQuote: (params: { readonly tradingSymbol: string }) => {
+        renders.push(params.tradingSymbol);
+      },
+    });
+
+    runtime.start();
+
+    await runtime.stopAndDrain();
+    quoteUpdatedListener?.({
+      symbol: 'BULL.HK',
+      quote: createQuoteDouble('BULL.HK', 1.01),
+    });
+    await waitTick();
+
+    expect(renders).toEqual([]);
+  });
+
+  it('subscribes seat truth changes on start and unsubscribes on stopAndDrain', async () => {
+    warnLogs.length = 0;
+    const { createTradingQuoteDisplayRuntime } =
+      await import('../../../src/main/tradingQuoteDisplayRuntime/index.js');
+    const symbolRegistry = createSymbolRegistryDouble();
+    const runtime = createTradingQuoteDisplayRuntime({
+      marketDataClient: {
+        onQuoteUpdated: () => () => {},
+        getQuotes: async () => new Map(),
+      },
+      symbolRegistry,
+      monitorContexts: new Map([['HSI.HK', createMonitorContextDouble({ symbolRegistry })]]),
+      lastState: {
+        isTradingEnabled: true,
+        canTrade: true,
+      },
+      renderTradingQuote: () => {},
+    });
+
+    runtime.start();
+
+    expect(symbolRegistry.getSeatTruthChangedListenerCount()).toBe(1);
+
+    await runtime.stopAndDrain();
+
+    expect(symbolRegistry.getSeatTruthChangedListenerCount()).toBe(0);
+  });
+
   it('renders only the matched trading symbol event', async () => {
     warnLogs.length = 0;
     const { createTradingQuoteDisplayRuntime } =

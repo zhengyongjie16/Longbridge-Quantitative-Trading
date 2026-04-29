@@ -327,6 +327,146 @@ function createDefaultDistanceSwitchHarness(
   };
 }
 
+function createDefaultStaticWaitHarness(): RuntimeHarness &
+  Readonly<{
+    getQuoteRequestCount: () => number;
+    switchLongSeatToNextSymbol: () => void;
+    switchMonitorRouteToDistanceMode: () => void;
+  }> {
+  let quoteUpdatedListener: ((event: QuoteUpdatedEvent) => void) | null = null;
+  const quoteRequests: string[][] = [];
+  const symbolRegistry = createSymbolRegistryDouble({
+    monitorSymbol: 'HSI.HK',
+    longSeat: {
+      symbol: 'BULL.HK',
+      status: 'ACTIVE',
+      lastSwitchAt: null,
+      lastSearchAt: null,
+      lastSeatActivatedAt: null,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    },
+    shortSeat: {
+      symbol: 'BEAR.HK',
+      status: 'ACTIVE',
+      lastSwitchAt: null,
+      lastSearchAt: null,
+      lastSeatActivatedAt: null,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    },
+  });
+  const staticMonitorContext = createMonitorContextDouble({
+    config: createMonitorConfig({
+      monitorSymbol: 'HSI.HK',
+      autoSearchConfig: {
+        autoSearchEnabled: false,
+        autoSearchMinDistancePctBull: null,
+        autoSearchMinDistancePctBear: null,
+        autoSearchMinTurnoverPerMinuteBull: null,
+        autoSearchMinTurnoverPerMinuteBear: null,
+        autoSearchExpiryMinMonths: 3,
+        autoSearchOpenDelayMinutes: 5,
+        switchIntervalMinutes: 0,
+        switchDistanceRangeBull: null,
+        switchDistanceRangeBear: null,
+      },
+      longSymbol: 'BULL.HK',
+      shortSymbol: 'BEAR.HK',
+    }),
+    symbolRegistry,
+  });
+  const distanceMonitorContext = createMonitorContextDouble({
+    config: createMonitorConfig({
+      monitorSymbol: 'HSI.HK',
+      autoSearchConfig: {
+        autoSearchEnabled: true,
+        autoSearchMinDistancePctBull: null,
+        autoSearchMinDistancePctBear: null,
+        autoSearchMinTurnoverPerMinuteBull: null,
+        autoSearchMinTurnoverPerMinuteBear: null,
+        autoSearchExpiryMinMonths: 3,
+        autoSearchOpenDelayMinutes: 5,
+        switchIntervalMinutes: 0,
+        switchDistanceRangeBull: null,
+        switchDistanceRangeBear: null,
+      },
+      longSymbol: 'BULL.HK',
+      shortSymbol: 'BEAR.HK',
+    }),
+    symbolRegistry,
+    autoSymbolManager: createAutoSymbolManagerDouble({
+      startSwitchOnDistance: async ({ direction }) => ({
+        started: false,
+        direction,
+        driveResult: { kind: 'NOOP' },
+      }),
+    }),
+  });
+  const monitorContexts = new Map([['HSI.HK', staticMonitorContext]]);
+  const runtime = createDefaultMonitorQuoteEventRuntime({
+    marketDataClient: {
+      onQuoteUpdated: (listener) => {
+        quoteUpdatedListener = listener;
+        return () => {
+          if (quoteUpdatedListener === listener) {
+            quoteUpdatedListener = null;
+          }
+        };
+      },
+      getQuotes: async (symbols) => {
+        quoteRequests.push([...symbols]);
+        return new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 100)]]);
+      },
+    },
+    monitorContexts,
+    trader: createTraderDouble(),
+    lastState: {
+      positionCache: createPositionCacheDouble([
+        createPositionDouble({
+          symbol: 'BULL.HK',
+          quantity: 200,
+          availableQuantity: 200,
+        }),
+        createPositionDouble({
+          symbol: 'NEXT_BULL.HK',
+          quantity: 200,
+          availableQuantity: 200,
+        }),
+      ]),
+      cachedPositions: [],
+      isTradingEnabled: true,
+      canTrade: true,
+      isHalfDay: false,
+    },
+    postTradeConsistencyRuntime: createFreshnessRuntimeDouble(),
+    doomsdayProtectionEnabled: false,
+    now: () => new Date('2026-04-08T10:00:00+08:00'),
+  });
+
+  return {
+    runtime,
+    emitQuoteUpdated(event: QuoteUpdatedEvent): void {
+      quoteUpdatedListener?.(event);
+    },
+    getQuoteRequestCount: () => quoteRequests.length,
+    switchLongSeatToNextSymbol(): void {
+      symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+        symbol: 'NEXT_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      });
+    },
+    switchMonitorRouteToDistanceMode(): void {
+      monitorContexts.set('HSI.HK', distanceMonitorContext);
+    },
+  };
+}
+
 describe('monitorQuoteEventRuntime exports', () => {
   it('exports the public default monitor quote runtime factory', async () => {
     const module =
@@ -390,6 +530,100 @@ describe('monitorQuoteEventRuntime contract', () => {
     expect(harness.submittedActions).toEqual(['SELLCALL']);
     expect(harness.getClearedOrders()).toBe(1);
     expect(harness.getRefreshUnrealizedCalls()).toBe(1);
+  });
+
+  it('matches only registered static liquidation wakeup symbols', async () => {
+    const harness = createDefaultStaticWaitHarness();
+
+    harness.runtime.start();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(1);
+
+    harness.emitQuoteUpdated(createQuoteUpdatedEvent('IGNORED.HK', 1));
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(1);
+
+    harness.emitQuoteUpdated(createQuoteUpdatedEvent('BULL.HK', 1));
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(2);
+
+    harness.emitQuoteUpdated(createQuoteUpdatedEvent('BEAR.HK', 1));
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(3);
+
+    await harness.runtime.stopAndDrain();
+  });
+
+  it('switches static liquidation wakeup membership when WAIT symbols change', async () => {
+    const harness = createDefaultStaticWaitHarness();
+
+    harness.runtime.start();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(1);
+
+    harness.switchLongSeatToNextSymbol();
+    harness.emitQuoteUpdated(createQuoteUpdatedEvent('BULL.HK', 1));
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(2);
+
+    harness.emitQuoteUpdated(createQuoteUpdatedEvent('BULL.HK', 1));
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(2);
+
+    harness.emitQuoteUpdated(createQuoteUpdatedEvent('NEXT_BULL.HK', 1));
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(3);
+
+    await harness.runtime.stopAndDrain();
+  });
+
+  it('clears static liquidation wakeups when route switches to distance mode', async () => {
+    const harness = createDefaultStaticWaitHarness();
+
+    harness.runtime.start();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(1);
+
+    harness.switchMonitorRouteToDistanceMode();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(1);
+
+    harness.emitQuoteUpdated(createQuoteUpdatedEvent('BULL.HK', 1));
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(1);
+
+    await harness.runtime.stopAndDrain();
+  });
+
+  it('clears static liquidation wakeups after stopAndDrain', async () => {
+    const harness = createDefaultStaticWaitHarness();
+
+    harness.runtime.start();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(1);
+
+    await harness.runtime.stopAndDrain();
+    harness.emitQuoteUpdated(createQuoteUpdatedEvent('BULL.HK', 1));
+
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(1);
   });
 
   it('starts distance switch through monitorContext autoSymbolManager when autoSearch is enabled', async () => {

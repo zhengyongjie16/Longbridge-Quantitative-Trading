@@ -29,14 +29,14 @@ import { formatSymbolDisplay, isSellAction } from '../../utils/display/index.js'
 
 /**
  * 执行信号处理流水线。
- * 调用策略生成平仓信号后，对每个信号进行席位校验（状态、版本、标的匹配），
+ * 普通信号门禁关闭时直接返回，不生成 immediate/delayed 候选信号。
+ * 门禁打开后调用策略生成信号，完成席位校验（状态、版本、标的匹配），
  * 再按信号类型分流：立即信号入买卖队列，延迟信号交由 delayedSignalVerifier 管理。
- * 非交易时段或门禁关闭时仅记录日志，不再保留 release 协议。
  */
 export function runSignalPipeline(params: SignalPipelineParams): void {
   const { monitorSymbol, monitorSnapshot, monitorContext, mainContext, runtimeFlags, seatInfo } =
     params;
-  const { currentTime, canTradeNow, openProtectionActive, isTradingEnabled } = runtimeFlags;
+  const { currentTime, openProtectionActive } = runtimeFlags;
   const { strategy, orderRecorder, delayedSignalVerifier, indicatorProfile } = monitorContext;
   const { lastState, buyTaskQueue, sellTaskQueue, tradingConfig } = mainContext;
   const {
@@ -52,11 +52,15 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
     return;
   }
 
-  const canEnqueue = ordinarySignalGuard({
-    lastState,
-    now: currentTime,
-    doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
-  });
+  if (
+    !ordinarySignalGuard({
+      lastState,
+      now: currentTime,
+      doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
+    })
+  ) {
+    return;
+  }
 
   const { immediateSignals, delayedSignals } = strategy.generateSignals(
     monitorSnapshot,
@@ -121,26 +125,20 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       continue;
     }
 
-    if (canEnqueue) {
-      logger.debug(`[立即信号] ${formatSignalLog(signal)}`);
-      const isSellSignal = isSellAction(signal.action);
-      if (isSellSignal) {
-        sellTaskQueue.push({
-          type: 'IMMEDIATE_SELL',
-          data: signal,
-          monitorSymbol,
-        });
-      } else {
-        buyTaskQueue.push({
-          type: 'IMMEDIATE_BUY',
-          data: signal,
-          monitorSymbol,
-        });
-      }
+    logger.debug(`[立即信号] ${formatSignalLog(signal)}`);
+    const isSellSignal = isSellAction(signal.action);
+    if (isSellSignal) {
+      sellTaskQueue.push({
+        type: 'IMMEDIATE_SELL',
+        data: signal,
+        monitorSymbol,
+      });
     } else {
-      const reason =
-        isTradingEnabled && canTradeNow ? '普通信号门禁关闭，暂不执行' : '交易门禁关闭，暂不执行';
-      logger.debug(`[立即信号] ${formatSignalLog(signal)}（${reason}）`);
+      buyTaskQueue.push({
+        type: 'IMMEDIATE_BUY',
+        data: signal,
+        monitorSymbol,
+      });
     }
   }
 
@@ -149,22 +147,14 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       continue;
     }
 
-    if (canEnqueue) {
-      logger.debug(`[延迟验证信号] ${formatSignalLog(signal)}`);
-      const verificationIndicators = isBuyAction(signal.action)
-        ? indicatorProfile.verificationIndicatorsBySide.buy
-        : indicatorProfile.verificationIndicatorsBySide.sell;
-      delayedSignalVerifier.addSignal({
-        signal,
-        monitorSymbol,
-        verificationIndicators,
-      });
-    } else {
-      const reason =
-        isTradingEnabled && canTradeNow
-          ? '普通信号门禁关闭，暂不添加验证'
-          : '交易门禁关闭，暂不添加验证';
-      logger.debug(`[延迟验证信号] ${formatSignalLog(signal)}（${reason}）`);
-    }
+    logger.debug(`[延迟验证信号] ${formatSignalLog(signal)}`);
+    const verificationIndicators = isBuyAction(signal.action)
+      ? indicatorProfile.verificationIndicatorsBySide.buy
+      : indicatorProfile.verificationIndicatorsBySide.sell;
+    delayedSignalVerifier.addSignal({
+      signal,
+      monitorSymbol,
+      verificationIndicators,
+    });
   }
 }

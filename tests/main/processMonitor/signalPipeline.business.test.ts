@@ -136,10 +136,7 @@ function createPipelineHarness(params: {
     mainContext,
     runtimeFlags: {
       currentTime: new Date('2026-02-16T09:31:00.000Z'),
-      isHalfDay: false,
-      canTradeNow: params.canTradeNow ?? true,
       openProtectionActive: params.openProtectionActive ?? false,
-      isTradingEnabled: params.isTradingEnabled ?? true,
     },
     seatInfo: params.seatInfo ?? createSeatInfo(),
   });
@@ -196,7 +193,7 @@ describe('signalPipeline business flow', () => {
     expect(queuedSell?.data.action).toBe('SELLCALL');
   });
 
-  it('does not enqueue valid signals when trading gate is disabled', () => {
+  it('does not generate or enqueue valid signals when trading gate is disabled', () => {
     const immediateBuy = createSignalDouble('BUYCALL', 'BULL.HK');
     const delayedBuy = createSignalDouble('BUYPUT', 'BEAR.HK');
 
@@ -209,9 +206,26 @@ describe('signalPipeline business flow', () => {
     expect(harness.buyTaskQueue.isEmpty()).toBeTrue();
     expect(harness.sellTaskQueue.isEmpty()).toBeTrue();
     expect(harness.delayedAdded).toHaveLength(0);
+    expect(harness.getGenerateSignalsCallCount()).toBe(0);
   });
 
-  it('returns early during opening protection without enqueuing signals', () => {
+  it('does not generate or enqueue valid signals when continuous trading gate is closed', () => {
+    const immediateBuy = createSignalDouble('BUYCALL', 'BULL.HK');
+    const delayedBuy = createSignalDouble('BUYPUT', 'BEAR.HK');
+
+    const harness = createPipelineHarness({
+      immediateSignals: [immediateBuy],
+      delayedSignals: [delayedBuy],
+      canTradeNow: false,
+    });
+
+    expect(harness.buyTaskQueue.isEmpty()).toBeTrue();
+    expect(harness.sellTaskQueue.isEmpty()).toBeTrue();
+    expect(harness.delayedAdded).toHaveLength(0);
+    expect(harness.getGenerateSignalsCallCount()).toBe(0);
+  });
+
+  it('returns early during opening protection without generating or enqueuing signals', () => {
     const harness = createPipelineHarness({
       immediateSignals: [createSignalDouble('BUYCALL', 'BULL.HK')],
       delayedSignals: [createSignalDouble('BUYPUT', 'BEAR.HK')],

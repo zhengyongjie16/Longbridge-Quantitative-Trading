@@ -146,6 +146,46 @@ function isStopAndDrainAbortError(error: unknown): boolean {
 }
 
 /**
+ * 将 routeKey 注册到指定 symbol 的反向唤醒索引。
+ *
+ * @param index quote 或订单 symbol 到 routeKey 的反向索引
+ * @param symbol 可唤醒 route 的业务 symbol
+ * @param routeKey 被唤醒的 route key
+ */
+function addRouteKeyToSymbolIndex(
+  index: Map<string, Set<SwitchWakeupRouteKey>>,
+  symbol: string,
+  routeKey: SwitchWakeupRouteKey,
+): void {
+  const routeKeys = index.get(symbol) ?? new Set<SwitchWakeupRouteKey>();
+  routeKeys.add(routeKey);
+  index.set(symbol, routeKeys);
+}
+
+/**
+ * 从指定 symbol 的反向唤醒索引移除 routeKey。
+ *
+ * @param index quote 或订单 symbol 到 routeKey 的反向索引
+ * @param symbol 曾注册的业务 symbol
+ * @param routeKey 需要解除唤醒关系的 route key
+ */
+function removeRouteKeyFromSymbolIndex(
+  index: Map<string, Set<SwitchWakeupRouteKey>>,
+  symbol: string,
+  routeKey: SwitchWakeupRouteKey,
+): void {
+  const routeKeys = index.get(symbol);
+  if (routeKeys === undefined) {
+    return;
+  }
+
+  routeKeys.delete(routeKey);
+  if (routeKeys.size === 0) {
+    index.delete(symbol);
+  }
+}
+
+/**
  * 创建 SwitchWakeupRuntime。
  *
  * @param deps 事件源、权威快照依赖与 timer 能力
@@ -157,6 +197,8 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
   let unsubscribeOrderStateChanged: (() => void) | null = null;
   let unsubscribeFreshReached: (() => void) | null = null;
   const routeStates = new Map<SwitchWakeupRouteKey, SwitchWakeupRouteState>();
+  const quoteWakeupsBySymbol = new Map<string, Set<SwitchWakeupRouteKey>>();
+  const orderWakeupsBySymbol = new Map<string, Set<SwitchWakeupRouteKey>>();
   const activeRoutePromises = new Set<Promise<void>>();
 
   /**
@@ -245,6 +287,56 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
   }
 
   /**
+   * 移除指定 route 当前持有的全部显式唤醒索引。
+   *
+   * @param routeKey 需要清理唤醒索引的 route key
+   */
+  function removeRouteWakeupIndexes(routeKey: SwitchWakeupRouteKey): void {
+    const routeState = routeStates.get(routeKey);
+    if (routeState === undefined) {
+      return;
+    }
+
+    for (const wakeup of routeState.wakeups) {
+      if (wakeup.kind === 'SYMBOL_QUOTE') {
+        removeRouteKeyFromSymbolIndex(quoteWakeupsBySymbol, wakeup.symbol, routeKey);
+        continue;
+      }
+
+      if (wakeup.kind === 'ORDER_EVENT') {
+        for (const symbol of wakeup.symbols) {
+          removeRouteKeyFromSymbolIndex(orderWakeupsBySymbol, symbol, routeKey);
+        }
+      }
+    }
+  }
+
+  /**
+   * 按指定 route 当前 WAIT wakeups 重建显式唤醒索引。
+   *
+   * @param routeKey 需要注册唤醒索引的 route key
+   */
+  function registerRouteWakeupIndexes(routeKey: SwitchWakeupRouteKey): void {
+    const routeState = routeStates.get(routeKey);
+    if (routeState === undefined) {
+      return;
+    }
+
+    for (const wakeup of routeState.wakeups) {
+      if (wakeup.kind === 'SYMBOL_QUOTE') {
+        addRouteKeyToSymbolIndex(quoteWakeupsBySymbol, wakeup.symbol, routeKey);
+        continue;
+      }
+
+      if (wakeup.kind === 'ORDER_EVENT') {
+        for (const symbol of wakeup.symbols) {
+          addRouteKeyToSymbolIndex(orderWakeupsBySymbol, symbol, routeKey);
+        }
+      }
+    }
+  }
+
+  /**
    * 删除 route 状态并清理其 timer。
    *
    * @param routeKey 路由键
@@ -256,6 +348,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
     }
 
     clearRetryTimer(routeState);
+    removeRouteWakeupIndexes(routeKey);
     releaseSwitchWakeupRetain(routeKey);
     routeStates.delete(routeKey);
   }
@@ -350,6 +443,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
     }
 
     clearRetryTimer(routeState);
+    removeRouteWakeupIndexes(routeKey);
 
     if (!running) {
       routeState.wakeups = [];
@@ -364,6 +458,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
     }
 
     routeState.wakeups = [...driveResult.wakeups];
+    registerRouteWakeupIndexes(routeKey);
     retainSwitchWakeupSymbols(routeKey, collectSymbolQuoteWakeupSymbols(driveResult));
     const retryWakeup = routeState.wakeups.find((wakeup) => wakeup.kind === 'RETRY_TIMER');
     if (retryWakeup === undefined) {
@@ -518,13 +613,13 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
       return;
     }
 
-    for (const [routeKey, routeState] of routeStates) {
-      const matchesOrder = routeState.wakeups.some(
-        (wakeup) => wakeup.kind === 'ORDER_EVENT' && wakeup.symbols.includes(symbol),
-      );
-      if (matchesOrder) {
-        triggerRoute(routeKey, 'ORDER_EVENT');
-      }
+    const routeKeys = orderWakeupsBySymbol.get(symbol);
+    if (routeKeys === undefined) {
+      return;
+    }
+
+    for (const routeKey of routeKeys) {
+      triggerRoute(routeKey, 'ORDER_EVENT');
     }
   }
 
@@ -538,13 +633,13 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
       return;
     }
 
-    for (const [routeKey, routeState] of routeStates) {
-      const matchesQuote = routeState.wakeups.some(
-        (wakeup) => wakeup.kind === 'SYMBOL_QUOTE' && wakeup.symbol === symbol,
-      );
-      if (matchesQuote) {
-        triggerRoute(routeKey, 'SYMBOL_QUOTE');
-      }
+    const routeKeys = quoteWakeupsBySymbol.get(symbol);
+    if (routeKeys === undefined) {
+      return;
+    }
+
+    for (const routeKey of routeKeys) {
+      triggerRoute(routeKey, 'SYMBOL_QUOTE');
     }
   }
 
@@ -585,8 +680,12 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
 
     for (const routeState of routeStates.values()) {
       clearRetryTimer(routeState);
+      removeRouteWakeupIndexes(routeState.route.routeKey);
       releaseSwitchWakeupRetain(routeState.route.routeKey);
     }
+
+    quoteWakeupsBySymbol.clear();
+    orderWakeupsBySymbol.clear();
 
     if (activeRoutePromises.size > 0) {
       await Promise.allSettled(activeRoutePromises);
@@ -594,10 +693,13 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
 
     for (const routeState of routeStates.values()) {
       clearRetryTimer(routeState);
+      removeRouteWakeupIndexes(routeState.route.routeKey);
       routeState.wakeups = [];
       releaseSwitchWakeupRetain(routeState.route.routeKey);
     }
 
+    quoteWakeupsBySymbol.clear();
+    orderWakeupsBySymbol.clear();
     routeStates.clear();
   }
 

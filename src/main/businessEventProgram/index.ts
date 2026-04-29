@@ -157,10 +157,7 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
           mainContext: pipelineContext,
           runtimeFlags: {
             currentTime: new Date(),
-            isHalfDay: lastState.isHalfDay ?? false,
-            canTradeNow: lastState.canTrade === true,
             openProtectionActive: lastState.openProtectionActive === true,
-            isTradingEnabled: lastState.isTradingEnabled,
           },
           seatInfo,
           monitorSnapshot,
