@@ -14,7 +14,7 @@ import { formatError } from '../../utils/error/index.js';
 import { projectVerificationSampleValues } from '../asyncProgram/indicatorCache/utils.js';
 import { runIndicatorPipeline } from './indicatorPipeline.js';
 import { runSignalPipeline } from './signalPipeline.js';
-import { resolveSignalSeatInfo } from '../processMonitor/seatProjection.js';
+import { resolveSignalSeatInfo } from './seatProjection.js';
 import type {
   BusinessEventProgram,
   BusinessEventProgramDeps,
@@ -79,7 +79,7 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
   function startMonitorRouteProcessing(monitorSymbol: string, failureMessage: string): void {
     const processingPromise = Promise.resolve()
       .then(() => {
-        processMonitorRoute(monitorSymbol);
+        processBusinessEventRoute(monitorSymbol);
       })
       .catch((error: unknown) => {
         logger.error(
@@ -98,7 +98,7 @@ export function createBusinessEventProgram(deps: BusinessEventProgramDeps): Busi
    *
    * @param monitorSymbol 监控标的
    */
-  function processMonitorRoute(monitorSymbol: string): void {
+  function processBusinessEventRoute(monitorSymbol: string): void {
     if (!routeStates.has(monitorSymbol)) {
       return;
     }

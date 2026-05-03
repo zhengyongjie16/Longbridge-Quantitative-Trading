@@ -242,6 +242,14 @@ describe('createSignalRuntimeDomain', () => {
           await switchWakeupRuntime.stopAndDrain();
         },
       },
+      periodicSwitchWakeupRuntime: {
+        start: () => {
+          globalCalls.push('periodicSwitchWakeupRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('periodicSwitchWakeupRuntime.stopAndDrain');
+        },
+      },
       quoteSubscriptionRuntime: {
         reconcileFromCurrentTruth: async () => {
           globalCalls.push('quoteSubscriptionRuntime.reconcileFromCurrentTruth');
@@ -305,6 +313,7 @@ describe('createSignalRuntimeDomain', () => {
       'monitorDisplayRuntime.stopAndDrain',
       'tradingQuoteDisplayRuntime.stopAndDrain',
       'switchWakeupRuntime.stopAndDrain',
+      'periodicSwitchWakeupRuntime.stopAndDrain',
       'autoSearchWakeupRuntime.stopAndDrain',
       'seatActivationDispatcher.stop',
       'monitorTaskProcessor.stopAndDrain',
@@ -403,6 +412,14 @@ describe('createSignalRuntimeDomain', () => {
           await switchWakeupRuntime.stopAndDrain();
         },
       },
+      periodicSwitchWakeupRuntime: {
+        start: () => {
+          globalCalls.push('periodicSwitchWakeupRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('periodicSwitchWakeupRuntime.stopAndDrain');
+        },
+      },
       quoteSubscriptionRuntime: {
         reconcileFromCurrentTruth: async () => {
           globalCalls.push('quoteSubscriptionRuntime.reconcileFromCurrentTruth');
@@ -493,6 +510,7 @@ describe('createSignalRuntimeDomain', () => {
       'seatRuntimeCleanupDispatcher.start',
       'seatActivationDispatcher.start',
       'autoSearchWakeupRuntime.start',
+      'periodicSwitchWakeupRuntime.start',
       'monitorDisplayRuntime.start',
       'businessEventProgram.start',
       'tradingRiskEventRuntime.start',

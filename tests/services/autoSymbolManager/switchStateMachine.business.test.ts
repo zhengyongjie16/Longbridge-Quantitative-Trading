@@ -16,8 +16,8 @@ import {
 } from '../../../src/services/autoSymbolManager/signalBuilder.js';
 import { calculateTradingDurationMsBetween, getHKDateKey } from '../../../src/utils/time/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
+import type { PeriodicSwitchPendingState } from '../../../src/types/monitorContextPorts.js';
 import type {
-  PeriodicSwitchPendingState,
   SwitchState,
   SwitchSuppression,
 } from '../../../src/services/autoSymbolManager/types.js';

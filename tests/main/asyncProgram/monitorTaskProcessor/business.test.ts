@@ -71,6 +71,11 @@ function createBusinessProcessor(
     onProcessed,
     getCanProcessTask,
     getCanTradeNow = () => true,
+    periodicSwitchWakeupRuntime = {
+      markWaitingEmpty: () => {},
+      clearWaitingEmpty: () => {},
+      replanRouteAfterTask: () => {},
+    },
   } = params;
 
   return createMonitorTaskProcessor({
@@ -85,6 +90,7 @@ function createBusinessProcessor(
     lastState,
     tradingConfig: createTradingConfig(),
     getCanTradeNow,
+    periodicSwitchWakeupRuntime,
     ...(onProcessed ? { onProcessed } : {}),
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
@@ -167,6 +173,10 @@ describe('monitorTaskProcessor business flow', () => {
           },
         }),
         hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -191,6 +201,11 @@ describe('monitorTaskProcessor business flow', () => {
           });
         },
       },
+      periodicSwitchWakeupRuntime: {
+        markWaitingEmpty: () => {},
+        clearWaitingEmpty: () => {},
+        replanRouteAfterTask: () => {},
+      },
       lastState: createLastState(),
       tradingConfig: createTradingConfig(),
       getCanTradeNow: () => true,
@@ -209,6 +224,7 @@ describe('monitorTaskProcessor business flow', () => {
             direction: 'LONG',
             seatVersion: 2,
             symbol: 'BULL.HK',
+            lastSeatActivatedAt: 12_000,
             currentTimeMs: Date.now(),
           },
         });
@@ -264,6 +280,10 @@ describe('monitorTaskProcessor business flow', () => {
           },
         }),
         hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -287,6 +307,7 @@ describe('monitorTaskProcessor business flow', () => {
             direction: 'LONG',
             seatVersion: 2,
             symbol: 'BULL.HK',
+            lastSeatActivatedAt: 12_000,
             currentTimeMs: Date.now(),
           },
         });
@@ -303,7 +324,7 @@ describe('monitorTaskProcessor business flow', () => {
     expect(statuses).toEqual(['processed']);
   });
 
-  it('uses current trade-session gate when consuming AUTO_SYMBOL_TICK', async () => {
+  it('blocks AUTO_SYMBOL_TICK switch flow outside ordinary trade gate', async () => {
     const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const intervalCallArgs: Array<{
       direction: 'LONG' | 'SHORT';
@@ -336,6 +357,10 @@ describe('monitorTaskProcessor business flow', () => {
           },
         }),
         hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -360,6 +385,7 @@ describe('monitorTaskProcessor business flow', () => {
             direction: 'LONG',
             seatVersion: 2,
             symbol: 'BULL.HK',
+            lastSeatActivatedAt: 12_000,
             currentTimeMs: Date.now(),
           },
         });
@@ -368,9 +394,304 @@ describe('monitorTaskProcessor business flow', () => {
       timeoutMs: 500,
     });
 
-    expect(intervalCallArgs).toHaveLength(1);
-    expect(intervalCallArgs[0]?.canTradeNow).toBeFalse();
+    expect(intervalCallArgs).toHaveLength(0);
+    expect(statuses).toEqual(['blocked']);
+  });
+
+  it('marks periodic route waiting-empty when AUTO_SYMBOL_TICK leaves periodic pending state', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const markCalls: Array<{
+      monitorSymbol: string;
+      direction: 'LONG' | 'SHORT';
+      symbol: string;
+      seatVersion: number;
+      lastSeatActivatedAt: number;
+    }> = [];
+    const context = createMonitorTaskContext({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        maybeSwitchOnInterval: async () => ({
+          kind: 'NOOP',
+        }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        advancePendingSwitch: async (params) => ({
+          advanced: false,
+          direction: params.direction,
+          stillPending: false,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: true,
+          pendingSinceMs: 50_000,
+          blockedBy: 'ORDER_RECORDER',
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const statuses: MonitorTaskStatus[] = [];
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      periodicSwitchWakeupRuntime: {
+        markWaitingEmpty: (baseline) => {
+          markCalls.push(baseline);
+        },
+        clearWaitingEmpty: () => {},
+        replanRouteAfterTask: () => {},
+      },
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'AUTO_SYMBOL_TICK',
+          dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG:PERIODIC_PENDING',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 2,
+            symbol: 'BULL.HK',
+            lastSeatActivatedAt: 12_000,
+            currentTimeMs: 70_000,
+          },
+        });
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
     expect(statuses).toEqual(['processed']);
+    expect(markCalls).toEqual([
+      {
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
+        symbol: 'BULL.HK',
+        seatVersion: 2,
+        lastSeatActivatedAt: 12_000,
+      },
+    ]);
+  });
+
+  it('clears periodic waiting-empty and replans route after processed AUTO_SYMBOL_TICK without pending state', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const clearCalls: Array<{
+      monitorSymbol: string;
+      direction: 'LONG' | 'SHORT';
+      symbol: string;
+      seatVersion: number;
+      lastSeatActivatedAt: number;
+    }> = [];
+    const replanCalls: Array<{
+      monitorSymbol: string;
+      direction: 'LONG' | 'SHORT';
+      symbol: string;
+      seatVersion: number;
+      lastSeatActivatedAt: number;
+      taskTimeMs: number;
+      status: MonitorTaskStatus;
+    }> = [];
+    const context = createMonitorTaskContext({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        maybeSwitchOnInterval: async () => ({
+          kind: 'NOOP',
+        }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        advancePendingSwitch: async (params) => ({
+          advanced: false,
+          direction: params.direction,
+          stillPending: false,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const statuses: MonitorTaskStatus[] = [];
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      periodicSwitchWakeupRuntime: {
+        markWaitingEmpty: () => {},
+        clearWaitingEmpty: (baseline) => {
+          clearCalls.push(baseline);
+        },
+        replanRouteAfterTask: (params) => {
+          replanCalls.push(params);
+        },
+      },
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'AUTO_SYMBOL_TICK',
+          dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG:PERIODIC_REPLAN',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 2,
+            symbol: 'BULL.HK',
+            lastSeatActivatedAt: 12_000,
+            currentTimeMs: 70_000,
+          },
+        });
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(statuses).toEqual(['processed']);
+    expect(clearCalls).toEqual([
+      {
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
+        symbol: 'BULL.HK',
+        seatVersion: 2,
+        lastSeatActivatedAt: 12_000,
+      },
+    ]);
+
+    expect(replanCalls).toEqual([
+      {
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
+        symbol: 'BULL.HK',
+        seatVersion: 2,
+        lastSeatActivatedAt: 12_000,
+        taskTimeMs: 70_000,
+        status: 'processed',
+      },
+    ]);
+  });
+
+  it('returns blocked and hands periodic route back to runtime outside ordinary trade gate', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const replanCalls: Array<{
+      monitorSymbol: string;
+      direction: 'LONG' | 'SHORT';
+      symbol: string;
+      seatVersion: number;
+      lastSeatActivatedAt: number;
+      taskTimeMs: number;
+      status: MonitorTaskStatus;
+    }> = [];
+    const clearCalls: string[] = [];
+    let intervalCalls = 0;
+    const context = createMonitorTaskContext({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        maybeSwitchOnInterval: async () => {
+          intervalCalls += 1;
+          return {
+            kind: 'NOOP',
+          };
+        },
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        advancePendingSwitch: async (params) => ({
+          advanced: false,
+          direction: params.direction,
+          stillPending: false,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const statuses: MonitorTaskStatus[] = [];
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      getCanTradeNow: () => false,
+      periodicSwitchWakeupRuntime: {
+        markWaitingEmpty: () => {},
+        clearWaitingEmpty: () => {
+          clearCalls.push('clear');
+        },
+        replanRouteAfterTask: (params) => {
+          replanCalls.push(params);
+        },
+      },
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'AUTO_SYMBOL_TICK',
+          dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG:PERIODIC_GATE_CLOSED',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 2,
+            symbol: 'BULL.HK',
+            lastSeatActivatedAt: 12_000,
+            currentTimeMs: 70_000,
+          },
+        });
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(statuses).toEqual(['blocked']);
+    expect(intervalCalls).toBe(0);
+    expect(clearCalls).toEqual([]);
+    expect(replanCalls).toEqual([
+      {
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
+        symbol: 'BULL.HK',
+        seatVersion: 2,
+        lastSeatActivatedAt: 12_000,
+        taskTimeMs: 70_000,
+        status: 'blocked',
+      },
+    ]);
   });
 
   it('skips AUTO_SYMBOL_TICK when seat snapshot is stale', async () => {
@@ -401,6 +722,10 @@ describe('monitorTaskProcessor business flow', () => {
           },
         }),
         hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -424,6 +749,7 @@ describe('monitorTaskProcessor business flow', () => {
             direction: 'LONG',
             seatVersion: 1,
             symbol: 'BULL.HK',
+            lastSeatActivatedAt: 12_000,
             currentTimeMs: Date.now(),
           },
         });
@@ -516,6 +842,10 @@ describe('monitorTaskProcessor business flow', () => {
           },
         }),
         hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -546,6 +876,7 @@ describe('monitorTaskProcessor business flow', () => {
             direction: 'LONG',
             seatVersion: 2,
             symbol: 'BULL.HK',
+            lastSeatActivatedAt: 12_000,
             currentTimeMs: Date.now(),
           },
         });
@@ -569,6 +900,11 @@ describe('monitorTaskProcessor business flow', () => {
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       switchWakeupRuntime: {
         handoffPendingSwitch: () => {},
+      },
+      periodicSwitchWakeupRuntime: {
+        markWaitingEmpty: () => {},
+        clearWaitingEmpty: () => {},
+        replanRouteAfterTask: () => {},
       },
       lastState: createLastState(),
       tradingConfig: createTradingConfig(),

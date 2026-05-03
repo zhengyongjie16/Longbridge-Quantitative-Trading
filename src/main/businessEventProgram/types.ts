@@ -2,7 +2,7 @@ import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { MonitorContext, LastState } from '../../types/state.js';
 import type { MarketDataClient } from '../../types/services.js';
-import type { SignalSeatInfo } from '../processMonitor/types.js';
+import type { SeatState } from '../../types/seat.js';
 import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
 import type { BuyTaskType, SellTaskType, TaskQueue } from '../asyncProgram/tradeTaskQueue/types.js';
 
@@ -36,6 +36,32 @@ export type BusinessEventRouteState =
       dirty: true;
       pendingObservedAtMs: number;
     };
+
+/**
+ * 普通信号席位投影参数。
+ * 类型用途：封装 resolveSignalSeatInfo 所需的监控标的与监控上下文。
+ * 数据来源：由 businessEventProgram 按当前 monitor 组装。
+ * 使用范围：仅 K 线信号链路使用。
+ */
+export type SignalSeatProjectionParams = Readonly<{
+  monitorSymbol: string;
+  monitorContext: MonitorContext;
+}>;
+
+/**
+ * 信号流水线席位信息。
+ * 类型用途：封装普通 K 线信号入队前所需的席位身份，不包含行情，确保 K 线信号链路不依赖 quote。
+ * 数据来源：由 resolveSignalSeatInfo 根据 symbolRegistry 派生。
+ * 使用范围：仅 signalPipeline 使用。
+ */
+export type SignalSeatInfo = Readonly<{
+  longSeatState: SeatState;
+  shortSeatState: SeatState;
+  longSeatVersion: number;
+  shortSeatVersion: number;
+  longSymbol: string;
+  shortSymbol: string;
+}>;
 
 /**
  * monitor indicator 显示 runtime 最小契约。

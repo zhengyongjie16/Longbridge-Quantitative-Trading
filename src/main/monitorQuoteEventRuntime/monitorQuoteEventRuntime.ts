@@ -125,6 +125,7 @@ function createDefaultStaticLiquidationExecutor(
     trader: deps.trader,
     marketDataClient: deps.marketDataClient,
     lastState: deps.lastState,
+    now: deps.now,
   });
 }
 

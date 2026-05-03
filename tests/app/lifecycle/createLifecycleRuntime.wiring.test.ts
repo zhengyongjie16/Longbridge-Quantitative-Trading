@@ -24,6 +24,7 @@ import { createTradingConfig } from '../../../mock/factories/configFactory.js';
 import {
   createDailyLossTrackerDouble,
   createAutoSearchWakeupRuntimeDouble,
+  createPeriodicSwitchWakeupRuntimeDouble,
   createMarketDataClientDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
   createQuoteSubscriptionRuntimeDouble,
@@ -223,6 +224,7 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
       seatActivationDispatcher: createSeatActivationDispatcherDouble(),
       seatRuntimeCleanupDispatcher: createSeatRuntimeCleanupDispatcherDouble(),
       autoSearchWakeupRuntime: createAutoSearchWakeupRuntimeDouble(),
+      periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeDouble(),
       tradingRiskEventRuntime: createTradingRiskEventRuntimeDouble(),
       monitorQuoteEventRuntime: createMonitorQuoteEventRuntimeDouble(),
       monitorDisplayRuntime: createMonitorDisplayRuntimeDouble(),
@@ -237,7 +239,11 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
       }),
       doomsdayProtection: {
         isBuyCutoffWindowActive: () => false,
-        executeClearance: async () => ({ executed: false, signalCount: 0 }),
+        executeClearance: async () => ({
+          executed: false,
+          signalCount: 0,
+          nextRetryAtMs: null,
+        }),
         cancelPendingBuyOrders: async () => ({ executed: false, cancelRequestAcceptedCount: 0 }),
       },
       signalProcessor: createSignalProcessorDouble(),
@@ -338,7 +344,7 @@ function createLifecycleRuntimeFactories(): LifecycleRuntimeFactories {
     createDayLifecycleManager: (deps) => {
       createDayLifecycleManagerCalls.push(deps);
       return {
-        tick: async () => {},
+        tick: async () => ({ nextRetryAtMs: null, pendingOpenRebuild: false }),
       };
     },
   };
@@ -379,6 +385,10 @@ describe('app createLifecycleRuntime wiring', () => {
     expect(createSignalRuntimeDomainCalls).toHaveLength(1);
     expect(createSignalRuntimeDomainCalls[0]?.monitorQuoteEventRuntime).toBe(
       deps.postGateRuntime.monitorQuoteEventRuntime,
+    );
+
+    expect(createSignalRuntimeDomainCalls[0]?.periodicSwitchWakeupRuntime).toBe(
+      deps.postGateRuntime.periodicSwitchWakeupRuntime,
     );
     expect(createSignalRuntimeDomainCalls[0]?.trader).toBe(deps.postGateRuntime.trader);
 
@@ -447,6 +457,10 @@ describe('app createLifecycleRuntime wiring', () => {
 
     expect(signalRuntimeDeps.monitorQuoteEventRuntime).toBe(
       deps.postGateRuntime.monitorQuoteEventRuntime,
+    );
+
+    expect(signalRuntimeDeps.periodicSwitchWakeupRuntime).toBe(
+      deps.postGateRuntime.periodicSwitchWakeupRuntime,
     );
     expect(signalRuntimeDeps.trader).toBe(deps.postGateRuntime.trader);
   });

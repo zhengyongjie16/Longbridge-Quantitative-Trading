@@ -3,7 +3,7 @@
  *
  * 统一管理项目中使用的所有常量，包括：
  * - 时间相关：毫秒换算、时区偏移
- * - 交易相关：目标金额、K线配置、主循环间隔
+ * - 交易相关：目标金额、K线配置、时间唤醒恢复间隔
  * - 验证相关：延迟信号验证的时间窗口配置
  * - 日志相关：流超时配置
  * - API相关：重试策略、缓存TTL、频率限制
@@ -62,7 +62,7 @@ export const TRADING = {
   /** K线数量，获取的实时K线条数 */
   CANDLE_COUNT: 200,
 
-  /** 主循环执行间隔（毫秒），timeDriverProgram 的执行频率 */
+  /** 时间唤醒评估异常后的恢复重试间隔（毫秒） */
   INTERVAL_MS: 1000,
 
   /** 监控标的最大扫描范围（从 _1 扫描到 _100） */
@@ -81,6 +81,12 @@ export const TRADING = {
 /** 自动寻标相关常量 */
 export const AUTO_SYMBOL_SEARCH_COOLDOWN_MS = 600_000;
 export const AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS = 3_000;
+
+/** 周期换标唤醒相关常量 */
+export const PERIODIC_SWITCH_WAKEUP = {
+  /** 任务异常失败后的恢复重试间隔（毫秒） */
+  TASK_FAILURE_RETRY_DELAY_MS: TIME.MILLISECONDS_PER_SECOND,
+} as const;
 
 /** 自动寻标当日最大失败次数（达到后冻结席位至次日） */
 export const AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY = 3;

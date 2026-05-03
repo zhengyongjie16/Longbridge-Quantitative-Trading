@@ -132,7 +132,10 @@ export function createLoadTradingDayRuntimeSnapshot(
         throw new Error('重建触发时交易日信息无效');
       }
 
-      lastState.cachedTradingDayInfo = tradingDayInfo;
+      lastState.cachedTradingDayInfo = {
+        dateKey: getHKDateKey(now) ?? '',
+        info: tradingDayInfo,
+      };
       lastState.isHalfDay = tradingDayInfo.isHalfDay;
     }
 
@@ -169,7 +172,7 @@ export function createLoadTradingDayRuntimeSnapshot(
       logger,
       getTradingMinutesSinceOpen,
       resolveCanAutoSearchNow: ({ currentTime, openDelayMinutes }) => {
-        const tradingDayInfo = lastState.cachedTradingDayInfo;
+        const tradingDayInfo = lastState.cachedTradingDayInfo?.info ?? null;
         if (tradingDayInfo?.isTradingDay !== true) {
           return false;
         }

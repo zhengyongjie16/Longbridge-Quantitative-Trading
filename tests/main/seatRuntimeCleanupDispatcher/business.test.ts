@@ -110,6 +110,7 @@ describe('SeatRuntimeCleanupDispatcher business flow', () => {
         direction: 'LONG',
         seatVersion: 1,
         symbol: 'BULL.HK',
+        lastSeatActivatedAt: 12_000,
         currentTimeMs: 123,
       },
     });
@@ -138,6 +139,7 @@ describe('SeatRuntimeCleanupDispatcher business flow', () => {
         direction: 'SHORT',
         seatVersion: 1,
         symbol: 'BEAR.HK',
+        lastSeatActivatedAt: 12_000,
         currentTimeMs: 123,
       },
     });
@@ -227,6 +229,7 @@ describe('SeatRuntimeCleanupDispatcher business flow', () => {
         direction: 'SHORT',
         seatVersion: 1,
         symbol: 'BEAR.HK',
+        lastSeatActivatedAt: 12_000,
         currentTimeMs: 123,
       },
     });

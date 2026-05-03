@@ -20,6 +20,7 @@ import type { MonitorState } from '../../../src/types/state.js';
 import {
   createDailyLossTrackerDouble,
   createAutoSearchWakeupRuntimeDouble,
+  createPeriodicSwitchWakeupRuntimeDouble,
   createMarketDataClientDouble,
   createMonitorConfigDouble,
   createPositionCacheDouble,
@@ -143,6 +144,7 @@ function createRuntime(
     seatActivationDispatcher: createSeatActivationDispatcherDouble(),
     seatRuntimeCleanupDispatcher: createSeatRuntimeCleanupDispatcherDouble(),
     autoSearchWakeupRuntime: createAutoSearchWakeupRuntimeDouble(),
+    periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeDouble(),
     tradingRiskEventRuntime: {
       start: () => {},
       stopAndDrain: async () => {},
@@ -195,8 +197,11 @@ function createRuntime(
       cachedPositions: [],
       positionCache: createPositionCacheDouble(),
       cachedTradingDayInfo: {
-        isTradingDay: true,
-        isHalfDay: false,
+        dateKey: '2026-03-23',
+        info: {
+          isTradingDay: true,
+          isHalfDay: false,
+        },
       },
       monitorStates,
       allTradingSymbols: new Set<string>(),
@@ -211,6 +216,7 @@ function createRuntime(
       executeClearance: async () => ({
         executed: false,
         signalCount: 0,
+        nextRetryAtMs: null,
       }),
       cancelPendingBuyOrders: async () => ({
         executed: false,

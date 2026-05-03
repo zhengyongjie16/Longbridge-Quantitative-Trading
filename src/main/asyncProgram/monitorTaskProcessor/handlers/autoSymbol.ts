@@ -11,6 +11,10 @@ import type {
   StartSwitchOnDistanceResult,
   SwitchDriveResult,
 } from '../../../../types/monitorContextPorts.js';
+import type {
+  PeriodicSwitchRouteBaseline,
+  PeriodicSwitchWakeupRuntime,
+} from '../../../periodicSwitchWakeupRuntime/types.js';
 import type { SwitchWakeupRuntime } from '../../../monitorQuoteEventRuntime/types.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
@@ -20,6 +24,41 @@ import type {
   MonitorTaskStatus,
 } from '../types.js';
 import { isSeatSnapshotValid } from '../helpers/seatSnapshot.js';
+
+function buildPeriodicBaseline(data: AutoSymbolTickTaskData): PeriodicSwitchRouteBaseline {
+  return {
+    monitorSymbol: data.monitorSymbol,
+    direction: data.direction,
+    symbol: data.symbol,
+    seatVersion: data.seatVersion,
+    lastSeatActivatedAt: data.lastSeatActivatedAt,
+  };
+}
+
+function handoffPeriodicWakeup(params: {
+  readonly context: MonitorTaskContext;
+  readonly data: AutoSymbolTickTaskData;
+  readonly periodicSwitchWakeupRuntime: Pick<
+    PeriodicSwitchWakeupRuntime,
+    'markWaitingEmpty' | 'clearWaitingEmpty' | 'replanRouteAfterTask'
+  >;
+}): void {
+  const baseline = buildPeriodicBaseline(params.data);
+  const pendingState = params.context.autoSymbolManager.getPeriodicSwitchPendingState(
+    params.data.direction,
+  );
+  if (pendingState.pending) {
+    params.periodicSwitchWakeupRuntime.markWaitingEmpty(baseline);
+    return;
+  }
+
+  params.periodicSwitchWakeupRuntime.clearWaitingEmpty(baseline);
+  params.periodicSwitchWakeupRuntime.replanRouteAfterTask({
+    ...baseline,
+    taskTimeMs: params.data.currentTimeMs,
+    status: 'processed',
+  });
+}
 
 /**
  * 创建周期换标任务处理器（AUTO_SYMBOL_TICK）。
@@ -31,10 +70,15 @@ import { isSeatSnapshotValid } from '../helpers/seatSnapshot.js';
 export function createAutoSymbolHandlers({
   getContextOrSkip,
   switchWakeupRuntime,
+  periodicSwitchWakeupRuntime,
   getCanTradeNow,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
   readonly switchWakeupRuntime: Pick<SwitchWakeupRuntime, 'handoffPendingSwitch'>;
+  readonly periodicSwitchWakeupRuntime: Pick<
+    PeriodicSwitchWakeupRuntime,
+    'markWaitingEmpty' | 'clearWaitingEmpty' | 'replanRouteAfterTask'
+  >;
   readonly getCanTradeNow: () => boolean;
 }): Readonly<{
   handleAutoSymbolTick: (
@@ -115,16 +159,27 @@ export function createAutoSymbolHandlers({
       return 'skipped';
     }
 
+    const canTradeNow = getCanTradeNow();
+    if (!canTradeNow) {
+      return 'blocked';
+    }
+
     const intervalResult = await context.autoSymbolManager.maybeSwitchOnInterval({
       direction: data.direction,
       currentTime: new Date(data.currentTimeMs),
-      canTradeNow: getCanTradeNow(),
+      canTradeNow,
     });
     handoffPendingWakeup({
       context,
       monitorSymbol: data.monitorSymbol,
       direction: data.direction,
       result: intervalResult,
+    });
+
+    handoffPeriodicWakeup({
+      context,
+      data,
+      periodicSwitchWakeupRuntime,
     });
 
     return 'processed';

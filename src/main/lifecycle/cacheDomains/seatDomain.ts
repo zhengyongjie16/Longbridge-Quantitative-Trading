@@ -16,6 +16,10 @@ import type { MonitorContext } from '../../../types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { SeatState, SymbolRegistry } from '../../../types/seat.js';
 import type { CacheDomain, LifecycleContext } from '../types.js';
+import {
+  captureSeatActivationCarryover,
+  clearSeatActivationCarryover,
+} from '../seatActivationCarryover.js';
 import type { SeatDomainDeps } from './types.js';
 
 /** 基于旧席位状态构造空席位，保留 lastSwitchAt / lastSearchAt 时间戳并重置 lastSeatActivatedAt */
@@ -78,7 +82,16 @@ function syncMonitorSeatSnapshots(
 export function createSeatDomain(deps: SeatDomainDeps): CacheDomain {
   const { tradingConfig, symbolRegistry, monitorContexts, warrantListCache } = deps;
   return {
-    midnightClear(_ctx: LifecycleContext): void {
+    midnightClear(ctx: LifecycleContext): void {
+      if (ctx.invalidateSeatActivationCarryover === true) {
+        clearSeatActivationCarryover(symbolRegistry);
+      } else {
+        captureSeatActivationCarryover({
+          tradingConfig,
+          symbolRegistry,
+        });
+      }
+
       for (const monitorContext of monitorContexts.values()) {
         monitorContext.autoSymbolManager.resetAllState();
       }

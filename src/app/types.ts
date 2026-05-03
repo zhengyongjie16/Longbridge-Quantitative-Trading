@@ -53,6 +53,7 @@ import type {
   SwitchWakeupRuntime,
 } from '../main/monitorQuoteEventRuntime/types.js';
 import type { MonitorDisplayRuntime } from '../main/monitorDisplayRuntime/types.js';
+import type { PeriodicSwitchWakeupRuntime } from '../main/periodicSwitchWakeupRuntime/types.js';
 import type { TradingQuoteDisplayRuntime } from '../main/tradingQuoteDisplayRuntime/types.js';
 import type {
   BusinessEventProgram,
@@ -80,7 +81,7 @@ import type {
   SeatDomainDeps,
   SignalRuntimeDomainDeps,
 } from '../main/lifecycle/cacheDomains/types.js';
-import type { TimeDriverProgramContext } from '../main/timeDriverProgram/types.js';
+import type { TimeWakeupRuntime, TimeWakeupRuntimeDeps } from '../main/timeWakeupRuntime/types.js';
 import type { DisplayAccountAndPositionsParams } from '../services/accountDisplay/types.js';
 
 /**
@@ -256,6 +257,8 @@ export type CleanupContext = Readonly<{
   monitorDisplayRuntime: MonitorDisplayRuntime;
   tradingQuoteDisplayRuntime: TradingQuoteDisplayRuntime;
   switchWakeupRuntime: SwitchWakeupRuntime;
+  periodicSwitchWakeupRuntime: PeriodicSwitchWakeupRuntime;
+  timeWakeupRuntime: TimeWakeupRuntime;
   quoteSubscriptionRuntime: QuoteSubscriptionRuntime;
   seatActivationDispatcher: SeatActivationDispatcher;
   seatRuntimeCleanupDispatcher: SeatRuntimeCleanupDispatcher;
@@ -269,13 +272,12 @@ export type CleanupContext = Readonly<{
 
 /**
  * 退出清理控制器。
- * 类型用途：表达 createCleanup 返回的 execute/registerExitHandlers 能力集合。
+ * 类型用途：表达 createCleanup 返回的显式资源清理能力。
  * 数据来源：由 createCleanup 创建。
  * 使用范围：仅 app 顶层装配与测试使用。
  */
 export type CleanupController = Readonly<{
   execute: () => Promise<void>;
-  registerExitHandlers: () => void;
 }>;
 
 /**
@@ -402,6 +404,7 @@ type PostGateRuntime = Readonly<{
   seatActivationDispatcher: SeatActivationDispatcher;
   seatRuntimeCleanupDispatcher: SeatRuntimeCleanupDispatcher;
   autoSearchWakeupRuntime: AutoSearchWakeupRuntime;
+  periodicSwitchWakeupRuntime: PeriodicSwitchWakeupRuntime;
   tradingRiskEventRuntime: TradingRiskEventRuntime;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
   monitorDisplayRuntime: MonitorDisplayRuntime;
@@ -529,9 +532,9 @@ export type LifecycleRuntimeFactoryDeps = Readonly<{
 
 /**
  * app 主入口依赖集合。
- * 类型用途：为 createRunApp 显式注入装配链路依赖，避免隐藏模块状态并提升测试可验证性。
- * 数据来源：生产环境使用默认依赖对象，测试可注入受控替身。
- * 使用范围：仅 app 顶层入口装配与相关测试使用。
+ * 类型用途：为 app 主入口内部工厂显式描述装配链路依赖。
+ * 数据来源：生产环境使用默认依赖对象。
+ * 使用范围：仅 app 顶层入口装配使用。
  */
 export type RunAppDeps = Readonly<{
   createPreGateRuntime: (params: AppEnvironmentParams) => Promise<PreGateRuntime>;
@@ -555,8 +558,8 @@ export type RunAppDeps = Readonly<{
     factories?: LifecycleRuntimeFactories,
   ) => DayLifecycleManager;
   createCleanup: (context: CleanupContext) => CleanupController;
-  timeDriverProgram: (context: TimeDriverProgramContext) => Promise<void>;
-  sleep: (ms: number) => Promise<void>;
+  createTimeWakeupRuntime: (deps: TimeWakeupRuntimeDeps) => TimeWakeupRuntime;
+  waitForShutdownSignal: () => Promise<void>;
   logger: Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>;
   formatError: (error: unknown) => string;
   validateRuntimeSymbolsFromQuotesMap: (

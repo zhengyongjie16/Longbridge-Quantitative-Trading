@@ -189,8 +189,6 @@ function processPositionForClearance(
  */
 export function createDoomsdayProtection(deps?: {
   readonly now?: () => Date;
-  readonly scheduleRetry?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
-  readonly clearRetry?: (handle: ReturnType<typeof setTimeout>) => void;
   readonly quoteRetryIntervalMs?: number;
   readonly quoteRetryMaxAttempts?: number;
 }): DoomsdayProtection {
@@ -199,23 +197,17 @@ export function createDoomsdayProtection(deps?: {
   let cancelCheckExecutedDate: string | null = null;
   let lastClearanceNoticeKey: string | null = null;
   const now = deps?.now ?? (() => new Date());
-  const scheduleRetry = deps?.scheduleRetry ?? setTimeout;
-  const clearRetry = deps?.clearRetry ?? clearTimeout;
   const quoteRetryIntervalMs = deps?.quoteRetryIntervalMs ?? ORDER_QUOTE_RETRY.INTERVAL_MS;
   const quoteRetryMaxAttempts = deps?.quoteRetryMaxAttempts ?? ORDER_QUOTE_RETRY.MAX_ATTEMPTS;
-  let clearanceRetryHandle: ReturnType<typeof setTimeout> | null = null;
   let clearanceRetryAttempts = 0;
   let clearanceRetrySymbols: ReadonlySet<string> | null = null;
+  let clearanceRetryDueAtMs: number | null = null;
   const clearanceRetryExhaustedSymbols = new Set<string>();
 
   const clearClearanceRetry = (): void => {
-    if (clearanceRetryHandle !== null) {
-      clearRetry(clearanceRetryHandle);
-      clearanceRetryHandle = null;
-    }
-
     clearanceRetryAttempts = 0;
     clearanceRetrySymbols = null;
+    clearanceRetryDueAtMs = null;
   };
 
   const logClearanceNotice = (key: string, message: string): void => {
@@ -257,7 +249,7 @@ export function createDoomsdayProtection(deps?: {
         `gate-closed:${todayKey}`,
         '[末日保护程序] 清仓跳过：生命周期交易门禁关闭',
       );
-      return { executed: false, signalCount: 0 };
+      return { executed: false, signalCount: 0, nextRetryAtMs: null };
     }
 
     if (!isWithinDoomsdayClearanceTakeoverWindow(currentTime, isHalfDay)) {
@@ -268,20 +260,21 @@ export function createDoomsdayProtection(deps?: {
         `outside-window:${todayKey}`,
         `[末日保护程序] 清仓跳过：当前不在清仓接管窗口（${clearanceWindowRange}）`,
       );
-      return { executed: false, signalCount: 0 };
+      return { executed: false, signalCount: 0, nextRetryAtMs: null };
     }
 
+    const retrySymbols = clearanceRetrySymbols;
     const retryPendingPositions =
-      clearanceRetrySymbols === null
+      retrySymbols === null
         ? positions
-        : positions.filter((position) => clearanceRetrySymbols?.has(position.symbol) ?? false);
+        : positions.filter((position) => retrySymbols.has(position.symbol));
     const processingPositions = retryPendingPositions.filter(
       (position) => !clearanceRetryExhaustedSymbols.has(position.symbol),
     );
     if (processingPositions.length === 0) {
       clearClearanceRetry();
       logClearanceNotice(`no-positions:${todayKey}`, '[末日保护程序] 清仓跳过：无可处理持仓');
-      return { executed: false, signalCount: 0 };
+      return { executed: false, signalCount: 0, nextRetryAtMs: null };
     }
 
     const allTradingSymbols = new Set<string>();
@@ -407,13 +400,18 @@ export function createDoomsdayProtection(deps?: {
 
     if (unresolvedSymbols.size > 0) {
       clearanceRetrySymbols = new Set(unresolvedSymbols);
-      if (clearanceRetryHandle !== null) {
-        return { executed: submittedCount > 0, signalCount: submittedCount };
+      const currentMs = now().getTime();
+      if (clearanceRetryDueAtMs !== null && currentMs < clearanceRetryDueAtMs) {
+        return {
+          executed: submittedCount > 0,
+          signalCount: submittedCount,
+          nextRetryAtMs: clearanceRetryDueAtMs,
+        };
       }
 
       const nextRetry = resolveNextQuoteRetry({
         attempts: clearanceRetryAttempts,
-        nowMs: now().getTime(),
+        nowMs: currentMs,
         intervalMs: quoteRetryIntervalMs,
         maxAttempts: quoteRetryMaxAttempts,
       });
@@ -426,33 +424,20 @@ export function createDoomsdayProtection(deps?: {
         logger.warn(
           `[末日保护程序] 清仓行情重试耗尽，放弃本窗口重试: symbols=${[...unresolvedSymbols].join(',')}`,
         );
-        return { executed: submittedCount > 0, signalCount: submittedCount };
+        return { executed: submittedCount > 0, signalCount: submittedCount, nextRetryAtMs: null };
       }
 
       clearanceRetryAttempts = nextRetry.nextAttempts;
-      clearanceRetryHandle = scheduleRetry(() => {
-        clearanceRetryHandle = null;
-        const retryTime = now();
-        const retrySymbols = clearanceRetrySymbols;
-        const retryPositions =
-          retrySymbols === null
-            ? context.lastState.cachedPositions
-            : context.lastState.cachedPositions.filter((position) =>
-                retrySymbols.has(position.symbol),
-              );
-        void executeClearance({
-          ...context,
-          currentTime: retryTime,
-          positions: retryPositions,
-        }).catch((err: unknown) => {
-          logger.error('[末日保护程序] 清仓行情重试执行失败', formatError(err));
-        });
-      }, quoteRetryIntervalMs);
-      return { executed: submittedCount > 0, signalCount: submittedCount };
+      clearanceRetryDueAtMs = nextRetry.nextRetryAt;
+      return {
+        executed: submittedCount > 0,
+        signalCount: submittedCount,
+        nextRetryAtMs: nextRetry.nextRetryAt,
+      };
     }
 
     clearClearanceRetry();
-    return { executed: submittedCount > 0, signalCount: submittedCount };
+    return { executed: submittedCount > 0, signalCount: submittedCount, nextRetryAtMs: null };
   }
 
   return {

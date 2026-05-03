@@ -8,7 +8,14 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { INDICATOR_CACHE, LOGGING, TIME, TRADING, VERIFICATION } from '../../constants/index.js';
+import {
+  INDICATOR_CACHE,
+  LOGGING,
+  PERIODIC_SWITCH_WAKEUP,
+  TIME,
+  TRADING,
+  VERIFICATION,
+} from '../../constants/index.js';
 import { createTrader } from '../../core/trader/index.js';
 import { createOrderFilteringEngine } from '../../core/orderRecorder/orderFilteringEngine.js';
 import { classifyAndConvertOrders } from '../../core/orderRecorder/utils.js';
@@ -31,6 +38,7 @@ import { createQuoteSubscriptionRuntime } from '../../main/quoteSubscriptionRunt
 import { createSeatActivationDispatcher } from '../../main/seatActivationDispatcher/index.js';
 import { createSeatRuntimeCleanupDispatcher } from '../../main/seatRuntimeCleanupDispatcher/index.js';
 import { createTradingGateEventRuntime } from '../../main/tradingGateEventRuntime/index.js';
+import { createPeriodicSwitchWakeupRuntime } from '../../main/periodicSwitchWakeupRuntime/index.js';
 import { createDefaultMonitorQuoteEventRuntime } from '../../main/monitorQuoteEventRuntime/monitorQuoteEventRuntime.js';
 import { createSwitchWakeupRuntime } from '../../main/monitorQuoteEventRuntime/switchWakeupRuntime.js';
 import { createMonitorDisplayRuntime } from '../../main/monitorDisplayRuntime/index.js';
@@ -43,7 +51,11 @@ import { createPositionCache } from '../../utils/positionCache/index.js';
 import { initMonitorState, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { resolveLogRootDir } from '../../utils/runtime/index.js';
 import { buildTradeLogPath } from '../../utils/trading/tradeLogPath.js';
-import { getRequiredHKDateKey, toHongKongTimeIso } from '../../utils/time/index.js';
+import {
+  calculateTradingDurationDueAtMs,
+  getRequiredHKDateKey,
+  toHongKongTimeIso,
+} from '../../utils/time/index.js';
 import { logger, retainLatestLogFiles } from '../../utils/logger/index.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
 import type { OrderStateChangedEvent } from '../../types/services.js';
@@ -54,6 +66,11 @@ import type {
   MutableMonitorContextsPostGateRuntime,
   PersistableTradeRecord,
 } from '../types.js';
+import type { CreatePostGateRuntimeDeps } from './types.js';
+
+const DEFAULT_CREATE_POST_GATE_RUNTIME_DEPS: CreatePostGateRuntimeDeps = {
+  createTrader,
+};
 
 function hasPersistableTradeExecutionContext(
   event: OrderStateChangedEvent,
@@ -179,270 +196,312 @@ function persistTradeRecordFromOrderStateChangedEvent(params: {
 }
 
 /**
- * 创建 post-gate 阶段共享运行时对象。
+ * 创建 post-gate runtime 工厂。
  *
- * @param params 当前环境、pre-gate runtime 与当前时间
- * @returns post-gate runtime
+ * @param deps post-gate 创建链路中的可注入依赖
+ * @returns post-gate runtime 创建函数
  */
-export async function createPostGateRuntime(
-  params: CreatePostGateRuntimeParams,
-): Promise<MutableMonitorContextsPostGateRuntime> {
-  const { env, preGateRuntime, now } = params;
-  const {
-    config,
-    tradingConfig,
-    symbolRegistry,
-    marketDataClient,
-    startupTradingDayInfo,
-    warrantListCacheConfig,
-  } = preGateRuntime;
-  const liquidationCooldownTracker = createLiquidationCooldownTracker({ nowMs: () => Date.now() });
-  const dailyLossTracker = createDailyLossTracker({
-    filteringEngine: createOrderFilteringEngine(),
-    resolveOrderOwnership,
-    classifyAndConvertOrders,
-    toHongKongTimeIso,
-  });
-  const protectiveLiquidationEpisodeTracker = createProtectiveLiquidationEpisodeTracker();
-  const monitorContexts = new Map<string, MonitorContext>();
-  const initialDayKey = getRequiredHKDateKey(now);
-  const initialTradingDayInfo =
-    startupTradingDayInfo !== null && startupTradingDayInfo.dateKey === initialDayKey
-      ? startupTradingDayInfo.info
-      : null;
-  const lastState: LastState = {
-    canTrade: null,
-    isHalfDay: null,
-    openProtectionActive: null,
-    currentDayKey: initialDayKey,
-    lifecycleState: 'ACTIVE',
-    pendingOpenRebuild: false,
-    targetTradingDayKey: null,
-    isTradingEnabled: true,
-    cachedAccount: null,
-    cachedPositions: [],
-    positionCache: createPositionCache(),
-    cachedTradingDayInfo: initialTradingDayInfo,
-    tradingCalendarSnapshot:
-      initialTradingDayInfo === null
-        ? new Map()
-        : new Map([[initialDayKey, initialTradingDayInfo]]),
-    monitorStates: new Map(
-      tradingConfig.monitors.map((monitorConfig) => [
-        monitorConfig.monitorSymbol,
-        initMonitorState(monitorConfig),
-      ]),
-    ),
-    allTradingSymbols: new Set(),
-  };
-  let traderRef: Awaited<ReturnType<typeof createTrader>> | null = null;
-  let quoteSubscriptionRuntimeRef: QuoteSubscriptionRuntime | null = null;
-  const postTradeConsistencyRuntime = createPostTradeConsistencyRuntime({
-    getTrader: () => {
-      if (traderRef === null) {
-        throw new Error('[postTradeConsistencyRuntime] Trader 尚未初始化');
-      }
+export function createPostGateRuntimeFactory(
+  deps: CreatePostGateRuntimeDeps,
+): (params: CreatePostGateRuntimeParams) => Promise<MutableMonitorContextsPostGateRuntime> {
+  const { createTrader: buildTrader } = deps;
 
-      return traderRef;
-    },
-    lastState,
-    onPositionsCommitted: async () => {
-      await quoteSubscriptionRuntimeRef?.reconcilePositionHoldFromCurrentTruth();
-    },
-  });
-  const trader = await createTrader({
-    config,
-    tradingConfig,
-    marketDataClient,
-    symbolRegistry,
-    dailyLossTracker,
-    protectiveLiquidationEpisodeTracker,
-    postTradeConsistencyRuntime,
-    isExecutionAllowed: () => lastState.isTradingEnabled,
-  });
-  traderRef = trader;
-  trader.onOrderStateChanged((event) => {
-    persistTradeRecordFromOrderStateChangedEvent({
-      env,
-      event,
+  return async function createPostGateRuntime(
+    params: CreatePostGateRuntimeParams,
+  ): Promise<MutableMonitorContextsPostGateRuntime> {
+    const { env, preGateRuntime, now } = params;
+    const {
+      config,
+      tradingConfig,
+      symbolRegistry,
+      marketDataClient,
+      startupTradingDayInfo,
+      warrantListCacheConfig,
+    } = preGateRuntime;
+    const liquidationCooldownTracker = createLiquidationCooldownTracker({
+      nowMs: () => Date.now(),
     });
-  });
-  const tradeLogHydrator = createTradeLogHydrator({
-    readFileSync: fs.readFileSync,
-    existsSync: fs.existsSync,
-    resolveLogRootDir: () => resolveLogRootDir(env),
-    nowMs: () => Date.now(),
-    logger,
-    tradingConfig,
-    liquidationCooldownTracker,
-  });
-  const loadTradingDayRuntimeSnapshot = createLoadTradingDayRuntimeSnapshot({
-    marketDataClient,
-    trader,
-    lastState,
-    tradingConfig,
-    symbolRegistry,
-    dailyLossTracker,
-    protectiveLiquidationEpisodeTracker,
-    tradeLogHydrator,
-    warrantListCacheConfig,
-  });
-  const marketMonitor = createMarketMonitor();
-  const doomsdayProtection = createDoomsdayProtection();
-  const doomsdayProtectionEnabled = tradingConfig.global.doomsdayProtection;
-  const tradingGateEventRuntime = createTradingGateEventRuntime();
-  const quoteSubscriptionRuntime = createQuoteSubscriptionRuntime({
-    tradingConfig,
-    symbolRegistry,
-    marketDataClient,
-    trader,
-    lastState,
-  });
-  quoteSubscriptionRuntimeRef = quoteSubscriptionRuntime;
-  const tradingRiskEventRuntime = createTradingRiskEventRuntime({
-    marketDataClient,
-    trader,
-    symbolRegistry,
-    monitorContexts,
-    lastState,
-    postTradeConsistencyRuntime,
-    doomsdayProtectionEnabled,
-    now: () => new Date(),
-  });
-  const switchWakeupRuntime = createSwitchWakeupRuntime({
-    marketDataClient,
-    trader,
-    symbolRegistry,
-    monitorContexts,
-    lastState,
-    postTradeConsistencyRuntime,
-    doomsdayProtectionEnabled,
-    quoteSubscriptionRuntime,
-    now: () => new Date(),
-    scheduleTimer: (callback, delayMs) => {
-      return setTimeout(callback, delayMs);
-    },
-    clearTimer: (handle) => {
-      clearTimeout(handle);
-    },
-  });
-  const monitorQuoteEventRuntime = createDefaultMonitorQuoteEventRuntime({
-    marketDataClient,
-    monitorContexts,
-    trader,
-    lastState,
-    postTradeConsistencyRuntime,
-    doomsdayProtectionEnabled,
-    quoteSubscriptionRuntime,
-    now: () => new Date(),
-    handoffPendingSwitch: switchWakeupRuntime.handoffPendingSwitch,
-  });
-  const monitorDisplayRuntime = createMonitorDisplayRuntime({
-    marketDataClient,
-    monitorContexts,
-    lastState,
-    marketMonitor,
-  });
-  const tradingQuoteDisplayRuntime = createTradingQuoteDisplayRuntime({
-    marketDataClient,
-    symbolRegistry,
-    monitorContexts,
-    lastState,
-    renderTradingQuote: (renderParams) => {
-      const monitorContext = monitorContexts.get(renderParams.monitorSymbol);
-      if (monitorContext === undefined) {
-        return;
-      }
-
-      const displayInfo = buildPriceDisplayInfo({
-        seatActive: true,
-        symbol: renderParams.tradingSymbol,
-        monitorCurrentPrice: renderParams.monitorQuote?.price ?? null,
-        quotePrice: renderParams.event.quote.price,
-        isLongSymbol: renderParams.direction === 'LONG',
-        riskChecker: monitorContext.riskChecker,
-        orderRecorder: monitorContext.orderRecorder,
-      });
-      marketMonitor.renderTradingQuote({
-        ...renderParams,
-        displayInfo,
-      });
-    },
-  });
-  const signalProcessor = createSignalProcessor({
-    tradingConfig,
-    liquidationCooldownTracker,
-  });
-  const maxDelaySeconds = Math.max(
-    ...tradingConfig.monitors.map((monitorConfig) =>
-      Math.max(
-        monitorConfig.verificationConfig.buy.delaySeconds,
-        monitorConfig.verificationConfig.sell.delaySeconds,
+    const dailyLossTracker = createDailyLossTracker({
+      filteringEngine: createOrderFilteringEngine(),
+      resolveOrderOwnership,
+      classifyAndConvertOrders,
+      toHongKongTimeIso,
+    });
+    const protectiveLiquidationEpisodeTracker = createProtectiveLiquidationEpisodeTracker();
+    const monitorContexts = new Map<string, MonitorContext>();
+    const initialDayKey = getRequiredHKDateKey(now);
+    const initialTradingDayInfo =
+      startupTradingDayInfo !== null && startupTradingDayInfo.dateKey === initialDayKey
+        ? startupTradingDayInfo.info
+        : null;
+    const lastState: LastState = {
+      canTrade: null,
+      isHalfDay: null,
+      openProtectionActive: null,
+      currentDayKey: initialDayKey,
+      lifecycleState: 'ACTIVE',
+      pendingOpenRebuild: false,
+      targetTradingDayKey: null,
+      isTradingEnabled: true,
+      cachedAccount: null,
+      cachedPositions: [],
+      positionCache: createPositionCache(),
+      cachedTradingDayInfo:
+        initialTradingDayInfo === null
+          ? null
+          : {
+              dateKey: initialDayKey,
+              info: initialTradingDayInfo,
+            },
+      tradingCalendarSnapshot:
+        initialTradingDayInfo === null
+          ? new Map()
+          : new Map([[initialDayKey, initialTradingDayInfo]]),
+      monitorStates: new Map(
+        tradingConfig.monitors.map((monitorConfig) => [
+          monitorConfig.monitorSymbol,
+          initMonitorState(monitorConfig),
+        ]),
       ),
-    ),
-  );
-  const indicatorCacheRetentionSeconds =
-    maxDelaySeconds +
-    VERIFICATION.READY_DELAY_SECONDS +
-    INDICATOR_CACHE.RETENTION_SAFETY_MARGIN_SECONDS;
-  // 额外保留缓存安全余量，确保延迟验证读取最近样本时窗口充足。
-  const indicatorCache = createIndicatorCache({
-    retentionWindowMs: indicatorCacheRetentionSeconds * TIME.MILLISECONDS_PER_SECOND,
-  });
-  const buyTaskQueue = createBuyTaskQueue();
-  const sellTaskQueue = createSellTaskQueue();
-  const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
-  const seatActivationDispatcher = createSeatActivationDispatcher({
-    tradingConfig,
-    symbolRegistry,
-    monitorTaskQueue,
-  });
-  const seatRuntimeCleanupDispatcher = createSeatRuntimeCleanupDispatcher({
-    symbolRegistry,
-    monitorContexts,
-    buyTaskQueue,
-    sellTaskQueue,
-    monitorTaskQueue,
-  });
-  const autoSearchWakeupRuntime = createAutoSearchWakeupRuntime({
-    tradingConfig,
-    symbolRegistry,
-    monitorContexts,
-    lastState,
-    tradingGateEventRuntime,
-    now: () => new Date(),
-    scheduleTimer: (callback, delayMs) => {
-      return setTimeout(callback, delayMs);
-    },
-    clearTimer: (handle) => {
-      clearTimeout(handle);
-    },
-  });
+      allTradingSymbols: new Set(),
+    };
+    let traderRef: Awaited<ReturnType<typeof createTrader>> | null = null;
+    let quoteSubscriptionRuntimeRef: QuoteSubscriptionRuntime | null = null;
+    const postTradeConsistencyRuntime = createPostTradeConsistencyRuntime({
+      getTrader: () => {
+        if (traderRef === null) {
+          throw new Error('[postTradeConsistencyRuntime] Trader 尚未初始化');
+        }
 
-  return {
-    liquidationCooldownTracker,
-    dailyLossTracker,
-    protectiveLiquidationEpisodeTracker,
-    monitorContexts,
-    tradingGateEventRuntime,
-    quoteSubscriptionRuntime,
-    seatActivationDispatcher,
-    seatRuntimeCleanupDispatcher,
-    autoSearchWakeupRuntime,
-    tradingRiskEventRuntime,
-    monitorQuoteEventRuntime,
-    monitorDisplayRuntime,
-    tradingQuoteDisplayRuntime,
-    switchWakeupRuntime,
-    postTradeConsistencyRuntime,
-    lastState,
-    trader,
-    loadTradingDayRuntimeSnapshot,
-    doomsdayProtection,
-    signalProcessor,
-    indicatorCache,
-    buyTaskQueue,
-    sellTaskQueue,
-    monitorTaskQueue,
+        return traderRef;
+      },
+      lastState,
+      onPositionsCommitted: async () => {
+        await quoteSubscriptionRuntimeRef?.reconcilePositionHoldFromCurrentTruth();
+      },
+    });
+    const trader = await buildTrader({
+      config,
+      tradingConfig,
+      marketDataClient,
+      symbolRegistry,
+      dailyLossTracker,
+      protectiveLiquidationEpisodeTracker,
+      postTradeConsistencyRuntime,
+      isExecutionAllowed: () => lastState.isTradingEnabled,
+    });
+    traderRef = trader;
+    trader.onOrderStateChanged((event) => {
+      persistTradeRecordFromOrderStateChangedEvent({
+        env,
+        event,
+      });
+    });
+    const tradeLogHydrator = createTradeLogHydrator({
+      readFileSync: fs.readFileSync,
+      existsSync: fs.existsSync,
+      resolveLogRootDir: () => resolveLogRootDir(env),
+      nowMs: () => Date.now(),
+      logger,
+      tradingConfig,
+      liquidationCooldownTracker,
+    });
+    const loadTradingDayRuntimeSnapshot = createLoadTradingDayRuntimeSnapshot({
+      marketDataClient,
+      trader,
+      lastState,
+      tradingConfig,
+      symbolRegistry,
+      dailyLossTracker,
+      protectiveLiquidationEpisodeTracker,
+      tradeLogHydrator,
+      warrantListCacheConfig,
+    });
+    const marketMonitor = createMarketMonitor();
+    const doomsdayProtection = createDoomsdayProtection();
+    const doomsdayProtectionEnabled = tradingConfig.global.doomsdayProtection;
+    const tradingGateEventRuntime = createTradingGateEventRuntime();
+    const quoteSubscriptionRuntime = createQuoteSubscriptionRuntime({
+      tradingConfig,
+      symbolRegistry,
+      marketDataClient,
+      trader,
+      lastState,
+    });
+    quoteSubscriptionRuntimeRef = quoteSubscriptionRuntime;
+    const tradingRiskEventRuntime = createTradingRiskEventRuntime({
+      marketDataClient,
+      trader,
+      symbolRegistry,
+      monitorContexts,
+      lastState,
+      postTradeConsistencyRuntime,
+      doomsdayProtectionEnabled,
+      now: () => new Date(),
+    });
+    const switchWakeupRuntime = createSwitchWakeupRuntime({
+      marketDataClient,
+      trader,
+      symbolRegistry,
+      monitorContexts,
+      lastState,
+      postTradeConsistencyRuntime,
+      doomsdayProtectionEnabled,
+      quoteSubscriptionRuntime,
+      now: () => new Date(),
+      scheduleTimer: (callback, delayMs) => {
+        return setTimeout(callback, delayMs);
+      },
+      clearTimer: (handle) => {
+        clearTimeout(handle);
+      },
+    });
+    const monitorQuoteEventRuntime = createDefaultMonitorQuoteEventRuntime({
+      marketDataClient,
+      monitorContexts,
+      trader,
+      lastState,
+      postTradeConsistencyRuntime,
+      doomsdayProtectionEnabled,
+      quoteSubscriptionRuntime,
+      now: () => new Date(),
+      handoffPendingSwitch: switchWakeupRuntime.handoffPendingSwitch,
+    });
+    const monitorDisplayRuntime = createMonitorDisplayRuntime({
+      marketDataClient,
+      monitorContexts,
+      lastState,
+      marketMonitor,
+    });
+    const tradingQuoteDisplayRuntime = createTradingQuoteDisplayRuntime({
+      marketDataClient,
+      symbolRegistry,
+      monitorContexts,
+      lastState,
+      renderTradingQuote: (renderParams) => {
+        const monitorContext = monitorContexts.get(renderParams.monitorSymbol);
+        if (monitorContext === undefined) {
+          return;
+        }
+
+        const displayInfo = buildPriceDisplayInfo({
+          seatActive: true,
+          symbol: renderParams.tradingSymbol,
+          monitorCurrentPrice: renderParams.monitorQuote?.price ?? null,
+          quotePrice: renderParams.event.quote.price,
+          isLongSymbol: renderParams.direction === 'LONG',
+          riskChecker: monitorContext.riskChecker,
+          orderRecorder: monitorContext.orderRecorder,
+        });
+        marketMonitor.renderTradingQuote({
+          ...renderParams,
+          displayInfo,
+        });
+      },
+    });
+    const signalProcessor = createSignalProcessor({
+      tradingConfig,
+      liquidationCooldownTracker,
+    });
+    const maxDelaySeconds = Math.max(
+      ...tradingConfig.monitors.map((monitorConfig) =>
+        Math.max(
+          monitorConfig.verificationConfig.buy.delaySeconds,
+          monitorConfig.verificationConfig.sell.delaySeconds,
+        ),
+      ),
+    );
+    const indicatorCacheRetentionSeconds =
+      maxDelaySeconds +
+      VERIFICATION.READY_DELAY_SECONDS +
+      INDICATOR_CACHE.RETENTION_SAFETY_MARGIN_SECONDS;
+    // 额外保留缓存安全余量，确保延迟验证读取最近样本时窗口充足。
+    const indicatorCache = createIndicatorCache({
+      retentionWindowMs: indicatorCacheRetentionSeconds * TIME.MILLISECONDS_PER_SECOND,
+    });
+    const buyTaskQueue = createBuyTaskQueue();
+    const sellTaskQueue = createSellTaskQueue();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const seatActivationDispatcher = createSeatActivationDispatcher({
+      tradingConfig,
+      symbolRegistry,
+      monitorTaskQueue,
+    });
+    const seatRuntimeCleanupDispatcher = createSeatRuntimeCleanupDispatcher({
+      symbolRegistry,
+      monitorContexts,
+      buyTaskQueue,
+      sellTaskQueue,
+      monitorTaskQueue,
+    });
+    const autoSearchWakeupRuntime = createAutoSearchWakeupRuntime({
+      tradingConfig,
+      symbolRegistry,
+      monitorContexts,
+      lastState,
+      tradingGateEventRuntime,
+      now: () => new Date(),
+      scheduleTimer: (callback, delayMs) => {
+        return setTimeout(callback, delayMs);
+      },
+      clearTimer: (handle) => {
+        clearTimeout(handle);
+      },
+    });
+    const periodicSwitchWakeupRuntime = createPeriodicSwitchWakeupRuntime({
+      tradingConfig,
+      monitorContexts,
+      symbolRegistry,
+      monitorTaskQueue,
+      trader,
+      postTradeConsistencyRuntime,
+      tradingGateEventRuntime,
+      calculateDueAtMs: ({ startMs, switchIntervalMinutes }) =>
+        calculateTradingDurationDueAtMs({
+          startMs,
+          targetDurationMs: switchIntervalMinutes * TIME.MILLISECONDS_PER_MINUTE,
+          calendarSnapshot: lastState.tradingCalendarSnapshot ?? new Map(),
+        }),
+      taskFailureRetryDelayMs: PERIODIC_SWITCH_WAKEUP.TASK_FAILURE_RETRY_DELAY_MS,
+      now: () => new Date(),
+      scheduleTimer: (callback, delayMs) => {
+        return setTimeout(callback, delayMs);
+      },
+      clearTimer: (handle) => {
+        clearTimeout(handle);
+      },
+    });
+
+    return {
+      liquidationCooldownTracker,
+      dailyLossTracker,
+      protectiveLiquidationEpisodeTracker,
+      monitorContexts,
+      tradingGateEventRuntime,
+      quoteSubscriptionRuntime,
+      seatActivationDispatcher,
+      seatRuntimeCleanupDispatcher,
+      autoSearchWakeupRuntime,
+      periodicSwitchWakeupRuntime,
+      tradingRiskEventRuntime,
+      monitorQuoteEventRuntime,
+      monitorDisplayRuntime,
+      tradingQuoteDisplayRuntime,
+      switchWakeupRuntime,
+      postTradeConsistencyRuntime,
+      lastState,
+      trader,
+      loadTradingDayRuntimeSnapshot,
+      doomsdayProtection,
+      signalProcessor,
+      indicatorCache,
+      buyTaskQueue,
+      sellTaskQueue,
+      monitorTaskQueue,
+    };
   };
 }
+
+export const createPostGateRuntime = createPostGateRuntimeFactory(
+  DEFAULT_CREATE_POST_GATE_RUNTIME_DEPS,
+);

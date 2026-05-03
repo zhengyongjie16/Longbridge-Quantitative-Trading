@@ -23,13 +23,11 @@ import type {
   TradingCalendarDayInfo,
   TradingCalendarSnapshot,
 } from '../../types/tradingCalendar.js';
-import type { AutoSymbolManagerPort } from '../../types/monitorContextPorts.js';
 import type {
-  AutoSymbolManagerDeps,
+  AutoSymbolManagerPort,
   PeriodicSwitchPendingState,
-  SwitchState,
-  SwitchSuppression,
-} from './types.js';
+} from '../../types/monitorContextPorts.js';
+import type { AutoSymbolManagerDeps, SwitchState, SwitchSuppression } from './types.js';
 import { createThresholdResolver } from './thresholdResolver.js';
 import {
   calculateBuyQuantityByNotional,
@@ -145,6 +143,11 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     startSwitchOnDistance: (params) => switchStateMachine.startSwitchOnDistance(params),
     advancePendingSwitch: (params) => switchStateMachine.advancePendingSwitch(params),
     hasPendingSwitch: (direction) => switchStateMachine.hasPendingSwitch(direction),
+    getPeriodicSwitchPendingState: (direction) =>
+      periodicSwitchPending.get(direction) ?? {
+        pending: false,
+        pendingSinceMs: null,
+      },
     resetAllState,
   };
 }

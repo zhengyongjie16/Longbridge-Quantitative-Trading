@@ -1,4 +1,5 @@
 import type { MonitorTaskProcessorDeps } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { PeriodicSwitchWakeupRuntime } from '../../../src/main/periodicSwitchWakeupRuntime/types.js';
 import type { createLastState, createMonitorTaskContext } from './utils.js';
 import type { createTraderDouble } from '../../helpers/testDoubles.js';
 
@@ -18,6 +19,10 @@ export type CreateBusinessProcessorParams = Readonly<{
   readonly onProcessed?: MonitorTaskProcessorDeps['onProcessed'];
   readonly getCanProcessTask?: MonitorTaskProcessorDeps['getCanProcessTask'];
   readonly getCanTradeNow?: MonitorTaskProcessorDeps['getCanTradeNow'];
+  readonly periodicSwitchWakeupRuntime?: Pick<
+    PeriodicSwitchWakeupRuntime,
+    'markWaitingEmpty' | 'clearWaitingEmpty' | 'replanRouteAfterTask'
+  >;
 }>;
 
 /**

@@ -89,6 +89,19 @@ function defaultDeps(steps: string[]): CleanupContext {
   };
 
   return {
+    timeWakeupRuntime: {
+      start: () => {},
+      requestEvaluate: () => {},
+      stopAndDrain: async () => {
+        steps.push('timeWakeupRuntime');
+      },
+      getStateSnapshot: () => ({
+        running: false,
+        inFlight: false,
+        dirty: false,
+        hasTimer: false,
+      }),
+    },
     tradingRiskEventRuntime: {
       start: () => {},
       stopAndDrain: async () => {
@@ -101,6 +114,15 @@ function defaultDeps(steps: string[]): CleanupContext {
         steps.push('switchWakeupRuntime');
       },
       handoffPendingSwitch: () => {},
+    },
+    periodicSwitchWakeupRuntime: {
+      start: () => {},
+      stopAndDrain: async () => {
+        steps.push('periodicSwitchWakeupRuntime');
+      },
+      markWaitingEmpty: () => {},
+      clearWaitingEmpty: () => {},
+      replanRouteAfterTask: () => {},
     },
     monitorQuoteEventRuntime: {
       start: () => {},

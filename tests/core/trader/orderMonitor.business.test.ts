@@ -1280,9 +1280,14 @@ describe('orderMonitor business flow', () => {
         symbol: 'BULL.HK',
         side: OrderSide.Sell,
         status: OrderStatus.New,
+        submittedAt: new Date(Date.now()),
       }),
     ]);
-    await flushMicrotasks();
+
+    await waitForCondition(
+      () => tradeCtx.getCalls('cancelOrder').length === 1,
+      '[测试] 预期恢复后的超时卖单先发起撤单，但 cancelOrder 未发生',
+    );
     const allocateCallsBeforeTimeoutProcessing = allocateCalls;
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
@@ -1764,37 +1769,43 @@ describe('orderMonitor business flow', () => {
   });
 
   it('runtime 运行中会在买单超时到点后自动推进，无需 quote 或手动轮询', async () => {
-    const { deps, tradeCtx } = createDeps({
-      buyTimeoutSeconds: 0.02,
-      sellTimeoutSeconds: 999,
-    });
-    const monitor = createOrderMonitor(deps);
-    await monitor.initialize();
-    await monitor.recoverOrderTrackingFromSnapshot([]);
-    monitor.startRuntime();
+    const runtimeTimers = createRuntimeTimerHarness(Date.parse('2026-02-25T03:00:00.000Z'));
+    try {
+      const { deps, tradeCtx } = createDeps({
+        buyTimeoutSeconds: 0.02,
+        sellTimeoutSeconds: 999,
+      });
+      const monitor = createOrderMonitor(deps);
+      await monitor.initialize();
+      await monitor.recoverOrderTrackingFromSnapshot([]);
+      monitor.startRuntime();
 
-    monitor.trackOrder({
-      orderId: 'BUY-TIMER-DELAY-1',
-      symbol: 'BULL.HK',
-      side: OrderSide.Buy,
-      price: 1,
-      initialSubmittedPrice: 1,
-      quantity: 100,
-      isLongSymbol: true,
-      monitorSymbol: 'HSI.HK',
-      isProtectiveLiquidation: false,
-      orderType: OrderType.ELO,
-    });
-    await flushMicrotasks();
+      monitor.trackOrder({
+        orderId: 'BUY-TIMER-DELAY-1',
+        symbol: 'BULL.HK',
+        side: OrderSide.Buy,
+        price: 1,
+        initialSubmittedPrice: 1,
+        quantity: 100,
+        isLongSymbol: true,
+        monitorSymbol: 'HSI.HK',
+        isProtectiveLiquidation: false,
+        orderType: OrderType.ELO,
+      });
+      await flushMicrotasks();
 
-    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(0);
+      expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(0);
 
-    await waitForConditionWithDelay(
-      () => tradeCtx.getCalls('cancelOrder').length === 1,
-      '[测试] 预期 timeout timer 到点后自动推进买单，但 cancelOrder 未发生',
-    );
+      await runtimeTimers.advanceBy(25);
+      await waitForCondition(
+        () => tradeCtx.getCalls('cancelOrder').length === 1,
+        '[测试] 预期 timeout timer 到点后自动推进买单，但 cancelOrder 未发生',
+      );
 
-    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+      expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+    } finally {
+      runtimeTimers.restore();
+    }
   });
 
   it('does not submit market sell when timeout cancel returns already-filled (601012)', async () => {

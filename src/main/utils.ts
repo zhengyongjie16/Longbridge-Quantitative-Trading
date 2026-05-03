@@ -2,28 +2,8 @@ import type { Position } from '../types/account.js';
 import type { SymbolRegistry } from '../types/seat.js';
 import type { LastState } from '../types/state.js';
 import type { Trader } from '../types/services.js';
-import { TIME } from '../constants/index.js';
 import { logger } from '../utils/logger/index.js';
 import { formatError } from '../utils/error/index.js';
-
-/**
- * 异步延迟指定毫秒数，无效值时使用 1000ms。
- *
- * @param ms 延迟毫秒数
- * @returns Promise，延迟结束后 resolve
- */
-export async function sleep(ms: number): Promise<void> {
-  if (!Number.isFinite(ms) || ms < 0) {
-    logger.warn(`[sleep] 无效的延迟时间 ${ms}，使用默认值 ${TIME.MILLISECONDS_PER_SECOND}ms`);
-    return new Promise<void>((resolve) => {
-      setTimeout(resolve, TIME.MILLISECONDS_PER_SECOND);
-    });
-  }
-
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
 /**
  * 刷新账户与持仓缓存（仅数据拉取，不做行情订阅）。默认行为：仅当 lastState.cachedAccount 为空时调用

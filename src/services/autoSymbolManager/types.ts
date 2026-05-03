@@ -20,6 +20,7 @@ import type { Logger } from '../../utils/logger/types.js';
 import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
 import type {
   AdvancePendingSwitchResult,
+  PeriodicSwitchPendingState,
   StartSwitchOnDistanceResult,
   SwitchDriveResult,
 } from '../../types/monitorContextPorts.js';
@@ -179,26 +180,6 @@ export type SwitchState = {
  * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 export type PeriodicSeatBlockSource = 'ORDER_RECORDER' | 'LOCAL_PENDING_ORDER' | 'EMPTY';
-
-/**
- * 周期换标阻塞来源（有效阻塞值）。
- * 类型用途：用于表达会阻断周期换标的本地占用来源，不包含 EMPTY。
- * 数据来源：由 resolvePeriodicSeatBlockSource 判定后收窄得到。
- * 使用范围：仅 autoSymbolManager 模块内部使用。
- */
-export type PeriodicSeatBlockingReason = Exclude<PeriodicSeatBlockSource, 'EMPTY'>;
-
-/**
- * 周期换标等待状态。
- * 类型用途：记录周期到期后等待空仓触发换标的状态与最近一次本地阻塞来源。
- * 使用范围：仅 autoSymbolManager 模块内部使用。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- */
-export type PeriodicSwitchPendingState = {
-  readonly pending: boolean;
-  readonly pendingSinceMs: number | null;
-  readonly blockedBy?: PeriodicSeatBlockingReason;
-};
 
 /**
  * 换标流程阶段枚举（内部类型）。

@@ -1,3 +1,4 @@
+import type { PeriodicSwitchWakeupRuntime } from '../../periodicSwitchWakeupRuntime/types.js';
 import type { SwitchWakeupRuntime } from '../../monitorQuoteEventRuntime/types.js';
 import type { MonitorTaskQueue, MonitorTask } from '../monitorTaskQueue/types.js';
 import type { LastState, MonitorContext } from '../../../types/state.js';
@@ -8,25 +9,26 @@ import type { QuoteSubscriptionRuntime } from '../../quoteSubscriptionRuntime/ty
 /**
  * 席位快照（任务创建时点的席位状态）。
  * 类型用途：任务创建时记录席位版本号与标的代码，处理时用于校验席位是否已变更，避免执行过期任务。
- * 数据来源：由 processMonitor 在调度任务时从 symbolRegistry 等获取并写入任务数据。
- * 使用范围：仅 monitorTaskProcessor、processMonitor 内部使用。
+ * 数据来源：由任务 owner 在调度任务时从 symbolRegistry 等获取并写入任务数据。
+ * 使用范围：仅 monitorTaskProcessor 与各任务 owner 内部使用。
  */
 export type SeatSnapshot = Readonly<{
   seatVersion: number;
-  symbol: string | null;
+  symbol: string;
 }>;
 
 /**
  * 自动换标 Tick 任务数据。
- * 类型用途：每秒由主循环触发的监控任务数据，携带入队时席位快照与时间信息；不携带交易时段快照。
- * 数据来源：由 processMonitor 在 AUTO_SYMBOL_TICK 调度时组装并入队。
- * 使用范围：仅 monitorTaskProcessor、processMonitor 内部使用。
+ * 类型用途：周期换标检查任务数据，携带入队时席位快照与时间信息；不携带交易时段快照。
+ * 数据来源：由 PeriodicSwitchWakeupRuntime 基于当前席位 baseline 组装并入队。
+ * 使用范围：仅 monitorTaskProcessor 与周期换标任务 owner 内部使用。
  */
 export type AutoSymbolTickTaskData = Readonly<{
   monitorSymbol: string;
   direction: 'LONG' | 'SHORT';
   seatVersion: number;
-  symbol: string | null;
+  symbol: string;
+  lastSeatActivatedAt: number;
   currentTimeMs: number;
 }>;
 
@@ -50,7 +52,7 @@ export type SeatRefreshTaskData = Readonly<{
  * 监控任务类型到 payload 的映射。
  * 类型用途：表达 task.type 与 task.data 的一一对应关系，确保队列与处理器形成判别联合。
  * 数据来源：由各调度点组装的具体任务数据入队时确定。
- * 使用范围：仅 monitorTaskProcessor、monitorTaskQueue、processMonitor 内部使用。
+ * 使用范围：仅 monitorTaskProcessor、monitorTaskQueue 与各任务 owner 内部使用。
  */
 export type MonitorTaskDataMap = Readonly<{
   AUTO_SYMBOL_TICK: AutoSymbolTickTaskData;
@@ -62,13 +64,14 @@ export type MonitorTaskDataMap = Readonly<{
  * 类型用途：任务处理完成后的结果状态，供 onProcessed 回调使用。
  * 数据来源：由 MonitorTaskProcessor 在处理单任务后根据执行结果设置。
  * 使用范围：仅 monitorTaskProcessor 及注册 onProcessed 的调用方使用，内部使用。
+ * 语义说明：blocked 表示任务本身仍有效，但被当前门禁阻断，后续 owner 仍需继续推进。
  */
-export type MonitorTaskStatus = 'processed' | 'skipped' | 'failed';
+export type MonitorTaskStatus = 'processed' | 'skipped' | 'failed' | 'blocked';
 
 /**
  * 监控任务处理上下文（处理器执行任务时的运行时依赖）。
  * 类型用途：处理器执行监控任务时所需的上下文，含 symbolRegistry、orderRecorder、riskChecker、名称缓存等；由 getMonitorContext(monitorSymbol) 获取。
- * 数据来源：由 timeDriverProgram 的 getMonitorContext 按 monitorSymbol 从 monitorContexts 等组装返回。
+ * 数据来源：由 app runtime 注入的 getMonitorContext 按 monitorSymbol 从 monitorContexts 等组装返回。
  * 使用范围：仅 monitorTaskProcessor 内部使用。
  */
 export type MonitorTaskContext = Pick<
@@ -122,13 +125,17 @@ export type MonitorTaskProcessorDeps = Readonly<{
     'retainSymbols' | 'waitForAdmission' | 'reconcilePositionHoldFromCurrentTruth'
   >;
   switchWakeupRuntime: Pick<SwitchWakeupRuntime, 'handoffPendingSwitch'>;
+  periodicSwitchWakeupRuntime: Pick<
+    PeriodicSwitchWakeupRuntime,
+    'markWaitingEmpty' | 'clearWaitingEmpty' | 'replanRouteAfterTask'
+  >;
   lastState: LastState;
   tradingConfig: MultiMonitorTradingConfig;
 
   /** 生命周期门禁：false 时任务直接跳过 */
   getCanProcessTask?: () => boolean;
 
-  /** 周期换标消费期交易时段门禁 */
+  /** 周期换标消费期普通交易门禁 */
   getCanTradeNow: () => boolean;
   onProcessed?: (task: MonitorTask<MonitorTaskDataMap>, status: MonitorTaskStatus) => void;
 }>;
@@ -136,8 +143,8 @@ export type MonitorTaskProcessorDeps = Readonly<{
 /**
  * MonitorTaskProcessor 行为契约。
  * 类型用途：监控任务处理器的公开接口（start/stopAndDrain/restart），供主程序/ lifecycle 调度。
- * 数据来源：主程序通过工厂创建并持有，任务由 processMonitor 经 monitorTaskQueue 入队。
- * 使用范围：timeDriverProgram、lifecycle、processMonitor 等，仅内部使用。
+ * 数据来源：主程序通过工厂创建并持有，任务由各任务 owner 经 monitorTaskQueue 入队。
+ * 使用范围：app runtime、lifecycle 与任务 owner 等，仅内部使用。
  */
 export interface MonitorTaskProcessor {
   readonly start: () => void;

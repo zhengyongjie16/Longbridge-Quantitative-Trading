@@ -16,8 +16,10 @@ import { createTradingConfig } from '../../../mock/factories/configFactory.js';
 import type { Signal } from '../../../src/types/signal.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { MonitorContext } from '../../../src/types/state.js';
-import type { SignalSeatInfo } from '../../../src/main/processMonitor/types.js';
-import type { SignalPipelineParams } from '../../../src/main/businessEventProgram/types.js';
+import type {
+  SignalPipelineParams,
+  SignalSeatInfo,
+} from '../../../src/main/businessEventProgram/types.js';
 
 import {
   createIndicatorUsageProfileDouble,

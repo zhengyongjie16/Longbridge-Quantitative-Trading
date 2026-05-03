@@ -5,6 +5,7 @@
  * 重试退避、边界（无 pendingOpenRebuild、非交易日、空 domains）
  */
 import { describe, it, expect } from 'bun:test';
+import type { Logger } from '../../../src/utils/logger/types.js';
 import type {
   CacheDomain,
   LifecycleContext,
@@ -30,6 +31,14 @@ function createRuntime(overrides?: Partial<LifecycleRuntimeFlags>): LifecycleRun
     canTradeNow: true,
     isTradingDay: true,
     ...overrides,
+  };
+}
+
+function createSilentLifecycleLogger(): Pick<Logger, 'info' | 'warn' | 'error'> {
+  return {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
   };
 }
 
@@ -186,6 +195,89 @@ describe('createDayLifecycleManager', () => {
       await manager.tick(t1, createRuntime({ dayKey: '2025-02-15' }));
       expect(mutableState.lifecycleState).toBe('MIDNIGHT_CLEANING');
     });
+
+    it('跨失败交易日午夜清理时向 domain 传递 carryover 失效标记', async () => {
+      const mutableState = createMutableState({
+        currentDayKey: '2025-02-17',
+        pendingOpenRebuild: true,
+        lifecycleState: 'OPEN_REBUILD_FAILED',
+        isTradingEnabled: false,
+      });
+      const flags: boolean[] = [];
+      const domains: ReadonlyArray<CacheDomain> = [
+        {
+          midnightClear: (ctx: LifecycleContext) => {
+            flags.push(ctx.invalidateSeatActivationCarryover === true);
+          },
+          openRebuild: () => {},
+        },
+      ];
+      const manager = createDayLifecycleManager({
+        mutableState,
+        cacheDomains: domains,
+        logger: createSilentLifecycleLogger(),
+      });
+
+      await manager.tick(
+        new Date('2025-02-18T00:00:00.000+08:00'),
+        createRuntime({ dayKey: '2025-02-18', isTradingDay: true, canTradeNow: false }),
+      );
+
+      expect(flags).toEqual([true]);
+      expect(mutableState.lifecycleState).toBe('MIDNIGHT_CLEANED');
+      expect(mutableState.pendingOpenRebuild).toBe(true);
+    });
+
+    it('跨失败交易日午夜清理首次失败后，重试时仍保留 carryover 失效标记', async () => {
+      const mutableState = createMutableState({
+        currentDayKey: '2025-02-17',
+        pendingOpenRebuild: true,
+        lifecycleState: 'OPEN_REBUILD_FAILED',
+        isTradingEnabled: false,
+      });
+      let midnightAttemptCount = 0;
+      const flags: boolean[] = [];
+      const domains: ReadonlyArray<CacheDomain> = [
+        {
+          midnightClear: () => {
+            midnightAttemptCount += 1;
+            if (midnightAttemptCount === 1) {
+              throw new Error('fail before seat domain');
+            }
+          },
+          openRebuild: () => {},
+        },
+        {
+          midnightClear: (ctx: LifecycleContext) => {
+            flags.push(ctx.invalidateSeatActivationCarryover === true);
+          },
+          openRebuild: () => {},
+        },
+      ];
+      const manager = createDayLifecycleManager({
+        mutableState,
+        cacheDomains: domains,
+        logger: createSilentLifecycleLogger(),
+        rebuildRetryDelayMs: 1_000,
+      });
+
+      const firstTick = await manager.tick(
+        new Date('2025-02-18T00:00:00.000+08:00'),
+        createRuntime({ dayKey: '2025-02-18', isTradingDay: true, canTradeNow: false }),
+      );
+      expect(firstTick.nextRetryAtMs).toBe(new Date('2025-02-18T00:00:01.000+08:00').getTime());
+      expect(flags).toHaveLength(0);
+      expect(mutableState.lifecycleState).toBe('MIDNIGHT_CLEANING');
+
+      await manager.tick(
+        new Date('2025-02-18T00:00:02.000+08:00'),
+        createRuntime({ dayKey: '2025-02-18', isTradingDay: true, canTradeNow: false }),
+      );
+
+      expect(flags).toEqual([true]);
+      expect(mutableState.lifecycleState).toBe('MIDNIGHT_CLEANED');
+      expect(mutableState.pendingOpenRebuild).toBe(true);
+    });
   });
 
   describe('pendingOpenRebuild 时开盘重建', () => {
@@ -331,6 +423,157 @@ describe('createDayLifecycleManager', () => {
 
       await manager.tick(new Date(Date.now() + 10_000), createRuntime());
       expect(mutableState.lifecycleState).toBe('OPEN_REBUILD_FAILED');
+    });
+
+    it('午夜清理成功进入新周期时清空上一轮开盘重建重试计划', async () => {
+      const mutableState = createMutableState({
+        currentDayKey: '2026-04-29',
+        pendingOpenRebuild: true,
+        lifecycleState: 'MIDNIGHT_CLEANED',
+        targetTradingDayKey: '2026-04-29',
+        isTradingEnabled: false,
+      });
+      const order: string[] = [];
+      let openRebuildCallCount = 0;
+      const domains: ReadonlyArray<CacheDomain> = [
+        {
+          midnightClear: () => {
+            order.push('midnight');
+          },
+          openRebuild: () => {
+            openRebuildCallCount += 1;
+            order.push('open');
+            if (openRebuildCallCount === 1) {
+              throw new Error('open rebuild fail');
+            }
+          },
+        },
+      ];
+      const manager = createDayLifecycleManager({
+        mutableState,
+        cacheDomains: domains,
+        logger: createSilentLifecycleLogger(),
+        rebuildRetryDelayMs: 86_400_000,
+      });
+
+      const failedRebuildResult = await manager.tick(
+        new Date('2026-04-29T15:59:00.000+08:00'),
+        createRuntime({ dayKey: '2026-04-29', isTradingDay: true, canTradeNow: true }),
+      );
+      expect(failedRebuildResult.nextRetryAtMs).toBe(
+        new Date('2026-04-30T15:59:00.000+08:00').getTime(),
+      );
+      expect(mutableState.lifecycleState).toBe('OPEN_REBUILD_FAILED');
+
+      const midnightResult = await manager.tick(
+        new Date('2026-04-30T00:00:00.000+08:00'),
+        createRuntime({ dayKey: '2026-04-30', isTradingDay: true, canTradeNow: false }),
+      );
+      expect(midnightResult.nextRetryAtMs).toBeNull();
+      expect(midnightResult.pendingOpenRebuild).toBe(true);
+      expect(mutableState.lifecycleState).toBe('MIDNIGHT_CLEANED');
+
+      const openResult = await manager.tick(
+        new Date('2026-04-30T09:30:00.000+08:00'),
+        createRuntime({ dayKey: '2026-04-30', isTradingDay: true, canTradeNow: true }),
+      );
+      expect(openResult.nextRetryAtMs).toBeNull();
+      expect(openResult.pendingOpenRebuild).toBe(false);
+      expect(mutableState.lifecycleState).toBe('ACTIVE');
+      expect(mutableState.isTradingEnabled).toBe(true);
+      expect(order).toEqual(['open', 'midnight', 'open']);
+    });
+  });
+
+  describe('tick 返回值', () => {
+    it('午夜清理失败时返回下一次重试时间且不恢复交易门禁', async () => {
+      const mutableState = createMutableState({ currentDayKey: '2026-04-28' });
+      const manager = createDayLifecycleManager({
+        mutableState,
+        rebuildRetryDelayMs: 1_000,
+        cacheDomains: [
+          {
+            midnightClear: () => {
+              throw new Error('clear failed');
+            },
+            openRebuild: () => {},
+          },
+        ],
+        logger: createSilentLifecycleLogger(),
+      });
+
+      const now = new Date('2026-04-29T00:00:00.000+08:00');
+      const result = await manager.tick(now, {
+        dayKey: '2026-04-29',
+        canTradeNow: false,
+        isTradingDay: true,
+      });
+
+      expect(result.nextRetryAtMs).toBe(now.getTime() + 1_000);
+      expect(result.pendingOpenRebuild).toBe(false);
+      expect(mutableState.isTradingEnabled).toBe(false);
+    });
+
+    it('开盘重建失败时返回下一次重试时间', async () => {
+      const mutableState = createMutableState({
+        currentDayKey: '2026-04-29',
+        lifecycleState: 'MIDNIGHT_CLEANED',
+        pendingOpenRebuild: true,
+        targetTradingDayKey: '2026-04-29',
+        isTradingEnabled: false,
+      });
+      const manager = createDayLifecycleManager({
+        mutableState,
+        rebuildRetryDelayMs: 2_000,
+        cacheDomains: [
+          {
+            midnightClear: () => {},
+            openRebuild: () => {
+              throw new Error('rebuild failed');
+            },
+          },
+        ],
+        logger: createSilentLifecycleLogger(),
+      });
+
+      const now = new Date('2026-04-29T09:30:00.000+08:00');
+      const result = await manager.tick(now, {
+        dayKey: '2026-04-29',
+        canTradeNow: true,
+        isTradingDay: true,
+      });
+
+      expect(result.nextRetryAtMs).toBe(now.getTime() + 2_000);
+      expect(result.pendingOpenRebuild).toBe(true);
+      expect(mutableState.lifecycleState).toBe('OPEN_REBUILD_FAILED');
+      expect(mutableState.isTradingEnabled).toBe(false);
+    });
+
+    it('无待重建时收敛到 ACTIVE 并返回无重试计划', async () => {
+      const mutableState = createMutableState({
+        currentDayKey: '2026-04-29',
+        lifecycleState: 'OPEN_REBUILD_FAILED',
+        pendingOpenRebuild: false,
+        targetTradingDayKey: null,
+        isTradingEnabled: false,
+      });
+      const manager = createDayLifecycleManager({
+        mutableState,
+        rebuildRetryDelayMs: 1_000,
+        cacheDomains: [],
+        logger: createSilentLifecycleLogger(),
+      });
+
+      const result = await manager.tick(new Date('2026-04-29T10:00:00.000+08:00'), {
+        dayKey: '2026-04-29',
+        canTradeNow: true,
+        isTradingDay: true,
+      });
+
+      expect(result.nextRetryAtMs).toBeNull();
+      expect(result.pendingOpenRebuild).toBe(false);
+      expect(mutableState.lifecycleState).toBe('ACTIVE');
+      expect(mutableState.isTradingEnabled).toBe(true);
     });
   });
 

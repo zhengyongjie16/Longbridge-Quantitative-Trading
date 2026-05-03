@@ -61,9 +61,9 @@ export type TradingDayInfo = {
 
 /**
  * 本地 K 线缓存快照。
- * 类型用途：主循环消费的应用层 K 线缓存结构，包含版本、最后一根 bar 状态与初始化标记。
+ * 类型用途：业务事件链路消费的应用层 K 线缓存结构，包含版本、最后一根 bar 状态与初始化标记。
  * 数据来源：quoteClient 在 subscribe seed 与 setOnCandlestick push 更新后维护。
- * 使用范围：MarketDataClient.getCandlestickSnapshot 与主循环指标流水线使用。
+ * 使用范围：MarketDataClient.getCandlestickSnapshot 与指标流水线使用。
  */
 export type CandlestickCacheSnapshot = {
   readonly symbol: string;
@@ -170,7 +170,7 @@ export interface MarketQuoteContext {
  * 行情数据客户端接口。
  * 类型用途：依赖注入用接口，封装 Longbridge 行情 API，提供行情获取、订阅、K 线、交易日查询及运行期缓存重置。
  * 数据来源：由 quoteClient 等实现，对接 Longbridge QuoteContext。
- * 使用范围：主程序、生命周期、processMonitor、行情订阅与 K 线消费方等；全项目可引用。
+ * 使用范围：启动装配、生命周期、业务事件链路、行情订阅与 K 线消费方等；全项目可引用。
  */
 export interface MarketDataClient {
   /** 获取轮证查询上下文（内部使用） */
@@ -248,7 +248,7 @@ export interface MarketDataClient {
  * 待处理订单。
  * 类型用途：表示尚未完全成交的订单，用于 getPendingOrders 返回值、订单监控与撤单逻辑。
  * 数据来源：Trader/订单 API 查询结果转换。
- * 使用范围：trader、orderMonitor、主循环等；全项目可引用。
+ * 使用范围：trader、orderMonitor、异步处理器等；全项目可引用。
  */
 export type PendingOrder = {
   readonly orderId: string;
@@ -388,7 +388,7 @@ export type SellableOrderResult = {
  * 交易检查结果。
  * 类型用途：表示当前是否可执行交易及原因，作为 canTradeNow 等频率检查调用的返回值。
  * 数据来源：Trader 内部根据频率限制、门禁等计算。
- * 使用范围：主循环、买卖处理器等；全项目可引用。
+ * 使用范围：交易门禁、买卖处理器等；全项目可引用。
  */
 export type TradeCheckResult = {
   /** 是否可以交易 */
@@ -455,7 +455,7 @@ interface OrderRecorderPendingSellAndSellable {
  * 订单记录器接口。
  * 类型用途：依赖注入用接口，管理买卖订单的本地记录与 API 同步，提供成本价、可卖订单、待成交卖单追踪等。
  * 数据来源：本地记录 + Longbridge 订单 API 同步。
- * 使用范围：Trader、RiskChecker、信号处理、主循环等；全项目可引用。
+ * 使用范围：Trader、RiskChecker、信号处理、异步处理器等；全项目可引用。
  */
 export interface OrderRecorder extends OrderRecorderPendingSellAndSellable {
   /** 记录本地买入订单 */
@@ -621,7 +621,7 @@ export interface PostTradeConsistencyFreshnessPort {
  * 交易器接口。
  * 类型用途：依赖注入用接口，封装 Longbridge 交易 API，提供账户/持仓、订单执行、订单监控与信号执行等。
  * 数据来源：实现层对接 Longbridge TradeContext；账户与订单数据来自 API。
- * 使用范围：主循环、MonitorContext、信号处理、门禁等；全项目可引用。
+ * 使用范围：MonitorContext、信号处理、交易门禁等；全项目可引用。
  */
 export interface Trader {
   /** 订单记录器实例 */
@@ -755,7 +755,7 @@ export type WarrantDistanceLiquidationResult = {
  * 风险检查结果。
  * 类型用途：订单前/牛熊证风险检查的返回值，表示是否允许交易、原因及牛熊证风险信息。
  * 数据来源：RiskChecker.checkBeforeOrder、checkWarrantRisk 等。
- * 使用范围：信号处理、买卖流程、主循环；全项目可引用。
+ * 使用范围：信号处理、买卖流程、风控链路；全项目可引用。
  */
 export type RiskCheckResult = {
   /** 是否允许交易 */
@@ -804,7 +804,7 @@ export type UnrealizedLossData = {
  * 浮亏实时指标。
  * 类型用途：基于浮亏缓存和当前价格计算的实时持仓指标，供行情展示等非清仓场景使用。
  * 数据来源：RiskChecker 读取 UnrealizedLossData 并结合最新价格计算得到。
- * 使用范围：marketMonitor、processMonitor 风险任务等；全项目可引用。
+ * 使用范围：行情展示、风控任务等；全项目可引用。
  */
 export type UnrealizedLossMetrics = {
   /** r1: 调整后的开仓成本 */
@@ -840,8 +840,8 @@ export type UnrealizedLossCheckResult = {
 /**
  * 持仓缓存接口。
  * 类型用途：依赖注入用接口，提供基于标的代码的 O(1) 持仓查找，作为 LastState.positionCache、RiskCheckContext 等类型。
- * 数据来源：由主循环/刷新流程根据 getStockPositions 结果调用 update 维护。
- * 使用范围：LastState、RiskChecker、主循环等；全项目可引用。
+ * 数据来源：由刷新流程根据 getStockPositions 结果调用 update 维护。
+ * 使用范围：LastState、RiskChecker、业务事件链路等；全项目可引用。
  */
 export interface PositionCache {
   /** 更新持仓缓存 */
@@ -865,7 +865,7 @@ interface DoomsdayBuyGuard {
 /**
  * 风险检查上下文。
  * 类型用途：执行信号处理与风控时的完整上下文（交易器、风控器、行情、账户、配置等），作为 processSignal、风控检查的入参。
- * 数据来源：由主循环/processMonitor 根据 MonitorContext 与 LastState 组装传入。
+ * 数据来源：由 businessEventProgram 与异步处理器根据 MonitorContext 与 LastState 组装传入。
  * 使用范围：信号处理、风控检查等；全项目可引用。
  */
 export type RiskCheckContext = {
@@ -932,7 +932,7 @@ export type RiskCheckContext = {
  * 风险检查器接口。
  * 类型用途：依赖注入用接口，门面模式协调牛熊证风险、持仓限制与浮亏检查，供信号处理与买卖流程调用。
  * 数据来源：实现层对接行情与订单记录；牛熊证/浮亏数据由内部缓存与 API 维护。
- * 使用范围：MonitorContext、信号处理、主循环等；全项目可引用。
+ * 使用范围：MonitorContext、信号处理、风控链路等；全项目可引用。
  */
 export interface RiskChecker {
   /** 从透传的回收价设置牛熊证信息（不调用 API） */

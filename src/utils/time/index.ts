@@ -3,7 +3,7 @@ import type {
   TradingCalendarDayInfo,
   TradingDurationBetweenParams,
 } from '../../types/tradingCalendar.js';
-import type { HKTime, SessionRange } from './types.js';
+import type { HKTime, SessionRange, TradingDurationDueAtParams } from './types.js';
 
 /**
  * 解析香港时间各组成部分，供不同格式化函数复用。
@@ -291,6 +291,56 @@ export function calculateTradingDurationMsBetween(params: TradingDurationBetween
   }
 
   return totalMs;
+}
+
+/**
+ * 从起点按交易时段累计时长反推到期时间。
+ *
+ * @param params 起点、目标累计交易时长与交易日历快照
+ * @returns 到期 UTC 毫秒时间戳；快照不足以覆盖目标时返回 null
+ */
+export function calculateTradingDurationDueAtMs(params: TradingDurationDueAtParams): number | null {
+  const { startMs, targetDurationMs, calendarSnapshot } = params;
+  if (!Number.isFinite(startMs) || !Number.isFinite(targetDurationMs) || targetDurationMs <= 0) {
+    return null;
+  }
+
+  let remainingMs = targetDurationMs;
+  let cursorMs = startMs;
+
+  for (;;) {
+    const dayKey = getHKDateKey(new Date(cursorMs));
+    if (dayKey === null) {
+      return null;
+    }
+
+    const dayStartUtcMs = resolveHKDayStartUtcMs(dayKey);
+    const dayInfo = calendarSnapshot.get(dayKey);
+    if (dayStartUtcMs === null || dayInfo === undefined) {
+      return null;
+    }
+
+    const dayEndUtcMs = dayStartUtcMs + TIME.MILLISECONDS_PER_DAY;
+    if (dayInfo.isTradingDay) {
+      const sessionRanges = resolveSessionRangesByDay(dayStartUtcMs, dayInfo);
+      for (const session of sessionRanges) {
+        const segmentStartMs = Math.max(cursorMs, session.startMs);
+        if (segmentStartMs >= session.endMs) {
+          continue;
+        }
+
+        const sessionAvailableMs = session.endMs - segmentStartMs;
+        if (remainingMs <= sessionAvailableMs) {
+          return segmentStartMs + remainingMs;
+        }
+
+        remainingMs -= sessionAvailableMs;
+        cursorMs = session.endMs;
+      }
+    }
+
+    cursorMs = dayEndUtcMs;
+  }
 }
 
 /**

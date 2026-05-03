@@ -5,7 +5,7 @@
  * - 验证普通信号链路席位投影只读取 SymbolRegistry，不清理运行态。
  */
 import { describe, expect, it } from 'bun:test';
-import { resolveSignalSeatInfo } from '../../../src/main/processMonitor/seatProjection.js';
+import { resolveSignalSeatInfo } from '../../../src/main/businessEventProgram/seatProjection.js';
 import { createBuyTaskQueue } from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import {

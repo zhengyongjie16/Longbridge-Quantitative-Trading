@@ -6,7 +6,6 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { scheduleAutoSymbolTasks } from '../../src/main/processMonitor/autoSymbolTasks.js';
 import { createAutoSymbolManager } from '../../src/services/autoSymbolManager/index.js';
 import { createMonitorTaskQueue } from '../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import { createMonitorTaskProcessor } from '../../src/main/asyncProgram/monitorTaskProcessor/index.js';
@@ -17,7 +16,7 @@ import type {
   MonitorTaskDataMap,
   MonitorTaskStatus,
 } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
-import type { MonitorRuntimeContext } from '../../src/main/processMonitor/types.js';
+import type { MonitorTaskQueue } from '../../src/main/asyncProgram/monitorTaskQueue/types.js';
 
 import {
   createMarketDataClientDouble,
@@ -28,6 +27,7 @@ import {
   createSymbolRegistryDouble,
   createTraderDouble,
   createQuoteSubscriptionRuntimeDouble,
+  createPeriodicSwitchWakeupRuntimeDouble,
   createWarrantDistanceInfoDouble,
 } from '../helpers/testDoubles.js';
 import { createWarrantCandidateWithOverrides } from '../services/autoSymbolManager/utils.js';
@@ -62,6 +62,40 @@ async function waitUntil(predicate: () => boolean, timeoutMs: number = 1000): Pr
 
     await Bun.sleep(10);
   }
+}
+
+function schedulePeriodicTick(
+  params: Readonly<{
+    monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
+    monitorContext: MonitorContext;
+    monitorSymbol: string;
+    direction: 'LONG' | 'SHORT';
+    currentTimeMs: number;
+  }>,
+): void {
+  const { monitorTaskQueue, monitorContext, monitorSymbol, direction, currentTimeMs } = params;
+  const seatSnapshot = monitorContext.symbolRegistry.getSeatState(monitorSymbol, direction);
+  if (
+    seatSnapshot.status !== 'ACTIVE' ||
+    seatSnapshot.symbol === null ||
+    seatSnapshot.lastSeatActivatedAt === null
+  ) {
+    return;
+  }
+
+  monitorTaskQueue.scheduleLatest({
+    type: 'AUTO_SYMBOL_TICK',
+    dedupeKey: `${monitorSymbol}:AUTO_SYMBOL_TICK:${direction}`,
+    monitorSymbol,
+    data: {
+      monitorSymbol,
+      direction,
+      seatVersion: monitorContext.symbolRegistry.getSeatVersion(monitorSymbol, direction),
+      symbol: seatSnapshot.symbol,
+      lastSeatActivatedAt: seatSnapshot.lastSeatActivatedAt,
+      currentTimeMs,
+    },
+  });
 }
 
 describe('periodic auto-symbol full chain integration', () => {
@@ -172,10 +206,6 @@ describe('periodic auto-symbol full chain integration', () => {
       shortQuote: null,
       monitorQuote: null,
     } as unknown as MonitorContext;
-    const mainContext = {
-      monitorTaskQueue,
-    } as unknown as MonitorRuntimeContext;
-
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
@@ -186,6 +216,7 @@ describe('periodic auto-symbol full chain integration', () => {
       switchWakeupRuntime: {
         handoffPendingSwitch: () => {},
       },
+      periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeDouble(),
       lastState: createLastState(),
       tradingConfig: {
         monitors: [monitorConfig],
@@ -198,16 +229,24 @@ describe('periodic auto-symbol full chain integration', () => {
 
     processor.start();
     try {
-      scheduleAutoSymbolTasks({
-        monitorSymbol: 'HSI.HK',
+      schedulePeriodicTick({
+        monitorTaskQueue,
         monitorContext,
-        mainContext,
-        autoSearchEnabled: true,
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
         currentTimeMs: currentNowMs,
       });
 
-      await waitUntil(() => statuses.length >= 2);
-      expect(statuses).toEqual(['processed', 'processed']);
+      schedulePeriodicTick({
+        monitorTaskQueue,
+        monitorContext,
+        monitorSymbol: 'HSI.HK',
+        direction: 'SHORT',
+        currentTimeMs: currentNowMs,
+      });
+
+      await waitUntil(() => statuses.length > 0);
+      expect(statuses).toEqual(['processed']);
 
       const seatAfterPeriodicMiss = symbolRegistry.getSeatState('HSI.HK', 'LONG');
       expect(seatAfterPeriodicMiss.status).toBe('EMPTY');
@@ -219,16 +258,23 @@ describe('periodic auto-symbol full chain integration', () => {
       statuses.length = 0;
       currentNowMs += 600_000;
 
-      scheduleAutoSymbolTasks({
-        monitorSymbol: 'HSI.HK',
+      schedulePeriodicTick({
+        monitorTaskQueue,
         monitorContext,
-        mainContext,
-        autoSearchEnabled: true,
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
         currentTimeMs: currentNowMs,
       });
 
-      await waitUntil(() => statuses.length >= 2);
-      expect(statuses).toEqual(['processed', 'processed']);
+      schedulePeriodicTick({
+        monitorTaskQueue,
+        monitorContext,
+        monitorSymbol: 'HSI.HK',
+        direction: 'SHORT',
+        currentTimeMs: currentNowMs,
+      });
+
+      expect(statuses).toEqual([]);
 
       const seatAfterAutoSearch = symbolRegistry.getSeatState('HSI.HK', 'LONG');
       expect(seatAfterAutoSearch.status).toBe('EMPTY');
@@ -346,10 +392,6 @@ describe('periodic auto-symbol full chain integration', () => {
       shortQuote: null,
       monitorQuote: null,
     } as unknown as MonitorContext;
-    const mainContext = {
-      monitorTaskQueue,
-    } as unknown as MonitorRuntimeContext;
-
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
@@ -360,6 +402,7 @@ describe('periodic auto-symbol full chain integration', () => {
       switchWakeupRuntime: {
         handoffPendingSwitch: () => {},
       },
+      periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeDouble(),
       lastState: createLastState(),
       tradingConfig: {
         monitors: [monitorConfig],
@@ -372,16 +415,24 @@ describe('periodic auto-symbol full chain integration', () => {
 
     processor.start();
     try {
-      scheduleAutoSymbolTasks({
-        monitorSymbol: 'HSI.HK',
+      schedulePeriodicTick({
+        monitorTaskQueue,
         monitorContext,
-        mainContext,
-        autoSearchEnabled: true,
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
         currentTimeMs: currentNowMs,
       });
 
-      await waitUntil(() => statuses.length >= 2);
-      expect(statuses).toEqual(['processed', 'processed']);
+      schedulePeriodicTick({
+        monitorTaskQueue,
+        monitorContext,
+        monitorSymbol: 'HSI.HK',
+        direction: 'SHORT',
+        currentTimeMs: currentNowMs,
+      });
+
+      await waitUntil(() => statuses.length > 0);
+      expect(statuses).toEqual(['processed']);
       const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
       expect(seat.status).toBe('ACTIVE');
       expect(seat.symbol).toBe('OLD_BULL.HK');
@@ -497,10 +548,6 @@ describe('periodic auto-symbol full chain integration', () => {
       shortQuote: null,
       monitorQuote: null,
     } as unknown as MonitorContext;
-    const mainContext = {
-      monitorTaskQueue,
-    } as unknown as MonitorRuntimeContext;
-
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
@@ -511,6 +558,7 @@ describe('periodic auto-symbol full chain integration', () => {
       switchWakeupRuntime: {
         handoffPendingSwitch: () => {},
       },
+      periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeDouble(),
       lastState: createLastState(),
       tradingConfig: {
         monitors: [monitorConfig],
@@ -523,16 +571,24 @@ describe('periodic auto-symbol full chain integration', () => {
 
     processor.start();
     try {
-      scheduleAutoSymbolTasks({
-        monitorSymbol: 'HSI.HK',
+      schedulePeriodicTick({
+        monitorTaskQueue,
         monitorContext,
-        mainContext,
-        autoSearchEnabled: true,
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
         currentTimeMs: currentNowMs,
       });
 
-      await waitUntil(() => statuses.length >= 2);
-      expect(statuses).toEqual(['processed', 'processed']);
+      schedulePeriodicTick({
+        monitorTaskQueue,
+        monitorContext,
+        monitorSymbol: 'HSI.HK',
+        direction: 'SHORT',
+        currentTimeMs: currentNowMs,
+      });
+
+      await waitUntil(() => statuses.length > 0);
+      expect(statuses).toEqual(['processed']);
       const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
       expect(seat.status).toBe('ACTIVE');
       expect(seat.symbol).toBe('OLD_BULL.HK');
@@ -648,10 +704,6 @@ describe('periodic auto-symbol full chain integration', () => {
       shortQuote: null,
       monitorQuote: null,
     } as unknown as MonitorContext;
-    const mainContext = {
-      monitorTaskQueue,
-    } as unknown as MonitorRuntimeContext;
-
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
@@ -662,6 +714,7 @@ describe('periodic auto-symbol full chain integration', () => {
       switchWakeupRuntime: {
         handoffPendingSwitch: () => {},
       },
+      periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeDouble(),
       lastState: createLastState(),
       tradingConfig: {
         monitors: [monitorConfig],
@@ -674,32 +727,48 @@ describe('periodic auto-symbol full chain integration', () => {
 
     processor.start();
     try {
-      scheduleAutoSymbolTasks({
-        monitorSymbol: 'HSI.HK',
+      schedulePeriodicTick({
+        monitorTaskQueue,
         monitorContext,
-        mainContext,
-        autoSearchEnabled: true,
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
         currentTimeMs: currentNowMs,
       });
 
-      await waitUntil(() => statuses.length >= 2);
-      expect(statuses).toEqual(['processed', 'processed']);
+      schedulePeriodicTick({
+        monitorTaskQueue,
+        monitorContext,
+        monitorSymbol: 'HSI.HK',
+        direction: 'SHORT',
+        currentTimeMs: currentNowMs,
+      });
+
+      await waitUntil(() => statuses.length > 0);
+      expect(statuses).toEqual(['processed']);
       expect(symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
       expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
 
       statuses.length = 0;
       currentNowMs += 60_000; // Day2 09:31 HK
 
-      scheduleAutoSymbolTasks({
-        monitorSymbol: 'HSI.HK',
+      schedulePeriodicTick({
+        monitorTaskQueue,
         monitorContext,
-        mainContext,
-        autoSearchEnabled: true,
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
         currentTimeMs: currentNowMs,
       });
 
-      await waitUntil(() => statuses.length >= 2);
-      expect(statuses).toEqual(['processed', 'processed']);
+      schedulePeriodicTick({
+        monitorTaskQueue,
+        monitorContext,
+        monitorSymbol: 'HSI.HK',
+        direction: 'SHORT',
+        currentTimeMs: currentNowMs,
+      });
+
+      await waitUntil(() => statuses.length > 0);
+      expect(statuses).toEqual(['processed']);
 
       const switchingSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
       expect(switchingSeat.status).toBe('ACTIVATING');

@@ -315,6 +315,7 @@ export type CreateStaticLiquidationExecutorDeps = Readonly<{
   readonly trader: Pick<Trader, 'executeSignals'>;
   readonly marketDataClient: Pick<MarketDataClient, 'getQuotes'>;
   readonly lastState: Pick<LastState, 'positionCache'>;
+  readonly now: () => Date;
 }>;
 
 /**

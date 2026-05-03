@@ -25,6 +25,7 @@ function createAutoSymbolTickTask(params: {
       direction: params.direction,
       seatVersion: params.seatVersion,
       symbol: `${params.monitorSymbol}:${params.direction}`,
+      lastSeatActivatedAt: params.seatVersion,
       currentTimeMs: params.seatVersion,
     },
   };

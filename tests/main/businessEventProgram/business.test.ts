@@ -38,6 +38,7 @@ import {
   createStrategyDouble,
   createTraderDouble,
   createQuoteSubscriptionRuntimeDouble,
+  createPeriodicSwitchWakeupRuntimeDouble,
 } from '../../helpers/testDoubles.js';
 import { createLastState, waitUntil } from '../asyncProgram/utils.js';
 import { createMonitorTaskProcessor } from '../../../src/main/asyncProgram/monitorTaskProcessor/index.js';
@@ -715,6 +716,7 @@ describe('businessEventProgram business flow', () => {
       switchWakeupRuntime: {
         handoffPendingSwitch: () => {},
       },
+      periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeDouble(),
       lastState,
       tradingConfig,
       getCanTradeNow: () => true,

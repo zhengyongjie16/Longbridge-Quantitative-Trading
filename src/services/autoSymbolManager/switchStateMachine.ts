@@ -22,8 +22,6 @@ import {
 import type {
   AdvancePendingSwitchParams,
   PeriodicSeatBlockSource,
-  PeriodicSeatBlockingReason,
-  PeriodicSwitchPendingState,
   StartSwitchFlowParams,
   StartSwitchOnDistanceParams,
   SwitchProcessParams,
@@ -34,6 +32,8 @@ import type {
 } from './types.js';
 import type {
   AdvancePendingSwitchResult,
+  PeriodicSeatBlockingReason,
+  PeriodicSwitchPendingState,
   StartSwitchOnDistanceResult,
   SwitchDriveResult,
   SwitchWakeupRequirement,

@@ -73,8 +73,8 @@ export async function prewarmTradingCalendarSnapshotForRebuild(
   }
 
   const nowDateKey = getHKDateKey(now);
-  if (nowDateKey && lastState.cachedTradingDayInfo) {
-    nextSnapshot.set(nowDateKey, lastState.cachedTradingDayInfo);
+  if (nowDateKey && lastState.cachedTradingDayInfo?.dateKey === nowDateKey) {
+    nextSnapshot.set(nowDateKey, lastState.cachedTradingDayInfo.info);
   }
 
   lastState.tradingCalendarSnapshot = nextSnapshot;

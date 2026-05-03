@@ -102,7 +102,7 @@ async function loadRunIndicatorPipeline(): Promise<RunIndicatorPipelineFn> {
   return module.runIndicatorPipeline as RunIndicatorPipelineFn;
 }
 
-describe('processMonitor indicatorPipeline business flow', () => {
+describe('businessEventProgram indicatorPipeline business flow', () => {
   it('returns null when local candlestick cache is missing or not initialized', async () => {
     const runIndicatorPipeline = await loadRunIndicatorPipeline();
 

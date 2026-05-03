@@ -5,11 +5,12 @@
  * - 验证订单状态事件可落盘为 trade log
  * - 验证落盘结构可被 tradeLogHydrator 读取并恢复冷却边界
  */
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { TRADING } from '../../../src/constants/index.js';
 import { createTradingConfig, createMonitorConfig } from '../../../mock/factories/configFactory.js';
+import { createPostGateRuntimeFactory } from '../../../src/app/runtime/createPostGateRuntime.js';
 import { createWarrantListCache } from '../../../src/services/autoSymbolFinder/utils.js';
 import { createLiquidationCooldownTracker } from '../../../src/services/liquidationCooldown/index.js';
 import { createTradeLogHydrator } from '../../../src/services/liquidationCooldown/tradeLogHydrator.js';
@@ -24,28 +25,7 @@ import type { CreatePostGateRuntimeParams } from '../../../src/app/types.js';
 import type { OrderStateChangedEvent } from '../../../src/types/services.js';
 
 const TEST_LOG_ROOT_DIR = path.join(process.cwd(), 'tests', 'logs', 'post-gate-runtime');
-let createPostGateRuntimeImportIndex = 0;
 let capturedOrderStateChangedListener: ((event: OrderStateChangedEvent) => void) | null = null;
-
-type CreatePostGateRuntimeFunction = (params: CreatePostGateRuntimeParams) => Promise<unknown>;
-
-type CreatePostGateRuntimeModuleShape = {
-  readonly createPostGateRuntime: CreatePostGateRuntimeFunction;
-};
-
-void mock.module('../../../src/core/trader/index.js', () => ({
-  createTrader: async () =>
-    createTraderDouble({
-      onOrderStateChanged: (listener) => {
-        capturedOrderStateChangedListener = listener;
-        return () => {
-          if (capturedOrderStateChangedListener === listener) {
-            capturedOrderStateChangedListener = null;
-          }
-        };
-      },
-    }),
-}));
 
 function createTestEnv(): NodeJS.ProcessEnv {
   return {
@@ -82,12 +62,20 @@ function createRuntimeParams(): CreatePostGateRuntimeParams {
   };
 }
 
-async function loadCreatePostGateRuntime(): Promise<CreatePostGateRuntimeFunction> {
-  createPostGateRuntimeImportIndex += 1;
-  const loadedModule = (await import(
-    `../../../src/app/runtime/createPostGateRuntime.js?trade-log-test=${createPostGateRuntimeImportIndex}`
-  )) as CreatePostGateRuntimeModuleShape;
-  return loadedModule.createPostGateRuntime;
+function createPostGateRuntimeForTest() {
+  return createPostGateRuntimeFactory({
+    createTrader: async () =>
+      createTraderDouble({
+        onOrderStateChanged: (listener) => {
+          capturedOrderStateChangedListener = listener;
+          return () => {
+            if (capturedOrderStateChangedListener === listener) {
+              capturedOrderStateChangedListener = null;
+            }
+          };
+        },
+      }),
+  });
 }
 
 function requireCapturedOrderStateChangedListener(): (event: OrderStateChangedEvent) => void {
@@ -101,7 +89,7 @@ function requireCapturedOrderStateChangedListener(): (event: OrderStateChangedEv
 async function emitOrderStateChangedThroughPostGateRuntime(
   event: OrderStateChangedEvent,
 ): Promise<void> {
-  const createPostGateRuntime = await loadCreatePostGateRuntime();
+  const createPostGateRuntime = createPostGateRuntimeForTest();
   await createPostGateRuntime(createRuntimeParams());
   requireCapturedOrderStateChangedListener()(event);
 }

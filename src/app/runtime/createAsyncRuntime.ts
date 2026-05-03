@@ -17,6 +17,7 @@ import type { AsyncRuntime, AsyncRuntimeFactoryDeps } from '../types.js';
  * @param params pre-gate runtime 与 post-gate runtime
  * @returns 顶层异步处理器集合
  */
+
 export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntime {
   const { preGateRuntime, postGateRuntime } = params;
   const { tradingConfig, marketDataClient } = preGateRuntime;
@@ -31,12 +32,13 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     sellTaskQueue,
     monitorTaskQueue,
     switchWakeupRuntime,
+    periodicSwitchWakeupRuntime,
     quoteSubscriptionRuntime,
   } = postGateRuntime;
   const canProcessOrdinaryTradeTask = (): boolean =>
     ordinarySignalGuard({
       lastState,
-      now: new Date(),
+      now: new Date(Date.now()),
       doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
     });
 
@@ -46,11 +48,12 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     trader,
     marketDataClient,
     switchWakeupRuntime,
+    periodicSwitchWakeupRuntime,
     quoteSubscriptionRuntime,
     lastState,
     tradingConfig,
     getCanProcessTask: () => lastState.isTradingEnabled,
-    getCanTradeNow: () => lastState.canTrade === true,
+    getCanTradeNow: canProcessOrdinaryTradeTask,
   });
   const buyProcessor = createBuyProcessor({
     taskQueue: buyTaskQueue,

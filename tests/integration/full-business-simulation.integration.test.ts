@@ -6,9 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { createSignalProcessor } from '../../src/core/signalProcessor/index.js';
-import { timeDriverProgram } from '../../src/main/timeDriverProgram/index.js';
-import type { TimeDriverProgramContext } from '../../src/main/timeDriverProgram/types.js';
-import { processMonitor } from '../../src/main/processMonitor/index.js';
+import { timeWakeupEvaluationProgram } from '../../src/main/timeWakeupEvaluationProgram/index.js';
 import { createBusinessEventProgram } from '../../src/main/businessEventProgram/index.js';
 import { createBuyProcessor } from '../../src/main/asyncProgram/buyProcessor/index.js';
 import { createSellProcessor } from '../../src/main/asyncProgram/sellProcessor/index.js';
@@ -27,6 +25,7 @@ import { createSignalRuntimeDomain } from '../../src/main/lifecycle/cacheDomains
 import { createGlobalStateDomain } from '../../src/main/lifecycle/cacheDomains/globalStateDomain.js';
 import { createDefaultMonitorQuoteEventRuntime } from '../../src/main/monitorQuoteEventRuntime/monitorQuoteEventRuntime.js';
 import { createSwitchWakeupRuntime } from '../../src/main/monitorQuoteEventRuntime/switchWakeupRuntime.js';
+import { createPeriodicSwitchWakeupRuntime } from '../../src/main/periodicSwitchWakeupRuntime/index.js';
 import { createQuoteSubscriptionRuntime } from '../../src/main/quoteSubscriptionRuntime/index.js';
 import { createAutoSearchWakeupRuntime } from '../../src/main/autoSearchWakeupRuntime/index.js';
 import { createSeatActivationDispatcher } from '../../src/main/seatActivationDispatcher/index.js';
@@ -44,7 +43,6 @@ import type {
   OrderStateChangedEvent,
   QuoteUpdatedEvent,
 } from '../../src/types/services.js';
-import type { DayLifecycleManager } from '../../src/main/lifecycle/types.js';
 import type { MonitorTaskDataMap } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import {
   createAccountSnapshotDouble,
@@ -55,6 +53,7 @@ import {
   createPositionCacheDouble,
   createPositionDouble,
   createAutoSearchWakeupRuntimeDouble,
+  createPeriodicSwitchWakeupRuntimeDouble,
   createQuoteSubscriptionRuntimeDouble,
   createQuoteDouble,
   createRiskCheckerDouble,
@@ -70,16 +69,6 @@ import { waitUntil } from '../main/asyncProgram/utils.js';
 import { createWarrantCandidateWithOverrides } from '../services/autoSymbolManager/utils.js';
 
 let autoSymbolCandidates: Array<ReturnType<typeof createWarrantCandidateWithOverrides> | null> = [];
-
-function createTimeDriverProgramEventDeps(): Pick<
-  TimeDriverProgramContext,
-  'tradingGateEventRuntime' | 'quoteSubscriptionRuntime'
-> {
-  return {
-    tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
-    quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
-  };
-}
 
 function createCandles(length: number, start: number, step: number): CandleData[] {
   const candles: CandleData[] = [];
@@ -138,12 +127,6 @@ function createNoopUnrealizedLossMonitor(): UnrealizedLossMonitor {
   };
 }
 
-function createNoopDayLifecycleManager(): DayLifecycleManager {
-  return {
-    tick: async () => {},
-  };
-}
-
 function createTradingConfigForMonitor(monitorConfig: MonitorConfig): MultiMonitorTradingConfig {
   const base = createTradingConfig();
   return {
@@ -174,8 +157,11 @@ function createSimulationLastState(params: {
     cachedPositions: params.positions,
     positionCache: createPositionCacheDouble(params.positions),
     cachedTradingDayInfo: {
-      isTradingDay: true,
-      isHalfDay: false,
+      dateKey: params.currentDayKey,
+      info: {
+        isTradingDay: true,
+        isHalfDay: false,
+      },
     },
     monitorStates: new Map([[params.monitorConfig.monitorSymbol, params.monitorState]]),
     allTradingSymbols: new Set<string>(),
@@ -330,6 +316,10 @@ describe('full business simulation integration', () => {
           },
         }),
         hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -691,6 +681,25 @@ describe('full business simulation integration', () => {
         clearTimeout(handle);
       },
     });
+    const periodicSwitchWakeupRuntime = createPeriodicSwitchWakeupRuntime({
+      tradingConfig,
+      monitorContexts,
+      symbolRegistry,
+      monitorTaskQueue,
+      trader,
+      postTradeConsistencyRuntime,
+      tradingGateEventRuntime,
+      calculateDueAtMs: ({ startMs, switchIntervalMinutes }) =>
+        startMs + switchIntervalMinutes * 60_000,
+      taskFailureRetryDelayMs: 1_000,
+      now: runtimeNow,
+      scheduleTimer: (callback, delayMs) => {
+        return setTimeout(callback, delayMs);
+      },
+      clearTimer: (handle) => {
+        clearTimeout(handle);
+      },
+    });
     const seatActivationDispatcher = createSeatActivationDispatcher({
       tradingConfig,
       symbolRegistry,
@@ -703,6 +712,7 @@ describe('full business simulation integration', () => {
       marketDataClient: autoSwitchMarketDataClient,
       quoteSubscriptionRuntime,
       switchWakeupRuntime,
+      periodicSwitchWakeupRuntime,
       lastState,
       tradingConfig,
       getCanProcessTask: () => true,
@@ -761,35 +771,6 @@ describe('full business simulation integration', () => {
       getCanProcessTask: () => lastState.isTradingEnabled,
     });
 
-    const sharedMainCandles = createCandles(120, 200, 0.5);
-    const sharedMainContext = {
-      marketDataClient: createMarketDataClientDouble({
-        getQuotes: autoSwitchMarketDataClient.getQuotes,
-        getCandlestickSnapshot: (symbol) =>
-          symbol === monitorConfig.monitorSymbol
-            ? createCandlestickSnapshot(symbol, sharedMainCandles)
-            : null,
-      }),
-      trader,
-      lastState,
-      marketMonitor: {
-        renderTradingQuote: () => {},
-        renderMonitorIndicators: () => {},
-      },
-      doomsdayProtection: createDoomsdayProtectionDouble(),
-      signalProcessor,
-      tradingConfig,
-      dailyLossTracker: createNoopDailyLossTracker(),
-      monitorContexts,
-      symbolRegistry,
-      indicatorCache,
-      buyTaskQueue,
-      sellTaskQueue,
-      monitorTaskQueue,
-      ...createTimeDriverProgramEventDeps(),
-      dayLifecycleManager: createNoopDayLifecycleManager(),
-    };
-
     function emitMonitorQuoteUpdated(price: number): void {
       quoteUpdatedEvents.emit({
         symbol: monitorConfig.monitorSymbol,
@@ -820,6 +801,7 @@ describe('full business simulation integration', () => {
     quoteSubscriptionRuntime.start();
     seatActivationDispatcher.start();
     autoSearchWakeupRuntime.start();
+    periodicSwitchWakeupRuntime.start();
     switchWakeupRuntime.start();
     monitorQuoteEventRuntime.start();
     try {
@@ -861,11 +843,6 @@ describe('full business simulation integration', () => {
       lastState.cachedPositions = [oldPosition];
       lastState.positionCache.update([oldPosition]);
 
-      processMonitor({
-        context: sharedMainContext,
-        monitorContext,
-        currentTime: new Date('2026-02-16T01:00:01.000Z'),
-      });
       emitMonitorQuoteUpdated(20_010);
       await waitUntil(() => executedActions.length > 0);
 
@@ -918,6 +895,7 @@ describe('full business simulation integration', () => {
         quoteSubscriptionRuntime.stopAndDrain(),
         monitorQuoteEventRuntime.stopAndDrain(),
         switchWakeupRuntime.stopAndDrain(),
+        periodicSwitchWakeupRuntime.stopAndDrain(),
         buyProcessor.stopAndDrain(),
         sellProcessor.stopAndDrain(),
         monitorTaskProcessor.stopAndDrain(),
@@ -1045,6 +1023,10 @@ describe('full business simulation integration', () => {
           },
         }),
         hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -1144,6 +1126,7 @@ describe('full business simulation integration', () => {
       switchWakeupRuntime: {
         handoffPendingSwitch: () => {},
       },
+      periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeDouble(),
       lastState,
       tradingConfig,
       getCanProcessTask: () => lastState.isTradingEnabled,
@@ -1195,6 +1178,7 @@ describe('full business simulation integration', () => {
         start: () => {},
         stopAndDrain: async () => {},
       },
+      periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeDouble(),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       autoSearchWakeupRuntime: createAutoSearchWakeupRuntimeDouble(),
       seatActivationDispatcher: createSeatActivationDispatcherDouble(),
@@ -1281,16 +1265,17 @@ describe('full business simulation integration', () => {
             : null,
       });
 
-      await timeDriverProgram({
+      await timeWakeupEvaluationProgram({
         marketDataClient,
         trader,
         lastState,
         doomsdayProtection: createDoomsdayProtectionDouble(),
         tradingConfig,
         monitorContexts,
-        monitorTaskQueue,
-        ...createTimeDriverProgramEventDeps(),
+        tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+        quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
         dayLifecycleManager,
+        now: () => new Date(Date.now()),
       });
 
       expect(lastState.lifecycleState).toBe('MIDNIGHT_CLEANED');
@@ -1301,16 +1286,17 @@ describe('full business simulation integration', () => {
       expect(cancelAllCalls).toBe(1);
       expect(postTradeStopCount).toBe(1);
 
-      await timeDriverProgram({
+      await timeWakeupEvaluationProgram({
         marketDataClient,
         trader,
         lastState,
         doomsdayProtection: createDoomsdayProtectionDouble(),
         tradingConfig,
         monitorContexts,
-        monitorTaskQueue,
-        ...createTimeDriverProgramEventDeps(),
+        tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+        quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
         dayLifecycleManager,
+        now: () => new Date(Date.now()),
       });
 
       expect(runOpenRebuildCount).toBe(1);

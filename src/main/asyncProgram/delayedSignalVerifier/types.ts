@@ -48,7 +48,7 @@ export type VerificationResult = {
 /**
  * 验证通过回调函数类型。
  * 类型用途：延迟验证通过时由 DelayedSignalVerifier 调用，供调用方将信号推入买卖任务队列。
- * 数据来源：由主程序/processMonitor 通过 onVerified() 注册。
+ * 数据来源：由启动装配通过 onVerified() 注册。
  * 使用范围：delayedSignalVerifier 与调用方之间契约，仅内部使用。
  */
 export type VerifiedCallback = (signal: Signal, monitorSymbol: string) => void;
@@ -56,7 +56,7 @@ export type VerifiedCallback = (signal: Signal, monitorSymbol: string) => void;
 /**
  * DelayedSignalVerifier 依赖配置（创建验证器时的参数）。
  * 类型用途：创建 DelayedSignalVerifier 时的依赖注入对象。
- * 数据来源：由主程序/启动流程组装（indicatorCache）并传入工厂。
+ * 数据来源：由启动装配组装（indicatorCache）并传入工厂。
  * 使用范围：仅创建 DelayedSignalVerifier 的调用方使用，内部使用。
  */
 export type DelayedSignalVerifierDeps = {

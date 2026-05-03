@@ -11,10 +11,21 @@ import type { IndicatorIncrementalRuntime } from './indicatorRuntime.js';
 import type { TradingSignalStrategy } from '../core/strategy/types.js';
 
 /**
+ * LastState 中的交易日信息缓存。
+ * 类型用途：把交易日信息与产生它的 HK 日期绑定，避免 one-shot 时间评估跨日误用陈旧缓存。
+ * 数据来源：启动快照、开盘重建或时间唤醒评估查询交易日 API 后写入。
+ * 使用范围：LastState 交易日门禁、生命周期重建与交易日历预热。
+ */
+type CachedLastStateTradingDayInfo = Readonly<{
+  dateKey: string;
+  info: TradingDayInfo;
+}>;
+
+/**
  * 单个监控标的的运行时状态。
- * 类型用途：承载单监控标的的信号、待延迟验证信号、指标快照等，在主循环中持续更新，作为 MonitorContext.state、LastState.monitorStates 的值类型。
- * 数据来源：主循环/processMonitor 根据行情与策略输出更新。
- * 使用范围：LastState、MonitorContext、主循环、pipeline 等；全项目可引用。
+ * 类型用途：承载单监控标的的信号、待延迟验证信号、指标快照等，在事件驱动信号链路中持续更新，作为 MonitorContext.state、LastState.monitorStates 的值类型。
+ * 数据来源：业务事件链路根据行情与策略输出更新。
+ * 使用范围：LastState、MonitorContext、signal pipeline 等；全项目可引用。
  */
 export type MonitorState = {
   /** 监控标的代码 */
@@ -40,9 +51,9 @@ export type MonitorState = {
 
 /**
  * 系统全局状态。
- * 类型用途：主循环中的共享状态，聚合可交易标志、半日市、账户/持仓缓存、各监控标的状态等，供 processMonitor、门禁、买卖流程等使用。
- * 数据来源：主循环与各子模块（gate、refresh、策略等）共同维护。
- * 使用范围：主循环、MonitorContext、RiskCheckContext、买卖处理器等；全项目可引用。
+ * 类型用途：聚合可交易标志、半日市、账户/持仓缓存、各监控标的状态等，供时间唤醒评估、业务事件链路、异步处理器与生命周期域使用。
+ * 数据来源：启动快照、生命周期域、timeWakeupEvaluationProgram、businessEventProgram 与异步处理器共同维护。
+ * 使用范围：timeWakeupEvaluationProgram、MonitorContext、RiskCheckContext、买卖处理器等；全项目可引用。
  */
 export type LastState = {
   /**
@@ -83,7 +94,7 @@ export type LastState = {
   readonly positionCache: PositionCache;
 
   /** 交易日信息缓存 */
-  cachedTradingDayInfo: TradingDayInfo | null;
+  cachedTradingDayInfo: CachedLastStateTradingDayInfo | null;
 
   /** 交易日历快照（YYYY-MM-DD -> 是否交易日/半日市） */
   tradingCalendarSnapshot?: ReadonlyMap<string, TradingDayInfo>;
@@ -98,8 +109,8 @@ export type LastState = {
 /**
  * 监控标的上下文。
  * 类型用途：聚合单监控标的的配置、运行时状态、注册表、策略、风控与名称缓存等，作为单标的处理流程的入参。
- * 数据来源：主程序/startup 根据配置与 LastState 组装；运行中字段由主循环更新。
- * 使用范围：processMonitor、主循环、买卖处理器、策略等；全项目可引用。
+ * 数据来源：启动装配根据配置与 LastState 组装；运行中字段由业务事件链路、异步处理器与生命周期域更新。
+ * 使用范围：businessEventProgram、异步处理器、买卖处理器、策略等；全项目可引用。
  */
 export type MonitorContext = {
   /** 监控标的配置 */

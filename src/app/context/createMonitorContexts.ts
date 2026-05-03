@@ -23,7 +23,7 @@ const DEFAULT_STRATEGY_FACTORY = createDefaultTradingSignalStrategyFactory();
 
 /**
  * 创建监控标的运行时上下文，从注册表读取席位状态与版本号，从行情 Map 提取标的名称，
- * 并预编译指标画像，避免主循环每 tick 重复解析。
+ * 并预编译指标画像，避免运行期重复解析。
  *
  * @param deps 工厂依赖（config、state、symbolRegistry、quotesMap、strategy、orderRecorder 等）
  * @returns 该监控标的的 MonitorContext 实例

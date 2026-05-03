@@ -84,15 +84,6 @@ describe('type organization regressions', () => {
         forbiddenPatterns: [/\btype\s+TradingRiskQuoteEvent\s*=\s*QuoteUpdatedEvent\b/],
       },
       {
-        relativePath: 'tests/integration/main-loop-latency.integration.test.ts',
-        forbiddenPatterns: [
-          /\btype\s+DelayedApiMethod\b/,
-          /\btype\s+ApiCallEvent\b/,
-          /\btype\s+IterationMetric\b/,
-          /\btype\s+MultiMonitorSeatEntry\b/,
-        ],
-      },
-      {
         relativePath: 'tests/main/asyncProgram/monitorTaskProcessor/business.test.ts',
         forbiddenPatterns: [
           /\btype\s+MonitorTaskQueueForTest\b/,
@@ -111,14 +102,6 @@ describe('type organization regressions', () => {
       {
         relativePath: 'tests/core/trader/orderMonitor.business.test.ts',
         forbiddenPatterns: [/\btype\s+ReplaceOrderPayload\b/, /\btype\s+RecordLocalSellCall\b/],
-      },
-      {
-        relativePath: 'tests/integration/main-program-strict.integration.test.ts',
-        forbiddenPatterns: [/\btype\s+MainProgramFn\b/],
-      },
-      {
-        relativePath: 'tests/integration/multi-monitor-concurrency.integration.test.ts',
-        forbiddenPatterns: [/\btype\s+MainProgramFn\b/],
       },
     ];
 

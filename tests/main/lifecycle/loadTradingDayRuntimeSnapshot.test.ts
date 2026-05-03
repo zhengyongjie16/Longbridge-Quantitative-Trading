@@ -324,7 +324,10 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       },
     });
     const blockedLastState = createMinimalLastState();
-    blockedLastState.cachedTradingDayInfo = { isTradingDay: true, isHalfDay: false };
+    blockedLastState.cachedTradingDayInfo = {
+      dateKey: '2026-02-16',
+      info: { isTradingDay: true, isHalfDay: false },
+    };
     const blockedDeps = createBaseDeps({
       lastState: blockedLastState,
       tradingConfig,
@@ -344,7 +347,10 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     expect(quoteContext.getCalls('warrantList')).toHaveLength(0);
 
     const allowedLastState = createMinimalLastState();
-    allowedLastState.cachedTradingDayInfo = { isTradingDay: true, isHalfDay: false };
+    allowedLastState.cachedTradingDayInfo = {
+      dateKey: '2026-02-16',
+      info: { isTradingDay: true, isHalfDay: false },
+    };
     const allowedDeps = createBaseDeps({
       lastState: allowedLastState,
       tradingConfig,

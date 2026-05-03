@@ -12,7 +12,7 @@
  *          MIDNIGHT_CLEANING                     OPEN_REBUILD_FAILED
  *
  * 执行机制：
- * - 由外部每秒调用 tick()，传入当前时间和运行时标志
+ * - 由时间唤醒评估按交易日与交易门禁边界推进 tick()
  * - 午夜清理：按注册顺序依次执行各 CacheDomain 的 midnightClear
  * - 开盘重建：按注册逆序依次执行各 CacheDomain 的 openRebuild
  * - 失败自动重试：指数退避策略，不吞错
@@ -23,6 +23,7 @@ import type {
   CacheDomain,
   DayLifecycleManager,
   DayLifecycleManagerDeps,
+  DayLifecycleTickResult,
   LifecycleContext,
   LifecycleMutableState,
   LifecycleRuntimeFlags,
@@ -41,10 +42,15 @@ function shouldRunMidnightClear(
 }
 
 /** 构造传递给各 CacheDomain 的生命周期上下文 */
-function buildLifecycleContext(now: Date, runtime: LifecycleRuntimeFlags): LifecycleContext {
+function buildLifecycleContext(
+  now: Date,
+  runtime: LifecycleRuntimeFlags,
+  invalidateSeatActivationCarryover: boolean = false,
+): LifecycleContext {
   return {
     now,
     runtime,
+    invalidateSeatActivationCarryover,
   };
 }
 
@@ -83,7 +89,7 @@ function resolveRetryDelayMs(baseDelayMs: number, rebuildFailureCount: number): 
 }
 
 /**
- * 创建交易日生命周期管理器。对外暴露 tick(now, runtime)，由主循环每秒调用；
+ * 创建交易日生命周期管理器。对外暴露 tick(now, runtime)，由时间唤醒评估按边界推进；
  * 内部根据 dayKey 变化执行午夜清理（各 CacheDomain.midnightClear），再在开盘后执行开盘重建（各 CacheDomain.openRebuild），
  * 失败时指数退避重试，不吞错。用于跨日状态重置与开盘状态恢复。
  *
@@ -101,26 +107,41 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
   let nextRetryAtMs: number | null = null;
   let midnightClearFailureCount = 0;
   let nextMidnightRetryAtMs: number | null = null;
+  let invalidateSeatActivationCarryoverOnMidnightClear = false;
+
+  function buildTickResult(): DayLifecycleTickResult {
+    return {
+      nextRetryAtMs: nextMidnightRetryAtMs ?? nextRetryAtMs,
+      pendingOpenRebuild: mutableState.pendingOpenRebuild,
+    };
+  }
 
   /**
-   * 每秒由外部驱动的生命周期主循环。
+   * 由时间唤醒评估驱动的生命周期推进。
    * 按优先级依次处理：跨日午夜清理 → 等待开盘重建 → 恢复交易门禁。
    * 任一阶段失败均记录错误并进入指数退避重试，不吞错。
    */
-  async function tick(now: Date, runtime: LifecycleRuntimeFlags): Promise<void> {
+  async function tick(now: Date, runtime: LifecycleRuntimeFlags): Promise<DayLifecycleTickResult> {
     if (shouldRunMidnightClear(runtime, mutableState)) {
+      invalidateSeatActivationCarryoverOnMidnightClear =
+        invalidateSeatActivationCarryoverOnMidnightClear ||
+        mutableState.lifecycleState === 'OPEN_REBUILD_FAILED';
       mutableState.isTradingEnabled = false;
       mutableState.lifecycleState = 'MIDNIGHT_CLEANING';
       const nowMs = now.getTime();
       if (nextMidnightRetryAtMs !== null && nowMs < nextMidnightRetryAtMs) {
-        return;
+        return buildTickResult();
       }
 
       logger.info(
         `[Lifecycle] 检测到跨日: ${runtime.dayKey ?? 'unknown'}` +
           (midnightClearFailureCount > 0 ? `，第 ${midnightClearFailureCount + 1} 次重试` : ''),
       );
-      const midnightContext = buildLifecycleContext(now, runtime);
+      const midnightContext = buildLifecycleContext(
+        now,
+        runtime,
+        invalidateSeatActivationCarryoverOnMidnightClear,
+      );
       try {
         await runMidnightClearForDomains(cacheDomains, midnightContext);
         mutableState.currentDayKey = runtime.dayKey ?? mutableState.currentDayKey;
@@ -129,6 +150,9 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
         mutableState.targetTradingDayKey = runtime.dayKey;
         midnightClearFailureCount = 0;
         nextMidnightRetryAtMs = null;
+        invalidateSeatActivationCarryoverOnMidnightClear = false;
+        rebuildFailureCount = 0;
+        nextRetryAtMs = null;
         logger.info('[Lifecycle] 已完成午夜清理，等待开盘重建');
       } catch (err) {
         midnightClearFailureCount += 1;
@@ -140,23 +164,23 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
         );
       }
 
-      return;
+      return buildTickResult();
     }
 
     if (!mutableState.pendingOpenRebuild) {
       mutableState.lifecycleState = 'ACTIVE';
       mutableState.isTradingEnabled = true;
-      return;
+      return buildTickResult();
     }
 
     mutableState.isTradingEnabled = false;
     if (!runtime.isTradingDay || !runtime.canTradeNow) {
-      return;
+      return buildTickResult();
     }
 
     const nowMs = now.getTime();
     if (nextRetryAtMs !== null && nowMs < nextRetryAtMs) {
-      return;
+      return buildTickResult();
     }
 
     mutableState.lifecycleState = 'OPEN_REBUILDING';
@@ -182,6 +206,8 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
         formatError(err),
       );
     }
+
+    return buildTickResult();
   }
   return {
     tick,

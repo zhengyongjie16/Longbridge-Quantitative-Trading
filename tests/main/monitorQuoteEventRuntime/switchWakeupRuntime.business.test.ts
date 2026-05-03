@@ -372,6 +372,10 @@ describe('switchWakeupRuntime', () => {
           }
         },
         hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -565,6 +569,10 @@ describe('switchWakeupRuntime', () => {
               };
             },
             hasPendingSwitch: () => true,
+            getPeriodicSwitchPendingState: () => ({
+              pending: false,
+              pendingSinceMs: null,
+            }),
             resetAllState: () => {},
           },
         }),
@@ -592,6 +600,10 @@ describe('switchWakeupRuntime', () => {
               };
             },
             hasPendingSwitch: () => true,
+            getPeriodicSwitchPendingState: () => ({
+              pending: false,
+              pendingSinceMs: null,
+            }),
             resetAllState: () => {},
           },
         }),
@@ -675,6 +687,10 @@ describe('switchWakeupRuntime', () => {
           };
         },
         hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -795,6 +811,10 @@ describe('switchWakeupRuntime', () => {
           };
         },
         hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -852,6 +872,10 @@ describe('switchWakeupRuntime', () => {
           };
         },
         hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -900,6 +924,10 @@ describe('switchWakeupRuntime', () => {
           };
         },
         hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -987,6 +1015,10 @@ describe('switchWakeupRuntime', () => {
               };
             },
             hasPendingSwitch: () => true,
+            getPeriodicSwitchPendingState: () => ({
+              pending: false,
+              pendingSinceMs: null,
+            }),
             resetAllState: () => {},
           },
         }),
@@ -1014,6 +1046,10 @@ describe('switchWakeupRuntime', () => {
               };
             },
             hasPendingSwitch: () => true,
+            getPeriodicSwitchPendingState: () => ({
+              pending: false,
+              pendingSinceMs: null,
+            }),
             resetAllState: () => {},
           },
         }),
@@ -1084,6 +1120,10 @@ describe('switchWakeupRuntime', () => {
           };
         },
         hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -1148,6 +1188,10 @@ describe('switchWakeupRuntime', () => {
           };
         },
         hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -1207,6 +1251,10 @@ describe('switchWakeupRuntime', () => {
           };
         },
         hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -1270,6 +1318,10 @@ describe('switchWakeupRuntime', () => {
           };
         },
         hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });
@@ -1338,6 +1390,10 @@ describe('switchWakeupRuntime', () => {
           };
         },
         hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
         resetAllState: () => {},
       },
     });

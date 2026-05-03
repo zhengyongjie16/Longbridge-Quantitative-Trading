@@ -46,6 +46,7 @@ export type DoomsdayClearanceContext = {
 export type DoomsdayClearanceResult = {
   readonly executed: boolean;
   readonly signalCount: number;
+  readonly nextRetryAtMs: number | null;
 };
 
 /**

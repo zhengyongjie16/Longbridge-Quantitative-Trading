@@ -2,7 +2,7 @@
  * 信号运行时缓存域（CacheDomain: signalRuntime）
  *
  * 午夜清理：
- * - 先终止 freshness 等待，随后停止普通 K 线业务 owner、交易标的风险 runtime、monitor quote runtime、switch wakeup runtime、自动寻标 runtime 与激活 dispatcher
+ * - 先终止 freshness 等待，随后停止普通 K 线业务 owner、交易标的风险 runtime、monitor quote runtime、switch wakeup runtime、周期换标 runtime、自动寻标 runtime 与激活 dispatcher
  * - 再排空监控处理器并停止席位退场清理 owner，随后排空买卖处理器，最后停止订单监控 runtime、订阅 owner 与成交后一致性 runtime
  * - 清空交易任务队列（买入/卖出/监控）
  * - 取消所有延迟验证信号
@@ -11,7 +11,7 @@
  *
  * 开盘重建：
  * - 先启动成交后一致性 runtime，并完成 rebuild baseline
- * - 先执行订阅首轮真相投影，再启动订阅 owner、激活 dispatcher 与自动寻标 runtime
+ * - 先执行订阅首轮真相投影，再启动订阅 owner、激活 dispatcher、自动寻标 runtime 与周期换标 runtime
  * - 再启动普通 K 线业务 owner、交易标的风险 runtime、monitor quote runtime 与 switch wakeup runtime
  * - 再重启买入、卖出、监控任务处理器
  */
@@ -61,7 +61,7 @@ function cancelAllDelayedSignals(monitorContexts: ReadonlyMap<string, MonitorCon
 
 /**
  * 创建信号运行时缓存域。
- * 午夜清理时先中断 freshness 等待并停止上游事件 owner，再排空监控处理器并停止席位退场清理 owner，随后排空买卖处理器，最后停止订单监控、订阅 owner 与成交后一致性 runtime、清空任务队列并执行跨日清理；开盘重建时先恢复 runtime baseline 和订阅投影，再启动事件 owner 与处理器。
+ * 午夜清理时先中断 freshness 等待并停止上游事件 owner，再排空监控处理器并停止席位退场清理 owner，随后排空买卖处理器，最后停止订单监控、订阅 owner 与成交后一致性 runtime、清空任务队列并执行跨日清理；开盘重建时先恢复 runtime baseline 和订阅投影，再启动事件 owner、周期换标 runtime 与处理器。
  *
  * @param deps 依赖注入，包含各处理器、队列与 postTradeConsistencyRuntime 等
  * @returns 实现 CacheDomain 的信号运行时域实例
@@ -78,6 +78,7 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
     monitorDisplayRuntime,
     tradingQuoteDisplayRuntime,
     switchWakeupRuntime,
+    periodicSwitchWakeupRuntime,
     quoteSubscriptionRuntime,
     autoSearchWakeupRuntime,
     seatActivationDispatcher,
@@ -99,6 +100,7 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
       await monitorDisplayRuntime.stopAndDrain();
       await tradingQuoteDisplayRuntime.stopAndDrain();
       await switchWakeupRuntime.stopAndDrain();
+      await periodicSwitchWakeupRuntime.stopAndDrain();
       await autoSearchWakeupRuntime.stopAndDrain();
       seatActivationDispatcher.stop();
       await monitorTaskProcessor.stopAndDrain();
@@ -133,6 +135,7 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
       seatRuntimeCleanupDispatcher.start();
       seatActivationDispatcher.start();
       autoSearchWakeupRuntime.start();
+      periodicSwitchWakeupRuntime.start();
       monitorDisplayRuntime.start();
       businessEventProgram.start();
       tradingRiskEventRuntime.start();

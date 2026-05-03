@@ -64,6 +64,7 @@ import type { ProtectiveLiquidationEpisodeTracker } from '../../src/core/trader/
 import type { QuoteSubscriptionRuntime } from '../../src/main/quoteSubscriptionRuntime/types.js';
 import type { TradingGateEventRuntime } from '../../src/main/tradingGateEventRuntime/types.js';
 import type { AutoSearchWakeupRuntime } from '../../src/main/autoSearchWakeupRuntime/types.js';
+import type { PeriodicSwitchWakeupRuntime } from '../../src/main/periodicSwitchWakeupRuntime/types.js';
 import type { SeatActivationDispatcher } from '../../src/main/seatActivationDispatcher/types.js';
 import type { SeatRuntimeCleanupDispatcher } from '../../src/main/seatRuntimeCleanupDispatcher/types.js';
 import { toMockDecimal } from '../../mock/longbridge/decimal.js';
@@ -400,6 +401,10 @@ export function createAutoSymbolManagerDouble(
       },
     }),
     hasPendingSwitch: () => false,
+    getPeriodicSwitchPendingState: () => ({
+      pending: false,
+      pendingSinceMs: null,
+    }),
     resetAllState: () => {},
   };
 
@@ -436,7 +441,7 @@ export function createQuoteSubscriptionRuntimeDouble(
 /**
  * 创建 TradingGateEventRuntime 测试替身。
  *
- * 默认发布与订阅均为空实现，供 timeDriverProgram 与 app wiring 测试注入。
+ * 默认发布与订阅均为空实现，供 time wakeup evaluation 与 app wiring 测试注入。
  */
 export function createTradingGateEventRuntimeDouble(
   overrides: Partial<TradingGateEventRuntime> = {},
@@ -463,6 +468,28 @@ export function createAutoSearchWakeupRuntimeDouble(
   const base: AutoSearchWakeupRuntime = {
     start: () => {},
     stopAndDrain: async () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 PeriodicSwitchWakeupRuntime 测试替身。
+ *
+ * 默认无副作用，供 app、lifecycle 与 monitor task 测试验证调用顺序。
+ */
+export function createPeriodicSwitchWakeupRuntimeDouble(
+  overrides: Partial<PeriodicSwitchWakeupRuntime> = {},
+): PeriodicSwitchWakeupRuntime {
+  const base: PeriodicSwitchWakeupRuntime = {
+    start: () => {},
+    stopAndDrain: async () => {},
+    markWaitingEmpty: () => {},
+    clearWaitingEmpty: () => {},
+    replanRouteAfterTask: () => {},
   };
 
   return {
@@ -680,6 +707,7 @@ export function createDoomsdayProtectionDouble(
     ): Promise<DoomsdayClearanceResult> => ({
       executed: false,
       signalCount: 0,
+      nextRetryAtMs: null,
     }),
     cancelPendingBuyOrders: async (
       _context: CancelPendingBuyOrdersContext,

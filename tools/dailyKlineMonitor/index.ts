@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import { AdjustType, Period, QuoteContext, TradeSessions } from 'longbridge';
 import { createSdkConfigFromAuth } from '../../src/config/auth/index.js';
 import { buildIndicatorSnapshot } from './runtimeSnapshot.js';
-import { sleep } from '../../src/main/utils.js';
+import { sleep } from '../utils.js';
 import { decimalToNumber } from '../../src/utils/helpers/index.js';
 import type { CandleData } from '../../src/types/data.js';
 import type { IndicatorUsageProfile } from '../../src/types/indicatorProfile.js';

@@ -3,7 +3,7 @@
  *
  * 功能：
  * - 消费 MonitorTaskQueue 中的监控任务
- * - 使用 setImmediate 异步执行，不阻塞主循环
+ * - 使用 setImmediate 异步执行，不阻塞队列调度
  * - 处理自动寻标与席位刷新任务
  *
  * 支持的任务类型：
@@ -22,6 +22,7 @@ import { createAutoSymbolHandlers } from './handlers/autoSymbol.js';
 import { createSeatRefreshHandler } from './handlers/seatRefresh.js';
 import type { MonitorTask } from '../monitorTaskQueue/types.js';
 import { formatError } from '../../../utils/error/index.js';
+import type { PeriodicSwitchRouteBaseline } from '../../periodicSwitchWakeupRuntime/types.js';
 import type {
   MonitorTaskContext,
   MonitorTaskDataMap,
@@ -40,6 +41,19 @@ function assertNeverTask(_task: never): never {
   throw new Error('[MonitorTaskProcessor] 存在未处理的任务分派分支');
 }
 
+function buildPeriodicBaseline(
+  task: MonitorTask<MonitorTaskDataMap, 'AUTO_SYMBOL_TICK'>,
+): PeriodicSwitchRouteBaseline {
+  const data = task.data;
+  return {
+    monitorSymbol: data.monitorSymbol,
+    direction: data.direction,
+    symbol: data.symbol,
+    seatVersion: data.seatVersion,
+    lastSeatActivatedAt: data.lastSeatActivatedAt,
+  };
+}
+
 /**
  * 创建监控任务处理器。
  * 消费 MonitorTaskQueue 中的任务，使用 setImmediate 异步执行；依赖 getMonitorContext 与各 handler 完成席位校验与刷新。
@@ -55,6 +69,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     marketDataClient,
     quoteSubscriptionRuntime,
     switchWakeupRuntime,
+    periodicSwitchWakeupRuntime,
     lastState,
     tradingConfig,
     getCanProcessTask,
@@ -75,6 +90,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
   const { handleAutoSymbolTick } = createAutoSymbolHandlers({
     getContextOrSkip,
     switchWakeupRuntime,
+    periodicSwitchWakeupRuntime,
     getCanTradeNow,
   });
   const handleSeatRefresh = createSeatRefreshHandler({
@@ -83,6 +99,23 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     marketDataClient,
     quoteSubscriptionRuntime,
   });
+
+  function handoffPeriodicTaskOutcome(
+    task: MonitorTask<MonitorTaskDataMap>,
+    status: MonitorTaskStatus,
+  ): void {
+    if (task.type !== 'AUTO_SYMBOL_TICK' || status === 'processed') {
+      return;
+    }
+
+    const baseline = buildPeriodicBaseline(task);
+    periodicSwitchWakeupRuntime.replanRouteAfterTask({
+      ...baseline,
+      taskTimeMs: task.data.currentTimeMs,
+      status,
+    });
+  }
+
   async function processTask(
     task: MonitorTask<MonitorTaskDataMap>,
     helpers: RefreshHelpers,
@@ -115,6 +148,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
         logger.debug(
           `[MonitorTaskProcessor] 任务跳过：生命周期门禁关闭 type=${task.type} monitor=${task.monitorSymbol} dedupe=${task.dedupeKey}`,
         );
+        handoffPeriodicTaskOutcome(task, 'skipped');
         onProcessed?.(task, 'skipped');
         continue;
       }
@@ -127,6 +161,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
         return 'failed' as const;
       });
 
+      handoffPeriodicTaskOutcome(task, status);
       onProcessed?.(task, status);
     }
   }

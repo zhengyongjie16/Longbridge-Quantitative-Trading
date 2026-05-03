@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 
+import { ORDER_QUOTE_RETRY } from '../../../src/constants/index.js';
 import { createStaticLiquidationExecutor } from '../../../src/main/monitorQuoteEventRuntime/staticLiquidationExecutor.js';
 import { createMonitorConfig } from '../../../mock/factories/configFactory.js';
 import {
@@ -20,6 +21,12 @@ import {
   createTraderDouble,
 } from '../../helpers/testDoubles.js';
 
+const EXECUTION_TIME_ISO = '2026-04-08T10:00:00+08:00';
+const EXECUTION_TIME_MS = new Date(EXECUTION_TIME_ISO).getTime();
+const WAIT_RESOLVED_TIME_MS = EXECUTION_TIME_MS + 750;
+const EXPECTED_RETRY_AT_MS = EXECUTION_TIME_MS + ORDER_QUOTE_RETRY.INTERVAL_MS;
+const EXPECTED_WAIT_RESOLVED_RETRY_AT_MS = WAIT_RESOLVED_TIME_MS + ORDER_QUOTE_RETRY.INTERVAL_MS;
+
 function createExecutorHarness(
   params: {
     readonly executeSignalsSubmittedCount?: number;
@@ -30,12 +37,15 @@ function createExecutorHarness(
     readonly longQuoteAvailable?: boolean;
     readonly monitorQuoteAvailable?: boolean;
     readonly executionMonitorPrice?: number;
+    readonly waitResolvedTimeMs?: number;
   } = {},
 ) {
   const submittedActions: string[] = [];
+  const submittedTriggerTimes: number[] = [];
   const liquidationMonitorPrices: number[] = [];
   let clearedOrders = 0;
   let refreshUnrealizedCalls = 0;
+  let currentNowMs = EXECUTION_TIME_MS;
 
   const orderRecorder = createOrderRecorderDouble({
     clearBuyOrders: () => {
@@ -127,6 +137,9 @@ function createExecutorHarness(
     executeSignals: async (signals) => {
       for (const signal of signals) {
         submittedActions.push(signal.action);
+        if (signal.triggerTime instanceof Date) {
+          submittedTriggerTimes.push(signal.triggerTime.getTime());
+        }
       }
 
       if (params.bumpLongSeatVersionAfterSubmission) {
@@ -143,8 +156,12 @@ function createExecutorHarness(
   const executor = createStaticLiquidationExecutor({
     trader,
     marketDataClient: createMarketDataClientDouble({
-      getQuotes: async () =>
-        new Map([
+      getQuotes: async () => {
+        if (params.waitResolvedTimeMs !== undefined) {
+          currentNowMs = params.waitResolvedTimeMs;
+        }
+
+        return new Map([
           [
             'HSI.HK',
             params.monitorQuoteAvailable === false
@@ -156,7 +173,8 @@ function createExecutorHarness(
             params.longQuoteAvailable === false ? null : createQuoteDouble('BULL.HK', 1, 100),
           ],
           ['BEAR.HK', createQuoteDouble('BEAR.HK', 1, 100)],
-        ]),
+        ]);
+      },
     }),
     lastState: {
       positionCache: {
@@ -174,12 +192,14 @@ function createExecutorHarness(
         },
       },
     },
+    now: () => new Date(currentNowMs),
   });
 
   return {
     executor,
     monitorContext,
     submittedActions,
+    getSubmittedTriggerTimes: () => [...submittedTriggerTimes],
     getLiquidationMonitorPrices: () => [...liquidationMonitorPrices],
     getClearedOrders: () => clearedOrders,
     getRefreshUnrealizedCalls: () => refreshUnrealizedCalls,
@@ -204,6 +224,7 @@ describe('staticLiquidationExecutor', () => {
     expect(result).toEqual({ kind: 'COMPLETED' });
     expect(harness.getLiquidationMonitorPrices()).toEqual([19_500]);
     expect(harness.submittedActions).toEqual(['SELLCALL']);
+    expect(harness.getSubmittedTriggerTimes()).toEqual([EXECUTION_TIME_MS]);
     expect(harness.getClearedOrders()).toBe(1);
     expect(harness.getRefreshUnrealizedCalls()).toBe(1);
   });
@@ -228,10 +249,33 @@ describe('staticLiquidationExecutor', () => {
     }
 
     expect(result.wakeupSymbols).toEqual(['HSI.HK', 'BULL.HK', 'BEAR.HK']);
-    expect(typeof result.retryAtMs).toBe('number');
+    expect(result.retryAtMs).toBe(EXPECTED_RETRY_AT_MS);
     expect(harness.submittedActions).toEqual([]);
     expect(harness.getClearedOrders()).toBe(0);
     expect(harness.getRefreshUnrealizedCalls()).toBe(0);
+  });
+
+  it('anchors WAIT retry time to when the wait decision finishes instead of execution start', async () => {
+    const harness = createExecutorHarness({
+      monitorQuoteAvailable: false,
+      waitResolvedTimeMs: WAIT_RESOLVED_TIME_MS,
+    });
+
+    const result = await harness.executor({
+      monitorContext: harness.monitorContext,
+      event: {
+        symbol: 'HSI.HK',
+        quote: createQuoteDouble('HSI.HK', 20_000, 100),
+      },
+      retryAttempts: 0,
+    });
+
+    expect(result.kind).toBe('WAIT');
+    if (result.kind !== 'WAIT') {
+      throw new Error('result should be WAIT');
+    }
+
+    expect(result.retryAtMs).toBe(EXPECTED_WAIT_RESOLVED_RETRY_AT_MS);
   });
 
   it('returns WAIT with monitor and trading wakeup symbols when long trading quote is unavailable', async () => {
@@ -254,7 +298,7 @@ describe('staticLiquidationExecutor', () => {
     }
 
     expect(result.wakeupSymbols).toEqual(['HSI.HK', 'BULL.HK', 'BEAR.HK']);
-    expect(typeof result.retryAtMs).toBe('number');
+    expect(result.retryAtMs).toBe(EXPECTED_RETRY_AT_MS);
     expect(harness.submittedActions).toEqual([]);
     expect(harness.getClearedOrders()).toBe(0);
     expect(harness.getRefreshUnrealizedCalls()).toBe(0);

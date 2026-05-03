@@ -93,6 +93,26 @@ export type AdvancePendingSwitchResult =
     }>;
 
 /**
+ * 周期换标阻塞来源（有效阻塞值）。
+ * 类型用途：用于表达会阻断周期换标的本地占用来源。
+ * 数据来源：由 autoSymbolManager 周期换标入口基于订单归属和本地在途订单判定。
+ * 使用范围：MonitorContext 行为端口、autoSymbolManager 与监控任务处理器。
+ */
+export type PeriodicSeatBlockingReason = 'ORDER_RECORDER' | 'LOCAL_PENDING_ORDER';
+
+/**
+ * 周期换标等待状态。
+ * 类型用途：记录周期到期后是否仍在等待空仓以及阻塞来源。
+ * 数据来源：由 autoSymbolManager 周期换标状态机维护。
+ * 使用范围：MonitorContext 行为端口、autoSymbolManager 与监控任务处理器。
+ */
+export type PeriodicSwitchPendingState = Readonly<{
+  pending: boolean;
+  pendingSinceMs: number | null;
+  blockedBy?: PeriodicSeatBlockingReason;
+}>;
+
+/**
  * 自动换标管理器行为契约。
  * 类型用途：约束 MonitorContext.autoSymbolManager 的可调用方法。
  * 数据来源：由 autoSymbolManager 模块实现并注入。
@@ -119,6 +139,7 @@ export interface AutoSymbolManagerPort {
     readonly positions: ReadonlyArray<Position>;
   }) => Promise<AdvancePendingSwitchResult>;
   hasPendingSwitch: (direction: 'LONG' | 'SHORT') => boolean;
+  getPeriodicSwitchPendingState: (direction: 'LONG' | 'SHORT') => PeriodicSwitchPendingState;
   resetAllState: () => void;
 }
 

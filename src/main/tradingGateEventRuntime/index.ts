@@ -2,9 +2,11 @@
  * TradingGateEventRuntime
  *
  * 职责：
- * - 将主循环已有连续交易门禁状态变化转为显式事件
+ * - 将时间唤醒评估产生的连续交易门禁变化转为显式事件
  * - 为自动寻标事件 owner 提供 gate-open 唤醒来源
  */
+import { formatError } from '../../utils/error/index.js';
+import { logger } from '../../utils/logger/index.js';
 import type { TradingGateEventRuntime, TradingGateStateChangedEvent } from './types.js';
 
 /**
@@ -17,7 +19,11 @@ export function createTradingGateEventRuntime(): TradingGateEventRuntime {
 
   function emitGateStateChanged(event: TradingGateStateChangedEvent): void {
     for (const listener of listeners) {
-      listener(event);
+      try {
+        listener(event);
+      } catch (error) {
+        logger.error('[TradingGateEventRuntime] gate state listener 执行失败', formatError(error));
+      }
     }
   }
 

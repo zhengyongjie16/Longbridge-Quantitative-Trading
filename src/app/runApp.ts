@@ -9,9 +9,9 @@
 import { validateRuntimeSymbolsFromQuotesMap } from '../config/validator/index.js';
 import { createBusinessEventProgram } from '../main/businessEventProgram/index.js';
 import { createRebuildTradingDayState } from '../main/lifecycle/rebuildTradingDayState.js';
-import { timeDriverProgram } from '../main/timeDriverProgram/index.js';
+import { timeWakeupEvaluationProgram } from '../main/timeWakeupEvaluationProgram/index.js';
+import { createTimeWakeupRuntime } from '../main/timeWakeupRuntime/index.js';
 import { applyStartupSnapshotFailureState } from '../main/lifecycle/startupFailureState.js';
-import { sleep } from '../main/utils.js';
 import { displayAccountAndPositions } from '../services/accountDisplay/index.js';
 import { logger } from '../utils/logger/index.js';
 import { formatError } from '../utils/error/index.js';
@@ -27,6 +27,19 @@ import { createPostGateRuntime } from './runtime/createPostGateRuntime.js';
 import { createPreGateRuntime } from './runtime/createPreGateRuntime.js';
 import type { AppEnvironmentParams, RunAppDeps } from './types.js';
 
+function waitForShutdownSignal(): Promise<void> {
+  return new Promise((resolve) => {
+    const handleShutdown = (): void => {
+      process.off('SIGINT', handleShutdown);
+      process.off('SIGTERM', handleShutdown);
+      resolve();
+    };
+
+    process.once('SIGINT', handleShutdown);
+    process.once('SIGTERM', handleShutdown);
+  });
+}
+
 const DEFAULT_RUN_APP_DEPS: RunAppDeps = {
   createPreGateRuntime,
   createPostGateRuntime,
@@ -40,8 +53,8 @@ const DEFAULT_RUN_APP_DEPS: RunAppDeps = {
   createAsyncRuntime,
   createLifecycleRuntime,
   createCleanup,
-  timeDriverProgram,
-  sleep,
+  createTimeWakeupRuntime,
+  waitForShutdownSignal,
   logger,
   formatError,
   validateRuntimeSymbolsFromQuotesMap,
@@ -65,7 +78,7 @@ function buildAppRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 /**
  * 创建 app 主入口。
  *
- * @param deps app 组装链路依赖；生产环境使用默认依赖，测试可注入受控替身
+ * @param deps app 组装链路依赖
  * @returns runApp 函数
  */
 export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) => Promise<void> {
@@ -82,8 +95,8 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
     createAsyncRuntime: buildAsyncRuntime,
     createLifecycleRuntime: buildLifecycleRuntime,
     createCleanup: buildCleanup,
-    timeDriverProgram: runTimeDriverProgram,
-    sleep: waitForNextTick,
+    createTimeWakeupRuntime: buildTimeWakeupRuntime,
+    waitForShutdownSignal: waitForShutdown,
     logger: appLogger,
     formatError: formatAppError,
     validateRuntimeSymbolsFromQuotesMap: validateRuntimeSymbols,
@@ -196,6 +209,28 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       doomsdayProtectionEnabled: preGateRuntime.tradingConfig.global.doomsdayProtection,
     });
 
+    const timeWakeupRuntime = buildTimeWakeupRuntime({
+      evaluate: () =>
+        timeWakeupEvaluationProgram({
+          marketDataClient: preGateRuntime.marketDataClient,
+          trader: postGateRuntime.trader,
+          lastState: postGateRuntime.lastState,
+          doomsdayProtection: postGateRuntime.doomsdayProtection,
+          tradingConfig: preGateRuntime.tradingConfig,
+          monitorContexts: postGateRuntime.monitorContexts,
+          tradingGateEventRuntime: postGateRuntime.tradingGateEventRuntime,
+          quoteSubscriptionRuntime: postGateRuntime.quoteSubscriptionRuntime,
+          dayLifecycleManager,
+        }),
+      now: () => new Date(Date.now()),
+      scheduleTimer: (callback, delayMs) => setTimeout(callback, delayMs),
+      clearTimer: (handle) => {
+        clearTimeout(handle);
+      },
+      recoveryRetryDelayMs: TRADING.INTERVAL_MS,
+      logger: appLogger,
+    });
+
     const cleanup = buildCleanup({
       buyProcessor: asyncRuntime.buyProcessor,
       sellProcessor: asyncRuntime.sellProcessor,
@@ -212,12 +247,13 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       seatRuntimeCleanupDispatcher: postGateRuntime.seatRuntimeCleanupDispatcher,
       quoteSubscriptionRuntime: postGateRuntime.quoteSubscriptionRuntime,
       postTradeConsistencyRuntime: postGateRuntime.postTradeConsistencyRuntime,
+      periodicSwitchWakeupRuntime: postGateRuntime.periodicSwitchWakeupRuntime,
+      timeWakeupRuntime,
       marketDataClient: preGateRuntime.marketDataClient,
       monitorContexts: postGateRuntime.monitorContexts,
       indicatorCache: postGateRuntime.indicatorCache,
       lastState: postGateRuntime.lastState,
     });
-    cleanup.registerExitHandlers();
 
     let initialRebuildSucceeded = false;
     if (startupSnapshot.startupRebuildPending) {
@@ -248,6 +284,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       postGateRuntime.seatRuntimeCleanupDispatcher.start();
       postGateRuntime.seatActivationDispatcher.start();
       postGateRuntime.autoSearchWakeupRuntime.start();
+      postGateRuntime.periodicSwitchWakeupRuntime.start();
       postGateRuntime.monitorDisplayRuntime.start();
       businessEventProgram.start();
       postGateRuntime.tradingRiskEventRuntime.start();
@@ -259,30 +296,10 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       postGateRuntime.trader.startOrderMonitorRuntime();
     }
 
+    timeWakeupRuntime.start();
     appLogger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
-    for (;;) {
-      const loopStartTimeMs = Date.now();
-      try {
-        await runTimeDriverProgram({
-          marketDataClient: preGateRuntime.marketDataClient,
-          trader: postGateRuntime.trader,
-          lastState: postGateRuntime.lastState,
-          doomsdayProtection: postGateRuntime.doomsdayProtection,
-          tradingConfig: preGateRuntime.tradingConfig,
-          monitorContexts: postGateRuntime.monitorContexts,
-          monitorTaskQueue: postGateRuntime.monitorTaskQueue,
-          tradingGateEventRuntime: postGateRuntime.tradingGateEventRuntime,
-          quoteSubscriptionRuntime: postGateRuntime.quoteSubscriptionRuntime,
-          dayLifecycleManager,
-        });
-      } catch (err) {
-        appLogger.error('本次执行失败', formatAppError(err));
-      }
-
-      const elapsedMs = Date.now() - loopStartTimeMs;
-      const remainingWaitMs = Math.max(0, TRADING.INTERVAL_MS - elapsedMs);
-      await waitForNextTick(remainingWaitMs);
-    }
+    await waitForShutdown();
+    await cleanup.execute();
   };
 }
 
@@ -290,6 +307,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
  * 运行应用主入口。
  *
  * @param params 当前环境变量
- * @returns 永不返回；除初始化失败外会持续驱动主循环
+ * @returns 启动运行时后等待 shutdown；初始化失败或 cleanup 聚合错误会抛出
  */
 export const runApp = createRunApp(DEFAULT_RUN_APP_DEPS);
