@@ -149,7 +149,11 @@ export function createAutoSymbolHandlers({
     const isSnapshotValid = isSeatSnapshotValid(
       data.monitorSymbol,
       data.direction,
-      { seatVersion: data.seatVersion, symbol: data.symbol },
+      {
+        seatVersion: data.seatVersion,
+        symbol: data.symbol,
+        lastSeatActivatedAt: data.lastSeatActivatedAt,
+      },
       context,
     );
     if (!isSnapshotValid) {

@@ -103,6 +103,9 @@ export type PeriodicSwitchRouteState = {
 
   /** 当前 waiting-empty baseline */
   waitingEmpty: PeriodicSwitchRouteBaseline | null;
+
+  /** 已 fail-fast 终止的 baseline，直到席位 baseline 变化前不再重派 */
+  failedBaseline: PeriodicSwitchRouteBaseline | null;
 };
 
 /**
@@ -139,9 +142,6 @@ export type PeriodicSwitchWakeupRuntimeDeps = Readonly<{
 
   /** 周期换标到期时间计算 */
   calculateDueAtMs: (params: PeriodicSwitchDueCalculationParams) => number | null;
-
-  /** 任务异常失败后的恢复重试间隔（毫秒） */
-  taskFailureRetryDelayMs: number;
 
   /** 当前时间 */
   now: () => Date;

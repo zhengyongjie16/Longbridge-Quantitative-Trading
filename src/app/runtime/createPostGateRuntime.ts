@@ -8,14 +8,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  INDICATOR_CACHE,
-  LOGGING,
-  PERIODIC_SWITCH_WAKEUP,
-  TIME,
-  TRADING,
-  VERIFICATION,
-} from '../../constants/index.js';
+import { INDICATOR_CACHE, LOGGING, TIME, TRADING, VERIFICATION } from '../../constants/index.js';
 import { createTrader } from '../../core/trader/index.js';
 import { createOrderFilteringEngine } from '../../core/orderRecorder/orderFilteringEngine.js';
 import { classifyAndConvertOrders } from '../../core/orderRecorder/utils.js';
@@ -462,7 +455,6 @@ export function createPostGateRuntimeFactory(
           targetDurationMs: switchIntervalMinutes * TIME.MILLISECONDS_PER_MINUTE,
           calendarSnapshot: lastState.tradingCalendarSnapshot ?? new Map(),
         }),
-      taskFailureRetryDelayMs: PERIODIC_SWITCH_WAKEUP.TASK_FAILURE_RETRY_DELAY_MS,
       now: () => new Date(),
       scheduleTimer: (callback, delayMs) => {
         return setTimeout(callback, delayMs);

@@ -50,7 +50,7 @@ function resolveNextRouteGeneration(runtime: OrderMonitorRuntimeStore, symbol: s
  * @param routeState 单 symbol route state
  * @returns 无返回值
  */
-function clearRouteTimers(routeState: OrderMonitorSymbolRouteState): void {
+export function clearRouteTimers(routeState: OrderMonitorSymbolRouteState): void {
   for (const timerRegistration of routeState.timerHandles.values()) {
     clearTimeout(timerRegistration.handle);
   }

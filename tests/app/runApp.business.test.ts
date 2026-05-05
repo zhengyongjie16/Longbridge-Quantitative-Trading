@@ -45,12 +45,15 @@ import {
   createTradingGateEventRuntimeDouble,
 } from '../helpers/testDoubles.js';
 
-let currentScenario: 'startupRebuildPending' | 'initialRebuildFails' = 'startupRebuildPending';
+type RunAppScenario = 'startupRebuildPending' | 'initialRebuildFails' | 'initialRebuildSucceeds';
+
+let currentScenario: RunAppScenario = 'startupRebuildPending';
 let startupFailureApplyCount = 0;
 let rebuildCallCount = 0;
 let timeWakeupStartCount = 0;
 let cleanupExecuteCount = 0;
 let steadyRuntimeStarts: string[] = [];
+let runtimeStartSteps: string[] = [];
 
 type RunAppFunction = (params: AppEnvironmentParams) => Promise<void>;
 
@@ -76,10 +79,15 @@ function createMinimalLastState(): LastState {
   };
 }
 
+function recordSteadyRuntimeStart(name: string): void {
+  steadyRuntimeStarts.push(name);
+  runtimeStartSteps.push(name);
+}
+
 function createStartRecorder(name: string): { readonly start: () => void } {
   return {
     start: () => {
-      steadyRuntimeStarts.push(name);
+      recordSteadyRuntimeStart(name);
     },
   };
 }
@@ -90,7 +98,7 @@ function createStartStopRecorder(name: string): {
 } {
   return {
     start: () => {
-      steadyRuntimeStarts.push(name);
+      recordSteadyRuntimeStart(name);
     },
     stopAndDrain: async () => {},
   };
@@ -162,15 +170,15 @@ function createMockPostGateRuntime(lastState: LastState): MutableMonitorContexts
 
   const quoteSubscriptionRuntime = createQuoteSubscriptionRuntimeDouble({
     reconcileFromCurrentTruth: async () => {
-      steadyRuntimeStarts.push('quoteSubscriptionRuntime.reconcileFromCurrentTruth');
+      recordSteadyRuntimeStart('quoteSubscriptionRuntime.reconcileFromCurrentTruth');
     },
     start: () => {
-      steadyRuntimeStarts.push('quoteSubscriptionRuntime.start');
+      recordSteadyRuntimeStart('quoteSubscriptionRuntime.start');
     },
   });
   const trader = createTraderDouble({
     startOrderMonitorRuntime: () => {
-      steadyRuntimeStarts.push('trader.startOrderMonitorRuntime');
+      recordSteadyRuntimeStart('trader.startOrderMonitorRuntime');
     },
   });
 
@@ -185,22 +193,22 @@ function createMockPostGateRuntime(lastState: LastState): MutableMonitorContexts
     quoteSubscriptionRuntime,
     seatActivationDispatcher: createSeatActivationDispatcherDouble({
       start: () => {
-        steadyRuntimeStarts.push('seatActivationDispatcher.start');
+        recordSteadyRuntimeStart('seatActivationDispatcher.start');
       },
     }),
     seatRuntimeCleanupDispatcher: createSeatRuntimeCleanupDispatcherDouble({
       start: () => {
-        steadyRuntimeStarts.push('seatRuntimeCleanupDispatcher.start');
+        recordSteadyRuntimeStart('seatRuntimeCleanupDispatcher.start');
       },
     }),
     autoSearchWakeupRuntime: createAutoSearchWakeupRuntimeDouble({
       start: () => {
-        steadyRuntimeStarts.push('autoSearchWakeupRuntime.start');
+        recordSteadyRuntimeStart('autoSearchWakeupRuntime.start');
       },
     }),
     periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeDouble({
       start: () => {
-        steadyRuntimeStarts.push('periodicSwitchWakeupRuntime.start');
+        recordSteadyRuntimeStart('periodicSwitchWakeupRuntime.start');
       },
     }),
     tradingRiskEventRuntime: createStartStopRecorder('tradingRiskEventRuntime.start'),
@@ -222,10 +230,10 @@ function createMockPostGateRuntime(lastState: LastState): MutableMonitorContexts
       onFreshReached: () => noop,
       abortWaiting: () => {},
       start: () => {
-        steadyRuntimeStarts.push('postTradeConsistencyRuntime.start');
+        recordSteadyRuntimeStart('postTradeConsistencyRuntime.start');
       },
       completeRebuildBaseline: () => {
-        steadyRuntimeStarts.push('postTradeConsistencyRuntime.completeRebuildBaseline');
+        recordSteadyRuntimeStart('postTradeConsistencyRuntime.completeRebuildBaseline');
       },
       stopAndDrain: async () => {},
     },
@@ -324,8 +332,11 @@ function createRunAppHarness(): {
       },
     }),
     createTimeWakeupRuntime: () => ({
-      start: () => {
+      start: async () => {
         timeWakeupStartCount += 1;
+        runtimeStartSteps.push('timeWakeupRuntime.start.begin');
+        await Promise.resolve();
+        runtimeStartSteps.push('timeWakeupRuntime.start.end');
       },
       requestEvaluate: () => {},
       stopAndDrain: async () => {},
@@ -384,6 +395,7 @@ describe('runApp business flow', () => {
     timeWakeupStartCount = 0;
     cleanupExecuteCount = 0;
     steadyRuntimeStarts = [];
+    runtimeStartSteps = [];
   });
 
   it('starts only time wakeup runtime when startup snapshot stays pending open rebuild', async () => {
@@ -410,5 +422,19 @@ describe('runApp business flow', () => {
     expect(timeWakeupStartCount).toBe(1);
     expect(cleanupExecuteCount).toBe(1);
     expect(steadyRuntimeStarts).toEqual([]);
+  });
+
+  it('awaits initial time wakeup evaluation before starting ordinary K line business events', async () => {
+    currentScenario = 'initialRebuildSucceeds';
+    const harness = createRunAppHarness();
+
+    await runAppAndTriggerShutdown(harness.runApp, harness.triggerShutdown);
+
+    const timeWakeupEvaluatedIndex = runtimeStartSteps.indexOf('timeWakeupRuntime.start.end');
+    const businessEventStartIndex = runtimeStartSteps.indexOf('businessEventProgram.start');
+    expect(timeWakeupStartCount).toBe(1);
+    expect(timeWakeupEvaluatedIndex).toBeGreaterThan(-1);
+    expect(businessEventStartIndex).toBeGreaterThan(timeWakeupEvaluatedIndex);
+    expect(runtimeStartSteps).toContain('trader.startOrderMonitorRuntime');
   });
 });

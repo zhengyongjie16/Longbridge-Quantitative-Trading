@@ -44,7 +44,7 @@ export type TimeWakeupRuntimeDeps<TTimerHandle = TimeWakeupTimerHandle> = Readon
  * 使用范围：app 装配、shutdown cleanup 与显式时间重评估触发点。
  */
 export interface TimeWakeupRuntime {
-  readonly start: () => void;
+  readonly start: () => Promise<void>;
   readonly requestEvaluate: () => void;
   readonly stopAndDrain: () => Promise<void>;
   readonly getStateSnapshot: () => TimeWakeupRuntimeStateSnapshot;

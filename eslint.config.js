@@ -388,9 +388,21 @@ export default defineConfig(
     },
   },
   {
-    files: ['tests/**/*.ts'],
+    files: ['src/**/*.ts'],
     rules: {
-      // 测试文件统一放宽部分规则，减少测试实现噪音
+      'unicorn/consistent-function-scoping': [
+        'error',
+        {
+          checkArrowFunctions: true,
+        },
+      ],
+    },
+  },
+  {
+    files: ['tests/**/*.ts', 'tools/**/*.ts'],
+    rules: {
+      // 测试和工具文件统一放宽部分规则，减少实现噪音
+      'unicorn/consistent-function-scoping': 'off',
       'local/no-import-alias': 'off',
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-floating-promises': 'off',

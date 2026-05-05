@@ -40,6 +40,13 @@ function isValidSeatVersion(seatVersion: number): boolean {
   return Number.isSafeInteger(seatVersion) && seatVersion > 0;
 }
 
+function isFailedBaseline(
+  state: PeriodicSwitchRouteState,
+  baseline: PeriodicSwitchRouteBaseline,
+): boolean {
+  return state.failedBaseline !== null && baselineMatches(state.failedBaseline, baseline);
+}
+
 function getPeriodicSwitchDirections(): ReadonlyArray<PeriodicSwitchDirection> {
   return ['LONG', 'SHORT'];
 }
@@ -71,6 +78,7 @@ export function createPeriodicSwitchWakeupRuntime(
       baseline: null,
       timerHandle: null,
       waitingEmpty: null,
+      failedBaseline: null,
     };
     routeStates.set(routeKey, nextState);
     return nextState;
@@ -165,6 +173,7 @@ export function createPeriodicSwitchWakeupRuntime(
     if (baselineChanged) {
       clearRouteTimer(route);
       state.waitingEmpty = null;
+      state.failedBaseline = null;
     }
 
     state.baseline = nextBaseline;
@@ -183,6 +192,10 @@ export function createPeriodicSwitchWakeupRuntime(
     const baseline = readCurrentBaseline(route);
     const state = invalidateRouteIfBaselineChanged(route, baseline);
     if (baseline === null || state.waitingEmpty !== null) {
+      return;
+    }
+
+    if (isFailedBaseline(state, baseline)) {
       return;
     }
 
@@ -208,7 +221,11 @@ export function createPeriodicSwitchWakeupRuntime(
     }
 
     clearRouteTimer(route);
-    state.timerHandle = deps.scheduleTimer(() => {
+    const timerHandle = deps.scheduleTimer(() => {
+      if (state.timerHandle !== timerHandle) {
+        return;
+      }
+
       state.timerHandle = null;
       if (!running) {
         return;
@@ -219,6 +236,7 @@ export function createPeriodicSwitchWakeupRuntime(
         dispatchAutoSymbolTick(baseline);
       }
     }, dueAtMs - nowMs);
+    state.timerHandle = timerHandle;
   }
 
   function seedRoutes(): void {
@@ -283,27 +301,13 @@ export function createPeriodicSwitchWakeupRuntime(
     }
 
     const state = getRouteState(baseline);
+    if (isFailedBaseline(state, baseline)) {
+      return;
+    }
+
     clearRouteTimer(baseline);
     state.baseline = baseline;
     state.waitingEmpty = baseline;
-  }
-
-  function scheduleTaskFailureRetry(baseline: PeriodicSwitchRouteBaseline): void {
-    const state = getRouteState(baseline);
-    clearRouteTimer(baseline);
-    state.baseline = baseline;
-    state.waitingEmpty = null;
-    state.timerHandle = deps.scheduleTimer(() => {
-      state.timerHandle = null;
-      if (!running) {
-        return;
-      }
-
-      const currentBaseline = readCurrentBaseline(baseline);
-      if (currentBaseline !== null && baselineMatches(currentBaseline, baseline)) {
-        dispatchAutoSymbolTick(baseline);
-      }
-    }, deps.taskFailureRetryDelayMs);
   }
 
   function clearWaitingEmpty(baseline: PeriodicSwitchRouteBaseline): void {
@@ -313,7 +317,11 @@ export function createPeriodicSwitchWakeupRuntime(
     }
 
     const state = routeStates.get(buildRouteKey(baseline));
-    if (state !== undefined && state.waitingEmpty !== null) {
+    if (state === undefined || isFailedBaseline(state, baseline)) {
+      return;
+    }
+
+    if (state.waitingEmpty !== null) {
       state.waitingEmpty = null;
     }
   }
@@ -335,10 +343,11 @@ export function createPeriodicSwitchWakeupRuntime(
     const currentBaseline = readCurrentBaseline(baseline);
     if (currentBaseline === null || !baselineMatches(currentBaseline, baseline)) {
       const state = routeStates.get(buildRouteKey(baseline));
+      const stateBaseline = state?.baseline;
       if (
-        state?.baseline !== null &&
-        state !== undefined &&
-        baselineMatches(state.baseline, baseline)
+        stateBaseline !== undefined &&
+        stateBaseline !== null &&
+        baselineMatches(stateBaseline, baseline)
       ) {
         clearRouteTimer(baseline);
         routeStates.delete(buildRouteKey(baseline));
@@ -348,8 +357,7 @@ export function createPeriodicSwitchWakeupRuntime(
     }
 
     const state = invalidateRouteIfBaselineChanged(baseline, currentBaseline);
-    if (params.status === 'failed') {
-      scheduleTaskFailureRetry(baseline);
+    if (params.status !== 'failed' && isFailedBaseline(state, baseline)) {
       return;
     }
 
@@ -358,6 +366,15 @@ export function createPeriodicSwitchWakeupRuntime(
       state.waitingEmpty = null;
       return;
     }
+
+    if (params.status === 'failed') {
+      clearRouteTimer(baseline);
+      state.waitingEmpty = null;
+      state.failedBaseline = baseline;
+      return;
+    }
+
+    state.failedBaseline = null;
 
     if (state.waitingEmpty !== null && baselineMatches(state.waitingEmpty, baseline)) {
       return;
@@ -373,7 +390,12 @@ export function createPeriodicSwitchWakeupRuntime(
       startMs: baseline.lastSeatActivatedAt,
       switchIntervalMinutes,
     });
-    if (dueAtMs === null || dueAtMs <= params.taskTimeMs) {
+    if (dueAtMs === null) {
+      clearRouteTimer(baseline);
+      return;
+    }
+
+    if (dueAtMs <= params.taskTimeMs) {
       clearRouteTimer(baseline);
       return;
     }

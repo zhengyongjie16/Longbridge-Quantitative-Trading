@@ -123,19 +123,17 @@ bun start
 
 ### 5. 常用命令
 
-| 命令                   | 说明                               |
-| ---------------------- | ---------------------------------- |
-| `bun start`            | 启动正式运行                       |
-| `bun dev`              | 开发模式启动（默认仍执行门禁检查） |
-| `bun dev:watch`        | 开发监听                           |
-| `bun build`            | 构建 TypeScript                    |
-| `bun test`             | 运行测试                           |
-| `bun type-check`       | 执行类型检查                       |
-| `bun lint`             | 执行 ESLint 检查                   |
-| `bun format`           | 执行 Prettier + ESLint 自动修复    |
-| `bun clean`            | 清理构建产物                       |
-| `bun sonarqube`        | 运行 SonarQube 分析                |
-| `bun sonarqube:report` | 获取 SonarQube 报告                |
+| 命令             | 说明                               |
+| ---------------- | ---------------------------------- |
+| `bun start`      | 启动正式运行                       |
+| `bun dev`        | 开发模式启动（默认仍执行门禁检查） |
+| `bun dev:watch`  | 开发监听                           |
+| `bun build`      | 构建 TypeScript                    |
+| `bun test`       | 运行测试                           |
+| `bun type-check` | 执行类型检查                       |
+| `bun lint`       | 执行 ESLint 检查                   |
+| `bun format`     | 执行 Prettier + ESLint 自动修复    |
+| `bun clean`      | 清理构建产物                       |
 
 ## 配置说明
 

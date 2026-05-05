@@ -23,6 +23,29 @@ import {
 } from './utils.js';
 
 /**
+ * 校验信号携带的席位版本是否与执行时席位版本一致。
+ * 仅当信号携带有限 seatVersion 时启用该校验；未携带 seatVersion 的信号沿用原流程。
+ *
+ * @param signal 信号对象
+ * @param currentSeatVersion 当前席位版本号
+ * @returns true 表示通过校验，false 表示应跳过
+ */
+function validateSignalSeatVersionAtExecution(signal: Signal, currentSeatVersion: number): boolean {
+  if (!Number.isFinite(signal.seatVersion)) {
+    return true;
+  }
+
+  if (!isSeatVersionMatch(signal.seatVersion, currentSeatVersion)) {
+    logger.debug(
+      `[执行门禁] 席位版本不匹配，跳过信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`,
+    );
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * 创建订单执行器（核心业务流程：信号执行与订单提交）。
  *
  * @param deps 依赖注入（ctx、rateLimiter、cacheManager、orderMonitor、orderRecorder、tradingConfig、symbolRegistry、isExecutionAllowed）
@@ -69,32 +92,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       isShortSymbol: resolvedSeat.direction === 'SHORT',
       seatVersion: resolvedSeat.seatVersion,
     };
-  }
-
-  /**
-   * 校验信号携带的席位版本是否与执行时席位版本一致。
-   * 仅当信号携带有限 seatVersion 时启用该校验；未携带 seatVersion 的信号沿用原流程。
-   *
-   * @param signal 信号对象
-   * @param currentSeatVersion 当前席位版本号
-   * @returns true 表示通过校验，false 表示应跳过
-   */
-  function validateSignalSeatVersionAtExecution(
-    signal: Signal,
-    currentSeatVersion: number,
-  ): boolean {
-    if (!Number.isFinite(signal.seatVersion)) {
-      return true;
-    }
-
-    if (!isSeatVersionMatch(signal.seatVersion, currentSeatVersion)) {
-      logger.debug(
-        `[执行门禁] 席位版本不匹配，跳过信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`,
-      );
-      return false;
-    }
-
-    return true;
   }
 
   /**

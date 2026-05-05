@@ -11,7 +11,7 @@
  * - SEAT_REFRESH：席位刷新（换标后刷新订单记录、浮亏数据）
  *
  * 席位快照验证：
- * - 任务携带创建时的席位快照（版本号+标的）
+ * - 任务携带创建时的席位快照（版本号、标的和必要的激活基线）
  * - 处理前验证快照是否与当前席位一致
  * - 防止换标后执行旧席位的任务
  */
@@ -135,7 +135,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     }
   }
 
-  /** 循环消费监控任务队列直至为空，每项经 processTask 分派处理，门禁或上下文缺失时跳过并通知 onProcessed */
+  /** 循环消费监控任务队列直至为空；生命周期门禁关闭时跳过，处理结果按实际 status 通知 owner 与 onProcessed。 */
   async function processQueue(): Promise<void> {
     const helpers = createRefreshHelpers({ trader, lastState, quoteSubscriptionRuntime });
     while (!monitorTaskQueue.isEmpty()) {

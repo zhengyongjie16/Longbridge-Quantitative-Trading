@@ -10,6 +10,7 @@ import { OrderSide, OrderType } from 'longbridge';
 import { ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS } from '../../../constants/index.js';
 import type { QuoteUpdatedEvent } from '../../../types/services.js';
 import type { OrderMonitorConfig, TrackedOrder } from '../types.js';
+import { clearRouteTimers } from './routingIndex.js';
 import type {
   OrderMonitorSymbolRouteState,
   OrderMonitorTimerKey,
@@ -149,14 +150,6 @@ export function createRouteRuntime(deps: RouteRuntimeDeps): RouteRuntime {
           firstRouteProcessingError = error;
         }
       });
-  }
-
-  function clearRouteTimers(routeState: OrderMonitorSymbolRouteState): void {
-    for (const timerRegistration of routeState.timerHandles.values()) {
-      clearTimeout(timerRegistration.handle);
-    }
-
-    routeState.timerHandles.clear();
   }
 
   function resetRouteStateForStop(routeState: OrderMonitorSymbolRouteState): void {

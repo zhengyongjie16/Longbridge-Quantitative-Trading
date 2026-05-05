@@ -286,7 +286,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       postGateRuntime.autoSearchWakeupRuntime.start();
       postGateRuntime.periodicSwitchWakeupRuntime.start();
       postGateRuntime.monitorDisplayRuntime.start();
-      businessEventProgram.start();
       postGateRuntime.tradingRiskEventRuntime.start();
       postGateRuntime.monitorQuoteEventRuntime.start();
       postGateRuntime.switchWakeupRuntime.start();
@@ -294,9 +293,12 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       asyncRuntime.buyProcessor.start();
       asyncRuntime.sellProcessor.start();
       postGateRuntime.trader.startOrderMonitorRuntime();
+      await timeWakeupRuntime.start();
+      businessEventProgram.start();
+    } else {
+      await timeWakeupRuntime.start();
     }
 
-    timeWakeupRuntime.start();
     appLogger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
     await waitForShutdown();
     await cleanup.execute();

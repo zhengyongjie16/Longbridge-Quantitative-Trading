@@ -311,6 +311,35 @@ describe('createDayLifecycleManager', () => {
       expect(order).toHaveLength(0);
     });
 
+    it('交易日状态未知时不执行开盘重建，保持门禁关闭', async () => {
+      const mutableState = createMutableState({
+        currentDayKey: '2025-02-15',
+        pendingOpenRebuild: true,
+        lifecycleState: 'MIDNIGHT_CLEANED',
+        isTradingEnabled: false,
+      });
+      const order: string[] = [];
+      const domains: ReadonlyArray<CacheDomain> = [
+        {
+          midnightClear: () => {},
+          openRebuild: () => {
+            order.push('open');
+          },
+        },
+      ];
+      const manager = createDayLifecycleManager({
+        mutableState,
+        cacheDomains: domains,
+        logger: createSilentLifecycleLogger(),
+      });
+
+      await manager.tick(new Date(), createRuntime({ isTradingDay: null, canTradeNow: true }));
+
+      expect(mutableState.lifecycleState).toBe('MIDNIGHT_CLEANED');
+      expect(mutableState.isTradingEnabled).toBe(false);
+      expect(order).toHaveLength(0);
+    });
+
     it('pendingOpenRebuild 且 isTradingDay 且 canTradeNow 时按逆序执行 openRebuild，成功后 ACTIVE', async () => {
       const mutableState = createMutableState({
         currentDayKey: '2025-02-15',

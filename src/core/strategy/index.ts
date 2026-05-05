@@ -34,7 +34,6 @@ import type {
   TradingSignalGenerationResult,
   TradingSignalStrategy,
   TradingSignalStrategyConfig,
-  TradingSignalStrategyFactory,
 } from './types.js';
 import { isSellAction } from '../../utils/display/index.js';
 import {
@@ -45,27 +44,18 @@ import {
   pushSignalToCorrectArray,
 } from './utils.js';
 
-/**
- * 创建默认交易信号策略工厂。
- *
- * @returns 默认使用 HangSeng 多指标策略的工厂函数
- */
-export function createDefaultTradingSignalStrategyFactory(): TradingSignalStrategyFactory {
-  return (strategyConfig) => createHangSengMultiIndicatorStrategy(strategyConfig);
-}
-
-/**
- * 创建恒生多指标交易策略。
- *
- * @param strategyConfig 包含 signalConfig 和 verificationConfig 的策略配置对象
- * @returns TradingSignalStrategy 实例
- */
 const DEFAULT_VERIFICATION_CONFIG: VerificationConfig = {
   buy: { delaySeconds: 60, indicators: ['K', 'MACD'] },
   sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
 };
 
-function createHangSengMultiIndicatorStrategy(
+/**
+ * 创建多指标交易策略。
+ *
+ * @param strategyConfig 包含 signalConfig 和 verificationConfig 的策略配置对象
+ * @returns TradingSignalStrategy 实例
+ */
+export function createMultiIndicatorTradingStrategy(
   strategyConfig: Partial<TradingSignalStrategyConfig> = {},
 ): TradingSignalStrategy {
   const finalSignalConfig: SignalConfigSet = strategyConfig.signalConfig ?? {

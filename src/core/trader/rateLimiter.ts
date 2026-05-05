@@ -19,6 +19,8 @@ const DEFAULT_CONFIG: RateLimiterConfig = {
   windowMs: 30000,
 };
 
+const noop = (): void => undefined;
+
 /**
  * 创建频率限制器。
  * 在时间窗口内限制 Trade API 调用次数，throttle() 超限时自动等待。
@@ -41,8 +43,6 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
    * 超限时自动等待，支持并发调用（内部锁串行化）
    */
   const throttle = async (): Promise<void> => {
-    const noop = (): void => undefined;
-
     // 如果有正在执行的 throttle，等待它完成
     while (throttlePromise) {
       await throttlePromise;

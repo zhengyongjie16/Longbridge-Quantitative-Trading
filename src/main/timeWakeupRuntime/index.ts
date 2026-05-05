@@ -7,6 +7,7 @@
  * - 评估中收到请求只标记 dirty，完成后立即再评估
  * - 停止时清理 timer 并等待在途评估完成
  */
+import { TIME } from '../../constants/index.js';
 import { formatError } from '../../utils/error/index.js';
 import type {
   TimeWakeupRuntime,
@@ -57,13 +58,44 @@ export function createTimeWakeupRuntime<TTimerHandle>(
     }
 
     const nowMs = deps.now().getTime();
-    timer = deps.scheduleTimer(
-      () => {
+    if (!Number.isFinite(atMs)) {
+      deps.logger.error(
+        `[TimeWakeupRuntime] 时间唤醒计划非法，停止系统级时间唤醒 atMs=${String(atMs)} nowMs=${String(nowMs)}`,
+      );
+      running = false;
+      dirty = false;
+      return;
+    }
+
+    if (atMs <= nowMs) {
+      if (inFlight) {
+        dirty = true;
+        return;
+      }
+
+      requestEvaluate();
+      return;
+    }
+
+    const delayMs = atMs - nowMs;
+    if (delayMs > TIME.MAX_TIMER_DELAY_MS) {
+      timer = deps.scheduleTimer(() => {
         timer = null;
-        requestEvaluate();
-      },
-      Math.max(0, atMs - nowMs),
-    );
+        const currentNowMs = deps.now().getTime();
+        if (atMs <= currentNowMs) {
+          requestEvaluate();
+          return;
+        }
+
+        scheduleAt(atMs);
+      }, TIME.MAX_TIMER_DELAY_MS);
+      return;
+    }
+
+    timer = deps.scheduleTimer(() => {
+      timer = null;
+      requestEvaluate();
+    }, delayMs);
   }
 
   function shouldRunPendingEvaluation(): boolean {
@@ -110,13 +142,15 @@ export function createTimeWakeupRuntime<TTimerHandle>(
     });
   }
 
-  function start(): void {
-    if (running) {
-      return;
+  async function start(): Promise<void> {
+    if (!running) {
+      running = true;
+      requestEvaluate();
     }
 
-    running = true;
-    requestEvaluate();
+    if (activePromise !== null) {
+      await activePromise;
+    }
   }
 
   async function stopAndDrain(): Promise<void> {

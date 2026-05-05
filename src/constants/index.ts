@@ -26,6 +26,9 @@ export const TIME = {
   /** 每日的毫秒数 */
   MILLISECONDS_PER_DAY: 24 * 60 * 60 * 1000,
 
+  /** setTimeout 可安全接收的最大延迟（毫秒） */
+  MAX_TIMER_DELAY_MS: 2_147_483_647,
+
   /** 香港时区偏移量（毫秒），用于 UTC 转香港时间 */
   HONG_KONG_TIMEZONE_OFFSET_MS: 8 * 60 * 60 * 1000,
 } as const;
@@ -81,12 +84,6 @@ export const TRADING = {
 /** 自动寻标相关常量 */
 export const AUTO_SYMBOL_SEARCH_COOLDOWN_MS = 600_000;
 export const AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS = 3_000;
-
-/** 周期换标唤醒相关常量 */
-export const PERIODIC_SWITCH_WAKEUP = {
-  /** 任务异常失败后的恢复重试间隔（毫秒） */
-  TASK_FAILURE_RETRY_DELAY_MS: TIME.MILLISECONDS_PER_SECOND,
-} as const;
 
 /** 自动寻标当日最大失败次数（达到后冻结席位至次日） */
 export const AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY = 3;

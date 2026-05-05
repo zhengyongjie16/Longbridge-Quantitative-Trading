@@ -762,6 +762,75 @@ describe('monitorTaskProcessor business flow', () => {
     expect(statuses).toEqual(['skipped']);
   });
 
+  it('skips AUTO_SYMBOL_TICK when seat activation baseline is stale', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    let intervalCalls = 0;
+
+    const context = createMonitorTaskContext({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        maybeSwitchOnInterval: async () => {
+          intervalCalls += 1;
+          return {
+            kind: 'NOOP',
+          };
+        },
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        advancePendingSwitch: async (params) => ({
+          advanced: false,
+          direction: params.direction,
+          stillPending: false,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const statuses: MonitorTaskStatus[] = [];
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'AUTO_SYMBOL_TICK',
+          dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG:STALE_ACTIVATION',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 2,
+            symbol: 'BULL.HK',
+            lastSeatActivatedAt: 13_000,
+            currentTimeMs: Date.now(),
+          },
+        });
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(intervalCalls).toBe(0);
+    expect(statuses).toEqual(['skipped']);
+  });
+
   it('skips stale SEAT_REFRESH when seatVersion no longer matches', async () => {
     const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const statuses: MonitorTaskStatus[] = [];

@@ -106,6 +106,10 @@ function createTimerHarness(initialNowMs: number) {
       timers.delete(handle);
       timer.callback();
     },
+    captureNextCallback: () => {
+      const next = [...timers.values()].sort((left, right) => left.atMs - right.atMs)[0];
+      return next?.callback ?? null;
+    },
     getPendingTimerCount: () => timers.size,
     getPendingTimerAts: () => [...timers.values()].map((timer) => timer.atMs),
   };
@@ -191,7 +195,6 @@ function createHarness(
     readonly symbolRegistry?: ReturnType<typeof createSymbolRegistryDouble>;
     readonly monitorContexts?: ReadonlyMap<string, Pick<MonitorContext, 'config'>>;
     readonly calculateDueAtMs?: PeriodicSwitchWakeupRuntimeDeps['calculateDueAtMs'];
-    readonly taskFailureRetryDelayMs?: number;
   } = {},
 ): PeriodicHarness {
   const monitorConfig = params.monitorConfig ?? createSwitchEnabledMonitorConfig();
@@ -230,7 +233,6 @@ function createHarness(
     tradingGateEventRuntime: subscriptions.tradingGateEventRuntime,
     calculateDueAtMs:
       params.calculateDueAtMs ?? ((input) => input.startMs + input.switchIntervalMinutes * 60_000),
-    taskFailureRetryDelayMs: params.taskFailureRetryDelayMs ?? 1_000,
     now: timers.now,
     scheduleTimer: timers.scheduleTimer,
     clearTimer: timers.clearTimer,
@@ -517,7 +519,7 @@ describe('PeriodicSwitchWakeupRuntime', () => {
   });
 
   it('skipped replanRouteAfterTask 不注册恢复 timer', () => {
-    const harness = createHarness({ nowMs: 400_000, taskFailureRetryDelayMs: 1_000 });
+    const harness = createHarness({ nowMs: 400_000 });
     harness.runtime.start();
     harness.tasks.length = 0;
     const baseline: PeriodicSwitchRouteBaseline = {
@@ -601,8 +603,8 @@ describe('PeriodicSwitchWakeupRuntime', () => {
     ).toBe(true);
   });
 
-  it('failed replanRouteAfterTask 不同步重派发 due route，并由失败恢复 timer 恢复入队', () => {
-    const harness = createHarness({ nowMs: 400_000, taskFailureRetryDelayMs: 1_000 });
+  it('非 waiting-empty route 收到 failed outcome 后 fail-fast 且不注册重评估 timer', () => {
+    const harness = createHarness({ nowMs: 400_000 });
     harness.runtime.start();
     harness.tasks.length = 0;
     const baseline: PeriodicSwitchRouteBaseline = {
@@ -616,19 +618,26 @@ describe('PeriodicSwitchWakeupRuntime', () => {
     harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'failed' });
 
     expect(harness.tasks).toHaveLength(0);
-    expect(harness.timers.getPendingTimerCount()).toBe(1);
-    expect(harness.timers.getPendingTimerAts()).toEqual([401_000]);
+    expect(harness.timers.getPendingTimerCount()).toBe(0);
 
     harness.timers.setNow(401_000);
     harness.timers.fireNext();
+    harness.subscriptions.emitGate({
+      previousCanTrade: false,
+      nextCanTrade: true,
+      timestampMs: 401_000,
+    });
 
-    expect(harness.tasks).toHaveLength(1);
-    expectTickTask(harness.tasks[0], baseline);
-    expect(harness.timers.getPendingTimerCount()).toBe(0);
+    expect(
+      harness.tasks.some(
+        (task) =>
+          task.data.direction === baseline.direction && task.data.symbol === baseline.symbol,
+      ),
+    ).toBe(false);
   });
 
-  it('waiting-empty route 收到 failed outcome 时只保留失败恢复 timer 通道', () => {
-    const harness = createHarness({ nowMs: 400_000, taskFailureRetryDelayMs: 1_000 });
+  it('waiting-empty route 收到 failed outcome 后清理等待且不注册重评估 timer', () => {
+    const harness = createHarness({ nowMs: 400_000 });
     harness.runtime.start();
     harness.tasks.length = 0;
     const baseline: PeriodicSwitchRouteBaseline = {
@@ -641,26 +650,30 @@ describe('PeriodicSwitchWakeupRuntime', () => {
 
     harness.runtime.markWaitingEmpty(baseline);
     harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'failed' });
-
-    expect(harness.tasks).toHaveLength(0);
-    expect(harness.timers.getPendingTimerCount()).toBe(1);
-    expect(harness.timers.getPendingTimerAts()).toEqual([401_000]);
-
     harness.subscriptions.emitOrder();
     harness.subscriptions.emitFresh();
 
     expect(harness.tasks).toHaveLength(0);
-    expect(harness.timers.getPendingTimerCount()).toBe(1);
+    expect(harness.timers.getPendingTimerCount()).toBe(0);
 
     harness.timers.setNow(401_000);
     harness.timers.fireNext();
+    harness.subscriptions.emitGate({
+      previousCanTrade: false,
+      nextCanTrade: true,
+      timestampMs: 401_000,
+    });
 
-    expect(harness.tasks).toHaveLength(1);
-    expectTickTask(harness.tasks[0], baseline);
+    expect(
+      harness.tasks.some(
+        (task) =>
+          task.data.direction === baseline.direction && task.data.symbol === baseline.symbol,
+      ),
+    ).toBe(false);
   });
 
-  it('failed 后同 baseline 收到 skipped outcome 会取消失败恢复 timer', () => {
-    const harness = createHarness({ nowMs: 400_000, taskFailureRetryDelayMs: 1_000 });
+  it('failed 后同 baseline 的晚到 processed outcome 不能清除 fail-fast 屏障', () => {
+    const harness = createHarness({ nowMs: 400_000 });
     harness.runtime.start();
     harness.tasks.length = 0;
     const baseline: PeriodicSwitchRouteBaseline = {
@@ -672,14 +685,24 @@ describe('PeriodicSwitchWakeupRuntime', () => {
     };
 
     harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'failed' });
-    harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'skipped' });
+    harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'processed' });
+    harness.subscriptions.emitGate({
+      previousCanTrade: false,
+      nextCanTrade: true,
+      timestampMs: 401_000,
+    });
 
-    expect(harness.tasks).toHaveLength(0);
+    expect(
+      harness.tasks.some(
+        (task) =>
+          task.data.direction === baseline.direction && task.data.symbol === baseline.symbol,
+      ),
+    ).toBe(false);
     expect(harness.timers.getPendingTimerCount()).toBe(0);
   });
 
-  it('waiting-empty route 收到 skipped outcome 会清理等待且不注册 timer', () => {
-    const harness = createHarness({ nowMs: 400_000, taskFailureRetryDelayMs: 1_000 });
+  it('failed 后同 baseline 的晚到 waiting-empty 回写不能重新打开 order/fresh 派发', () => {
+    const harness = createHarness({ nowMs: 400_000 });
     harness.runtime.start();
     harness.tasks.length = 0;
     const baseline: PeriodicSwitchRouteBaseline = {
@@ -690,45 +713,24 @@ describe('PeriodicSwitchWakeupRuntime', () => {
       lastSeatActivatedAt: 1_000,
     };
 
+    harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'failed' });
     harness.runtime.markWaitingEmpty(baseline);
-    harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'skipped' });
     harness.subscriptions.emitOrder();
+    harness.subscriptions.emitFresh();
 
-    expect(harness.tasks).toHaveLength(0);
+    expect(
+      harness.tasks.some(
+        (task) =>
+          task.data.direction === baseline.direction && task.data.symbol === baseline.symbol,
+      ),
+    ).toBe(false);
     expect(harness.timers.getPendingTimerCount()).toBe(0);
   });
 
-  it('同一 baseline 连续 failed outcome 只保留一个失败恢复 timer 且只恢复一次', () => {
-    const harness = createHarness({ nowMs: 400_000, taskFailureRetryDelayMs: 1_000 });
-    harness.runtime.start();
-    harness.tasks.length = 0;
-    const baseline: PeriodicSwitchRouteBaseline = {
-      monitorSymbol: harness.monitorConfig.monitorSymbol,
-      direction: 'LONG',
-      symbol: 'BULL.HK',
-      seatVersion: 1,
-      lastSeatActivatedAt: 1_000,
-    };
-
-    harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'failed' });
-    harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'failed' });
-
-    expect(harness.tasks).toHaveLength(0);
-    expect(harness.timers.getPendingTimerCount()).toBe(1);
-
-    harness.timers.setNow(401_000);
-    harness.timers.fireNext();
-
-    expect(harness.tasks).toHaveLength(1);
-    expectTickTask(harness.tasks[0], baseline);
-    expect(harness.timers.getPendingTimerCount()).toBe(0);
-  });
-
-  it('失败恢复 timer 到期前 baseline 改变时不派发旧任务', () => {
+  it('failed 后 seat baseline 变化允许新 baseline 正常派发', () => {
     const harness = createHarness({
       nowMs: 400_000,
-      taskFailureRetryDelayMs: 1_000,
-      calculateDueAtMs: ({ startMs }) => (startMs === 500_000 ? null : 1_000),
+      calculateDueAtMs: ({ startMs }) => (startMs === 500_000 ? 400_000 : 1_000),
     });
     harness.runtime.start();
     harness.tasks.length = 0;
@@ -741,17 +743,143 @@ describe('PeriodicSwitchWakeupRuntime', () => {
     };
 
     harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'failed' });
-    expect(harness.timers.getPendingTimerCount()).toBe(1);
+    harness.symbolRegistry.updateSeatStateWithVersionBump(
+      harness.monitorConfig.monitorSymbol,
+      'LONG',
+      createActiveSeat('BULL2.HK', 500_000),
+    );
+
+    expect(harness.tasks).toHaveLength(1);
+    expect(harness.tasks[0]?.data).toMatchObject({
+      direction: 'LONG',
+      symbol: 'BULL2.HK',
+      lastSeatActivatedAt: 500_000,
+    });
+  });
+
+  it('waiting-empty route 收到 skipped outcome 会清理等待且不注册 timer', () => {
+    const harness = createHarness({ nowMs: 400_000 });
+    harness.runtime.start();
+    harness.tasks.length = 0;
+    const baseline: PeriodicSwitchRouteBaseline = {
+      monitorSymbol: harness.monitorConfig.monitorSymbol,
+      direction: 'LONG',
+      symbol: 'BULL.HK',
+      seatVersion: 1,
+      lastSeatActivatedAt: 1_000,
+    };
+
+    harness.runtime.markWaitingEmpty(baseline);
+    harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'skipped' });
+    harness.subscriptions.emitOrder();
+
+    expect(harness.tasks).toHaveLength(0);
+    expect(harness.timers.getPendingTimerCount()).toBe(0);
+  });
+
+  it('同一 baseline 连续 failed outcome 不注册重评估 timer 且不立即重派发', () => {
+    const harness = createHarness({ nowMs: 400_000 });
+    harness.runtime.start();
+    harness.tasks.length = 0;
+    const baseline: PeriodicSwitchRouteBaseline = {
+      monitorSymbol: harness.monitorConfig.monitorSymbol,
+      direction: 'LONG',
+      symbol: 'BULL.HK',
+      seatVersion: 1,
+      lastSeatActivatedAt: 1_000,
+    };
+
+    harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'failed' });
+    harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'failed' });
+
+    expect(harness.tasks).toHaveLength(0);
+    expect(harness.timers.getPendingTimerCount()).toBe(0);
+  });
+
+  it('stale failed outcome 不能修改新激活 route', () => {
+    const harness = createHarness({
+      nowMs: 400_000,
+      calculateDueAtMs: ({ startMs }) => (startMs === 500_000 ? 700_000 : 1_000),
+    });
+    harness.runtime.start();
+    harness.tasks.length = 0;
+    const baseline: PeriodicSwitchRouteBaseline = {
+      monitorSymbol: harness.monitorConfig.monitorSymbol,
+      direction: 'LONG',
+      symbol: 'BULL.HK',
+      seatVersion: 1,
+      lastSeatActivatedAt: 1_000,
+    };
 
     harness.symbolRegistry.updateSeatStateWithVersionBump(
       harness.monitorConfig.monitorSymbol,
       'LONG',
       createActiveSeat('BULL2.HK', 500_000),
     );
-    harness.timers.setNow(401_000);
-    harness.timers.fireNext();
+    harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'failed' });
 
     expect(harness.tasks).toHaveLength(0);
+    expect(harness.timers.getPendingTimerAts()).toContain(700_000);
+  });
+
+  it('stale due timer callback 不能清除新 route timer ownership', async () => {
+    const harness = createHarness({
+      nowMs: 100_000,
+      calculateDueAtMs: ({ startMs }) => {
+        if (startMs === 1_000) {
+          return 300_000;
+        }
+
+        if (startMs === 600_000) {
+          return 700_000;
+        }
+
+        return 800_000;
+      },
+    });
+    harness.runtime.start();
+    const staleCallback = harness.timers.captureNextCallback();
+
+    harness.symbolRegistry.updateSeatStateWithVersionBump(
+      harness.monitorConfig.monitorSymbol,
+      'LONG',
+      createActiveSeat('BULL2.HK', 600_000),
+    );
+    staleCallback?.();
+    await harness.runtime.stopAndDrain();
+
+    expect(harness.tasks).toHaveLength(0);
+    expect(harness.timers.getPendingTimerCount()).toBe(0);
+  });
+
+  it('failed outcome 不产生 timer 且不影响新 route timer ownership', async () => {
+    const harness = createHarness({
+      nowMs: 400_000,
+      calculateDueAtMs: ({ startMs }) => (startMs === 500_000 ? 700_000 : 1_000),
+    });
+    harness.runtime.start();
+    harness.tasks.length = 0;
+    const baseline: PeriodicSwitchRouteBaseline = {
+      monitorSymbol: harness.monitorConfig.monitorSymbol,
+      direction: 'LONG',
+      symbol: 'BULL.HK',
+      seatVersion: 1,
+      lastSeatActivatedAt: 1_000,
+    };
+
+    harness.runtime.replanRouteAfterTask({ ...baseline, taskTimeMs: 400_000, status: 'failed' });
+    expect(harness.timers.getPendingTimerCount()).toBe(0);
+
+    harness.symbolRegistry.updateSeatStateWithVersionBump(
+      harness.monitorConfig.monitorSymbol,
+      'LONG',
+      createActiveSeat('BULL2.HK', 500_000),
+    );
+
+    expect(harness.tasks).toHaveLength(0);
+    expect(harness.timers.getPendingTimerAts()).toEqual([700_000]);
+
+    await harness.runtime.stopAndDrain();
     expect(harness.timers.getPendingTimerCount()).toBe(0);
   });
 

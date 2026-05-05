@@ -190,7 +190,7 @@ function createSingleListenerEventSource<T>(): {
 }
 
 describe('full business simulation integration', () => {
-  it('simulates main loop -> risk checks -> sell execution while buy is blocked by risk rule', async () => {
+  it('simulates candlestick event -> risk checks -> sell execution while buy is blocked by risk rule', async () => {
     const monitorConfig = createMonitorConfigDouble({
       monitorSymbol: 'HSI.HK',
       longSymbol: 'BULL.HK',
@@ -691,7 +691,6 @@ describe('full business simulation integration', () => {
       tradingGateEventRuntime,
       calculateDueAtMs: ({ startMs, switchIntervalMinutes }) =>
         startMs + switchIntervalMinutes * 60_000,
-      taskFailureRetryDelayMs: 1_000,
       now: runtimeNow,
       scheduleTimer: (callback, delayMs) => {
         return setTimeout(callback, delayMs);
@@ -904,7 +903,7 @@ describe('full business simulation integration', () => {
     }
   });
 
-  it('simulates cross-day cleanup and open rebuild via main loop lifecycle domains', async () => {
+  it('simulates cross-day cleanup and open rebuild via time wakeup lifecycle domains', async () => {
     const originalNow = Date.now;
     Date.now = () => new Date('2026-02-16T05:00:00.000Z').getTime();
 

@@ -8,13 +8,14 @@ import type { QuoteSubscriptionRuntime } from '../../quoteSubscriptionRuntime/ty
 
 /**
  * 席位快照（任务创建时点的席位状态）。
- * 类型用途：任务创建时记录席位版本号与标的代码，处理时用于校验席位是否已变更，避免执行过期任务。
+ * 类型用途：任务创建时记录席位版本号、标的代码与激活基线，处理时用于校验席位是否已变更，避免执行过期任务。
  * 数据来源：由任务 owner 在调度任务时从 symbolRegistry 等获取并写入任务数据。
  * 使用范围：仅 monitorTaskProcessor 与各任务 owner 内部使用。
  */
 export type SeatSnapshot = Readonly<{
   seatVersion: number;
   symbol: string;
+  lastSeatActivatedAt: number;
 }>;
 
 /**

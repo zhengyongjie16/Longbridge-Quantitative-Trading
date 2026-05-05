@@ -90,7 +90,7 @@ function defaultDeps(steps: string[]): CleanupContext {
 
   return {
     timeWakeupRuntime: {
-      start: () => {},
+      start: async () => {},
       requestEvaluate: () => {},
       stopAndDrain: async () => {
         steps.push('timeWakeupRuntime');

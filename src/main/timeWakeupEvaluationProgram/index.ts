@@ -250,12 +250,7 @@ export async function timeWakeupEvaluationProgram({
     } catch (err) {
       isTradingDayToday = null;
       isHalfDayToday = false;
-      pushFutureCandidate(
-        candidates,
-        'TRADING_GATE_EDGE',
-        currentMs + TRADING.INTERVAL_MS,
-        currentMs,
-      );
+      pushFutureCandidate(candidates, 'RECOVERY_RETRY', currentMs + TRADING.INTERVAL_MS, currentMs);
       logger.warn('无法获取交易日信息，进入保护性暂停（交易日状态未知）', formatError(err));
     }
   }

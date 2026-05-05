@@ -53,32 +53,32 @@ export function calculateBuyQuantityByNotional(
 }
 
 /**
+ * 构造订单信号。
+ */
+const buildOrderSignal: OrderSignalBuilder = (params: BuildOrderSignalParams): Signal => {
+  const { action, symbol, quote, reason, orderTypeOverride, quantity, seatVersion } = params;
+
+  return {
+    symbol,
+    symbolName: quote?.name ?? symbol,
+    action,
+    reason,
+    orderTypeOverride: orderTypeOverride ?? null,
+    price: quote?.price ?? null,
+    lotSize: quote?.lotSize ?? null,
+    quantity: quantity ?? null,
+    triggerTime: new Date(),
+    seatVersion,
+  };
+};
+
+/**
  * 创建信号构造器，对外暴露 buildOrderSignal 方法。
  * @returns 含 buildOrderSignal 的对象
  */
 export function createSignalBuilder(): {
   buildOrderSignal: OrderSignalBuilder;
 } {
-  /**
-   * 构造订单信号。
-   */
-  const buildOrderSignal: OrderSignalBuilder = (params: BuildOrderSignalParams): Signal => {
-    const { action, symbol, quote, reason, orderTypeOverride, quantity, seatVersion } = params;
-
-    return {
-      symbol,
-      symbolName: quote?.name ?? symbol,
-      action,
-      reason,
-      orderTypeOverride: orderTypeOverride ?? null,
-      price: quote?.price ?? null,
-      lotSize: quote?.lotSize ?? null,
-      quantity: quantity ?? null,
-      triggerTime: new Date(),
-      seatVersion,
-    };
-  };
-
   return {
     buildOrderSignal,
   };

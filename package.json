@@ -16,10 +16,7 @@
     "clean": "rimraf dist",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write . && eslint . --fix",
-    "sonarqube": "bun scripts/run-sonar.js",
-    "sonarqube:report": "bun scripts/get-report.js",
-    "sonarqube:duplications": "bun scripts/get-duplications.js"
+    "format": "prettier --write . && eslint . --fix"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

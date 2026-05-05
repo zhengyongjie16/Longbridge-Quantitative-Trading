@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { parseSignalConfig } from '../../../src/config/utils.js';
-import { createDefaultTradingSignalStrategyFactory } from '../../../src/core/strategy/index.js';
+import { createMultiIndicatorTradingStrategy } from '../../../src/core/strategy/index.js';
 import type { TradingSignalStrategyConfig } from '../../../src/core/strategy/types.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import {
@@ -37,10 +37,10 @@ function createSnapshot(overrides: Partial<IndicatorSnapshot> = {}): IndicatorSn
 }
 
 function createStrategy(strategyConfig: TradingSignalStrategyConfig) {
-  return createDefaultTradingSignalStrategyFactory()(strategyConfig);
+  return createMultiIndicatorTradingStrategy(strategyConfig);
 }
 
-describe('createDefaultTradingSignalStrategyFactory', () => {
+describe('createMultiIndicatorTradingStrategy', () => {
   it('routes immediate and delayed signals by action-specific verification mode', () => {
     const strategy = createStrategy({
       signalConfig: {

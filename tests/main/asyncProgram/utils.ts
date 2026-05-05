@@ -95,6 +95,24 @@ function buildMonitorContextBase(
   const { state, monitorSymbolName } = options;
   const symbolRegistry = createSymbolRegistryDouble({
     monitorSymbol: 'HSI.HK',
+    longSeat: {
+      symbol: 'BULL.HK',
+      status: 'ACTIVE',
+      lastSwitchAt: null,
+      lastSearchAt: null,
+      lastSeatActivatedAt: 12_000,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    },
+    shortSeat: {
+      symbol: 'BEAR.HK',
+      status: 'ACTIVE',
+      lastSwitchAt: null,
+      lastSearchAt: null,
+      lastSeatActivatedAt: 13_000,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    },
     longVersion: 2,
     shortVersion: 3,
   });

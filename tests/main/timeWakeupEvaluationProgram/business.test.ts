@@ -9,7 +9,10 @@ import { timeWakeupEvaluationProgram } from '../../../src/main/timeWakeupEvaluat
 import type { TimeWakeupEvaluationContext } from '../../../src/main/timeWakeupEvaluationProgram/types.js';
 import type { LastState, MonitorContext } from '../../../src/types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../src/types/config.js';
-import type { DayLifecycleTickResult } from '../../../src/main/lifecycle/types.js';
+import type {
+  DayLifecycleTickResult,
+  LifecycleRuntimeFlags,
+} from '../../../src/main/lifecycle/types.js';
 import type { DoomsdayClearanceResult } from '../../../src/core/doomsdayProtection/types.js';
 import type { DelayedSignalVerifierPort } from '../../../src/types/monitorContextPorts.js';
 import type { TradingDayInfo } from '../../../src/types/services.js';
@@ -29,8 +32,9 @@ type TimeWakeupEvaluationHarnessOptions = Readonly<{
   now: Date;
   initialCanTrade?: boolean | null;
   morningProtectionMinutes?: number | null;
+  afternoonProtectionMinutes?: number | null;
   verifier?: DelayedSignalVerifierPort;
-  lifecycleTick?: () => Promise<DayLifecycleTickResult>;
+  lifecycleTick?: (now: Date, runtime: LifecycleRuntimeFlags) => Promise<DayLifecycleTickResult>;
   emitGateStateChanged?: () => void;
   doomsdayClearanceResult?: DoomsdayClearanceResult;
   cachedTradingDayInfo?: LastState['cachedTradingDayInfo'];
@@ -64,7 +68,10 @@ function createLastState(
   };
 }
 
-function createTradingConfig(morningProtectionMinutes: number | null): MultiMonitorTradingConfig {
+function createTradingConfig(
+  morningProtectionMinutes: number | null,
+  afternoonProtectionMinutes: number | null,
+): MultiMonitorTradingConfig {
   return {
     monitors: [createMonitorConfigDouble({ monitorSymbol: '700.HK' })],
     global: {
@@ -72,7 +79,10 @@ function createTradingConfig(morningProtectionMinutes: number | null): MultiMoni
       debug: false,
       openProtection: {
         morning: { enabled: morningProtectionMinutes !== null, minutes: morningProtectionMinutes },
-        afternoon: { enabled: false, minutes: null },
+        afternoon: {
+          enabled: afternoonProtectionMinutes !== null,
+          minutes: afternoonProtectionMinutes,
+        },
       },
       orderMonitorPriceUpdateInterval: 1,
       allowBuyOrderTrackingAboveInitialPrice: false,
@@ -112,7 +122,10 @@ function createTimeWakeupEvaluationHarness(
           nextRetryAtMs: null,
         },
     }),
-    tradingConfig: createTradingConfig(options.morningProtectionMinutes ?? null),
+    tradingConfig: createTradingConfig(
+      options.morningProtectionMinutes ?? null,
+      options.afternoonProtectionMinutes ?? null,
+    ),
     monitorContexts,
     tradingGateEventRuntime: {
       emitGateStateChanged: options.emitGateStateChanged ?? (() => {}),
@@ -234,18 +247,23 @@ describe('timeWakeupEvaluationProgram', () => {
     expect(context.lastState.canTrade).toBe(true);
   });
 
-  it('交易日查询失败时进入保护性暂停并安排重试候选', async () => {
+  it('交易日查询失败时进入保护性暂停并以 unknown 状态推进 lifecycle', async () => {
     const now = new Date('2026-04-29T09:30:00.000+08:00');
     const staleTradingDayInfo = {
       dateKey: '2026-04-28',
       info: { isTradingDay: false, isHalfDay: false },
     };
+    const lifecycleRuntimeFlags: LifecycleRuntimeFlags[] = [];
     const context = createTimeWakeupEvaluationHarness({
       now,
       initialCanTrade: true,
       cachedTradingDayInfo: staleTradingDayInfo,
       isTradingDay: async () => {
         throw new Error('trading day unavailable');
+      },
+      lifecycleTick: async (_now, runtime) => {
+        lifecycleRuntimeFlags.push(runtime);
+        return { nextRetryAtMs: null, pendingOpenRebuild: false };
       },
     });
 
@@ -254,10 +272,50 @@ describe('timeWakeupEvaluationProgram', () => {
     expect(context.lastState.canTrade).toBe(false);
     expect(context.lastState.isHalfDay).toBe(false);
     expect(context.lastState.cachedTradingDayInfo).toEqual(staleTradingDayInfo);
+    expect(lifecycleRuntimeFlags).toEqual([
+      {
+        dayKey: '2026-04-29',
+        canTradeNow: false,
+        isTradingDay: null,
+      },
+    ]);
+
     expect(result.plan.candidates).toContainEqual({
-      source: 'TRADING_GATE_EDGE',
+      source: 'RECOVERY_RETRY',
       atMs: now.getTime() + TRADING.INTERVAL_MS,
     });
+  });
+
+  it('非交易日关闭连续交易门禁且不生成盘中边界候选', async () => {
+    const lifecycleRuntimeFlags: LifecycleRuntimeFlags[] = [];
+    const context = createTimeWakeupEvaluationHarness({
+      now: new Date('2026-04-29T09:30:00.000+08:00'),
+      initialCanTrade: true,
+      cachedTradingDayInfo: {
+        dateKey: '2026-04-29',
+        info: { isTradingDay: false, isHalfDay: false },
+      },
+      lifecycleTick: async (_now, runtime) => {
+        lifecycleRuntimeFlags.push(runtime);
+        return { nextRetryAtMs: null, pendingOpenRebuild: false };
+      },
+    });
+
+    const result = await timeWakeupEvaluationProgram(context);
+    const candidateSources = result.plan.candidates.map((candidate) => candidate.source);
+
+    expect(context.lastState.canTrade).toBe(false);
+    expect(lifecycleRuntimeFlags).toEqual([
+      {
+        dayKey: '2026-04-29',
+        canTradeNow: false,
+        isTradingDay: false,
+      },
+    ]);
+    expect(candidateSources).not.toContain('TRADING_GATE_EDGE');
+    expect(candidateSources).not.toContain('OPEN_PROTECTION_EDGE');
+    expect(candidateSources).not.toContain('MARKET_CLOSE_EDGE');
+    expect(candidateSources).not.toContain('DOOMSDAY_WINDOW_ENTRY');
   });
 
   it('在开盘前返回交易门禁边界候选', async () => {
@@ -332,6 +390,41 @@ describe('timeWakeupEvaluationProgram', () => {
     expect(result.plan.candidates).toContainEqual({
       source: 'OPEN_PROTECTION_EDGE',
       atMs: new Date('2026-04-29T09:35:00.000+08:00').getTime(),
+    });
+  });
+
+  it('正常日午盘开盘保护只标记保护状态并返回保护结束候选', async () => {
+    const context = createTimeWakeupEvaluationHarness({
+      now: new Date('2026-04-29T13:01:00.000+08:00'),
+      afternoonProtectionMinutes: 5,
+    });
+
+    const result = await timeWakeupEvaluationProgram(context);
+
+    expect(context.lastState.canTrade).toBe(true);
+    expect(context.lastState.openProtectionActive).toBe(true);
+    expect(result.plan.candidates).toContainEqual({
+      source: 'OPEN_PROTECTION_EDGE',
+      atMs: new Date('2026-04-29T13:05:00.000+08:00').getTime(),
+    });
+  });
+
+  it('半日市不生成午盘开盘保护候选', async () => {
+    const context = createTimeWakeupEvaluationHarness({
+      now: new Date('2026-04-29T13:01:00.000+08:00'),
+      afternoonProtectionMinutes: 5,
+      cachedTradingDayInfo: {
+        dateKey: '2026-04-29',
+        info: { isTradingDay: true, isHalfDay: true },
+      },
+    });
+
+    const result = await timeWakeupEvaluationProgram(context);
+
+    expect(context.lastState.openProtectionActive).toBe(false);
+    expect(result.plan.candidates).not.toContainEqual({
+      source: 'OPEN_PROTECTION_EDGE',
+      atMs: new Date('2026-04-29T13:05:00.000+08:00').getTime(),
     });
   });
 

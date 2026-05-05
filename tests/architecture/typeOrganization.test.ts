@@ -165,12 +165,14 @@ describe('type organization regressions', () => {
     expect(routingIndexSource).not.toMatch(/export\s+function\s+ensureRouteState\b/);
   });
 
-  it('keeps concrete strategy implementation factory non-exported', async () => {
+  it('keeps default strategy factory direct and neutrally named', async () => {
     const strategySource = await readProjectFile('src/core/strategy/index.ts');
+    const monitorContextSource = await readProjectFile('src/app/context/createMonitorContexts.ts');
 
-    expect(strategySource).not.toMatch(
-      /export\s+function\s+createHangSengMultiIndicatorStrategy\b/,
-    );
+    expect(strategySource).toMatch(/export\s+function\s+createMultiIndicatorTradingStrategy\b/);
+    expect(strategySource).not.toMatch(/createDefaultTradingSignalStrategyFactory/);
+    expect(strategySource).not.toMatch(/HangSeng|hangseng/);
+    expect(monitorContextSource).not.toMatch(/createDefaultTradingSignalStrategyFactory/);
   });
 
   it('keeps scoped types.ts files free of runtime declarations', async () => {

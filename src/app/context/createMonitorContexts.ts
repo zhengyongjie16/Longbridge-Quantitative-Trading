@@ -6,7 +6,7 @@
  * - 批量装配全部 monitor 配置并写回 post-gate runtime 的 monitorContexts Map
  * - 固化 monitorStates 与 tradingConfig 的一一对应装配不变量
  */
-import { createDefaultTradingSignalStrategyFactory } from '../../core/strategy/index.js';
+import { createMultiIndicatorTradingStrategy } from '../../core/strategy/index.js';
 import { createPositionLimitChecker } from '../../core/riskController/positionLimitChecker.js';
 import { createRiskChecker } from '../../core/riskController/index.js';
 import { createUnrealizedLossChecker } from '../../core/riskController/unrealizedLossChecker.js';
@@ -19,7 +19,7 @@ import type { MonitorContext } from '../../types/state.js';
 import { resolveMonitorContextRuntimeSnapshot } from '../../utils/utils.js';
 import type { CreateMonitorContextsParams, MonitorContextFactoryDeps } from '../types.js';
 
-const DEFAULT_STRATEGY_FACTORY = createDefaultTradingSignalStrategyFactory();
+const DEFAULT_STRATEGY_FACTORY = createMultiIndicatorTradingStrategy;
 
 /**
  * 创建监控标的运行时上下文，从注册表读取席位状态与版本号，从行情 Map 提取标的名称，
