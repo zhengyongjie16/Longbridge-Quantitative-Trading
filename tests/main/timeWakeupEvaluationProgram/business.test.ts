@@ -4,7 +4,6 @@
  * 覆盖单次时间唤醒评估的门禁状态、生命周期顺序与系统级唤醒候选输出。
  */
 import { describe, expect, it } from 'bun:test';
-import { TRADING } from '../../../src/constants/index.js';
 import { timeWakeupEvaluationProgram } from '../../../src/main/timeWakeupEvaluationProgram/index.js';
 import type { TimeWakeupEvaluationContext } from '../../../src/main/timeWakeupEvaluationProgram/types.js';
 import type { LastState, MonitorContext } from '../../../src/types/state.js';
@@ -13,7 +12,10 @@ import type {
   DayLifecycleTickResult,
   LifecycleRuntimeFlags,
 } from '../../../src/main/lifecycle/types.js';
-import type { DoomsdayClearanceResult } from '../../../src/core/doomsdayProtection/types.js';
+import type {
+  CancelPendingBuyOrdersResult,
+  DoomsdayClearanceResult,
+} from '../../../src/core/doomsdayProtection/types.js';
 import type { DelayedSignalVerifierPort } from '../../../src/types/monitorContextPorts.js';
 import type { TradingDayInfo } from '../../../src/types/services.js';
 import {
@@ -37,9 +39,33 @@ type TimeWakeupEvaluationHarnessOptions = Readonly<{
   lifecycleTick?: (now: Date, runtime: LifecycleRuntimeFlags) => Promise<DayLifecycleTickResult>;
   emitGateStateChanged?: () => void;
   doomsdayClearanceResult?: DoomsdayClearanceResult;
+  cancelPendingBuyOrdersResult?: CancelPendingBuyOrdersResult;
+  onCancelPendingBuyOrders?: () => void;
+  onExecuteClearance?: () => void;
+  onPositionsCommitted?: () => void;
   cachedTradingDayInfo?: LastState['cachedTradingDayInfo'];
   isTradingDay?: (date: Date) => Promise<TradingDayInfo>;
 }>;
+
+async function expectPromiseRejectsWithMessage(
+  promise: Promise<unknown>,
+  expectedMessagePattern: RegExp,
+): Promise<void> {
+  try {
+    await promise;
+  } catch (error: unknown) {
+    if (!(error instanceof Error)) {
+      throw new Error(`[测试] 预期 Promise 以 Error 拒绝，实际为: ${String(error)}`, {
+        cause: error,
+      });
+    }
+
+    expect(error.message).toMatch(expectedMessagePattern);
+    return;
+  }
+
+  throw new Error('[测试] 预期 Promise 拒绝，但实际成功');
+}
 
 function createLastState(
   options: Pick<TimeWakeupEvaluationHarnessOptions, 'initialCanTrade' | 'cachedTradingDayInfo'>,
@@ -115,12 +141,26 @@ function createTimeWakeupEvaluationHarness(
     trader: createTraderDouble(),
     lastState,
     doomsdayProtection: createDoomsdayProtectionDouble({
-      executeClearance: async () =>
-        options.doomsdayClearanceResult ?? {
-          executed: false,
-          signalCount: 0,
-          nextRetryAtMs: null,
-        },
+      cancelPendingBuyOrders: async () => {
+        options.onCancelPendingBuyOrders?.();
+        return (
+          options.cancelPendingBuyOrdersResult ?? {
+            executed: false,
+            cancelRequestAcceptedCount: 0,
+          }
+        );
+      },
+      executeClearance: async (clearanceContext) => {
+        options.onExecuteClearance?.();
+        await clearanceContext.onPositionsCommitted?.();
+        return (
+          options.doomsdayClearanceResult ?? {
+            executed: false,
+            signalCount: 0,
+            nextRetryAtMs: null,
+          }
+        );
+      },
     }),
     tradingConfig: createTradingConfig(
       options.morningProtectionMinutes ?? null,
@@ -130,7 +170,11 @@ function createTimeWakeupEvaluationHarness(
     tradingGateEventRuntime: {
       emitGateStateChanged: options.emitGateStateChanged ?? (() => {}),
     },
-    quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
+    quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble({
+      reconcilePositionHoldFromCurrentTruth: async () => {
+        options.onPositionsCommitted?.();
+      },
+    }),
     dayLifecycleManager: {
       tick:
         options.lifecycleTick ??
@@ -247,15 +291,14 @@ describe('timeWakeupEvaluationProgram', () => {
     expect(context.lastState.canTrade).toBe(true);
   });
 
-  it('交易日查询失败时进入保护性暂停并以 unknown 状态推进 lifecycle', async () => {
-    const now = new Date('2026-04-29T09:30:00.000+08:00');
+  it('交易日查询失败时向上抛出且不制造系统级 recovery 候选', async () => {
     const staleTradingDayInfo = {
       dateKey: '2026-04-28',
       info: { isTradingDay: false, isHalfDay: false },
     };
     const lifecycleRuntimeFlags: LifecycleRuntimeFlags[] = [];
     const context = createTimeWakeupEvaluationHarness({
-      now,
+      now: new Date('2026-04-29T09:30:00.000+08:00'),
       initialCanTrade: true,
       cachedTradingDayInfo: staleTradingDayInfo,
       isTradingDay: async () => {
@@ -267,23 +310,13 @@ describe('timeWakeupEvaluationProgram', () => {
       },
     });
 
-    const result = await timeWakeupEvaluationProgram(context);
-
-    expect(context.lastState.canTrade).toBe(false);
-    expect(context.lastState.isHalfDay).toBe(false);
+    await expectPromiseRejectsWithMessage(
+      timeWakeupEvaluationProgram(context),
+      /trading day unavailable/,
+    );
+    expect(context.lastState.canTrade).toBe(true);
     expect(context.lastState.cachedTradingDayInfo).toEqual(staleTradingDayInfo);
-    expect(lifecycleRuntimeFlags).toEqual([
-      {
-        dayKey: '2026-04-29',
-        canTradeNow: false,
-        isTradingDay: null,
-      },
-    ]);
-
-    expect(result.plan.candidates).toContainEqual({
-      source: 'RECOVERY_RETRY',
-      atMs: now.getTime() + TRADING.INTERVAL_MS,
-    });
+    expect(lifecycleRuntimeFlags).toEqual([]);
   });
 
   it('非交易日关闭连续交易门禁且不生成盘中边界候选', async () => {
@@ -454,6 +487,24 @@ describe('timeWakeupEvaluationProgram', () => {
     });
   });
 
+  it('末日买入截止窗口内调用买单撤单 action', async () => {
+    const calls: string[] = [];
+    const context = createTimeWakeupEvaluationHarness({
+      now: new Date('2026-04-29T15:46:00.000+08:00'),
+      onCancelPendingBuyOrders: () => {
+        calls.push('cancelPendingBuyOrders');
+      },
+      cancelPendingBuyOrdersResult: {
+        executed: true,
+        cancelRequestAcceptedCount: 1,
+      },
+    });
+
+    await timeWakeupEvaluationProgram(context);
+
+    expect(calls).toEqual(['cancelPendingBuyOrders']);
+  });
+
   it('正常日 15:50 返回末日保护清仓接管入口候选', async () => {
     const context = createTimeWakeupEvaluationHarness({
       now: new Date('2026-04-29T15:50:00.000+08:00'),
@@ -464,6 +515,33 @@ describe('timeWakeupEvaluationProgram', () => {
     expect(result.plan.candidates).toContainEqual({
       source: 'DOOMSDAY_WINDOW_ENTRY',
       atMs: new Date('2026-04-29T15:55:00.000+08:00').getTime(),
+    });
+  });
+
+  it('末日清仓接管窗口内执行清仓 action 并按返回值规划 retry', async () => {
+    const calls: string[] = [];
+    const retryAtMs = new Date('2026-04-29T15:57:00.000+08:00').getTime();
+    const context = createTimeWakeupEvaluationHarness({
+      now: new Date('2026-04-29T15:56:00.000+08:00'),
+      onExecuteClearance: () => {
+        calls.push('executeClearance');
+      },
+      onPositionsCommitted: () => {
+        calls.push('reconcilePositionHold');
+      },
+      doomsdayClearanceResult: {
+        executed: false,
+        signalCount: 1,
+        nextRetryAtMs: retryAtMs,
+      },
+    });
+
+    const result = await timeWakeupEvaluationProgram(context);
+
+    expect(calls).toEqual(['executeClearance', 'reconcilePositionHold']);
+    expect(result.plan.candidates).toContainEqual({
+      source: 'DOOMSDAY_RETRY',
+      atMs: retryAtMs,
     });
   });
 

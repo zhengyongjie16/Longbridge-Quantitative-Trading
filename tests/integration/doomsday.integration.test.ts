@@ -96,7 +96,7 @@ function createMonitorContext(
     },
     autoSymbolManager: {
       maybeSearchOnEvent: async () => {},
-      maybeSwitchOnInterval: async () => ({
+      evaluatePeriodicSwitchDue: async () => ({
         kind: 'NOOP',
       }),
       startSwitchOnDistance: async (params) => ({

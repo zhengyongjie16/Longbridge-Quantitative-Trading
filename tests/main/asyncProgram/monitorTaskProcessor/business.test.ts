@@ -149,7 +149,7 @@ describe('monitorTaskProcessor business flow', () => {
     const context = createMonitorTaskContext({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async (params) => {
+        evaluatePeriodicSwitchDue: async (params) => {
           context.symbolRegistry.bumpSeatVersion('HSI.HK', params.direction);
           return {
             kind: 'WAIT',
@@ -258,7 +258,7 @@ describe('monitorTaskProcessor business flow', () => {
         maybeSearchOnEvent: async () => {
           maybeSearchCalls += 1;
         },
-        maybeSwitchOnInterval: async (params) => {
+        evaluatePeriodicSwitchDue: async (params) => {
           intervalCallArgs.push(params);
           return {
             kind: 'NOOP',
@@ -335,7 +335,7 @@ describe('monitorTaskProcessor business flow', () => {
     const context = createMonitorTaskContext({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async (params) => {
+        evaluatePeriodicSwitchDue: async (params) => {
           intervalCallArgs.push(params);
           return {
             kind: 'NOOP',
@@ -410,7 +410,7 @@ describe('monitorTaskProcessor business flow', () => {
     const context = createMonitorTaskContext({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({
+        evaluatePeriodicSwitchDue: async () => ({
           kind: 'NOOP',
         }),
         startSwitchOnDistance: async (params) => ({
@@ -506,7 +506,7 @@ describe('monitorTaskProcessor business flow', () => {
     const context = createMonitorTaskContext({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({
+        evaluatePeriodicSwitchDue: async () => ({
           kind: 'NOOP',
         }),
         startSwitchOnDistance: async (params) => ({
@@ -606,12 +606,12 @@ describe('monitorTaskProcessor business flow', () => {
       status: MonitorTaskStatus;
     }> = [];
     const clearCalls: string[] = [];
-    let intervalCalls = 0;
+    let periodicDueCalls = 0;
     const context = createMonitorTaskContext({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => {
-          intervalCalls += 1;
+        evaluatePeriodicSwitchDue: async () => {
+          periodicDueCalls += 1;
           return {
             kind: 'NOOP',
           };
@@ -679,7 +679,7 @@ describe('monitorTaskProcessor business flow', () => {
     });
 
     expect(statuses).toEqual(['blocked']);
-    expect(intervalCalls).toBe(0);
+    expect(periodicDueCalls).toBe(0);
     expect(clearCalls).toEqual([]);
     expect(replanCalls).toEqual([
       {
@@ -703,7 +703,7 @@ describe('monitorTaskProcessor business flow', () => {
         maybeSearchOnEvent: async () => {
           maybeSearchCalls += 1;
         },
-        maybeSwitchOnInterval: async () => ({
+        evaluatePeriodicSwitchDue: async () => ({
           kind: 'NOOP',
         }),
         startSwitchOnDistance: async (params) => ({
@@ -764,13 +764,13 @@ describe('monitorTaskProcessor business flow', () => {
 
   it('skips AUTO_SYMBOL_TICK when seat activation baseline is stale', async () => {
     const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
-    let intervalCalls = 0;
+    let periodicDueCalls = 0;
 
     const context = createMonitorTaskContext({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => {
-          intervalCalls += 1;
+        evaluatePeriodicSwitchDue: async () => {
+          periodicDueCalls += 1;
           return {
             kind: 'NOOP',
           };
@@ -827,7 +827,7 @@ describe('monitorTaskProcessor business flow', () => {
       timeoutMs: 500,
     });
 
-    expect(intervalCalls).toBe(0);
+    expect(periodicDueCalls).toBe(0);
     expect(statuses).toEqual(['skipped']);
   });
 
@@ -892,7 +892,7 @@ describe('monitorTaskProcessor business flow', () => {
         maybeSearchOnEvent: async () => {
           maybeSearchCalls += 1;
         },
-        maybeSwitchOnInterval: async () => ({
+        evaluatePeriodicSwitchDue: async () => ({
           kind: 'NOOP',
         }),
         startSwitchOnDistance: async (params) => ({

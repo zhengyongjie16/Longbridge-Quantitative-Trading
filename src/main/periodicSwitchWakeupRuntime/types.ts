@@ -1,4 +1,5 @@
 import type { MultiMonitorTradingConfig } from '../../types/config.js';
+import type { BoundedOneShotTimerController } from '../../utils/timer/types.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { SymbolRegistry } from '../../types/seat.js';
 import type {
@@ -73,14 +74,6 @@ type PeriodicSwitchDueCalculationParams = Readonly<{
 }>;
 
 /**
- * 周期换标 timer 句柄。
- * 类型用途：保存由注入 scheduleTimer 返回的 one-shot timer 句柄。
- * 数据来源：PeriodicSwitchWakeupRuntimeDeps.scheduleTimer。
- * 使用范围：PeriodicSwitchWakeupRuntime 内部状态。
- */
-type PeriodicSwitchTimerHandle = ReturnType<typeof setTimeout>;
-
-/**
  * 周期换标 AUTO_SYMBOL_TICK payload。
  * 类型用途：复用 AUTO_SYMBOL_TICK 的完整 ACTIVE baseline 数据。
  * 数据来源：PeriodicSwitchRouteBaseline。
@@ -99,7 +92,7 @@ export type PeriodicSwitchRouteState = {
   baseline: PeriodicSwitchRouteBaseline | null;
 
   /** 当前 one-shot timer 句柄 */
-  timerHandle: PeriodicSwitchTimerHandle | null;
+  timerHandle: BoundedOneShotTimerController | null;
 
   /** 当前 waiting-empty baseline */
   waitingEmpty: PeriodicSwitchRouteBaseline | null;

@@ -95,6 +95,7 @@ function defaultDeps(steps: string[]): CleanupContext {
       stopAndDrain: async () => {
         steps.push('timeWakeupRuntime');
       },
+      drainFatalError: () => new Promise<never>(() => {}),
       getStateSnapshot: () => ({
         running: false,
         inFlight: false,

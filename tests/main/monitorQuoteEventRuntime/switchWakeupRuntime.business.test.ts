@@ -316,7 +316,7 @@ describe('switchWakeupRuntime', () => {
       timerHarness,
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
           direction: params.direction,
@@ -553,7 +553,7 @@ describe('switchWakeupRuntime', () => {
           symbolRegistry: sharedSymbolRegistry,
           autoSymbolManager: {
             maybeSearchOnEvent: async () => {},
-            maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+            evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
             startSwitchOnDistance: async (params) => ({
               started: false,
               direction: params.direction,
@@ -584,7 +584,7 @@ describe('switchWakeupRuntime', () => {
           symbolRegistry: sharedSymbolRegistry,
           autoSymbolManager: {
             maybeSearchOnEvent: async () => {},
-            maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+            evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
             startSwitchOnDistance: async (params) => ({
               started: false,
               direction: params.direction,
@@ -671,7 +671,7 @@ describe('switchWakeupRuntime', () => {
       symbolRegistry,
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
           direction: params.direction,
@@ -786,7 +786,7 @@ describe('switchWakeupRuntime', () => {
     const runtimeHarness = createBaseHarness({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
           direction: params.direction,
@@ -847,7 +847,7 @@ describe('switchWakeupRuntime', () => {
     const runtimeHarness = createBaseHarness({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
           direction: params.direction,
@@ -908,7 +908,7 @@ describe('switchWakeupRuntime', () => {
     const runtimeHarness = createBaseHarness({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
           direction: params.direction,
@@ -999,7 +999,7 @@ describe('switchWakeupRuntime', () => {
           symbolRegistry: sharedSymbolRegistry,
           autoSymbolManager: {
             maybeSearchOnEvent: async () => {},
-            maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+            evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
             startSwitchOnDistance: async (params) => ({
               started: false,
               direction: params.direction,
@@ -1030,7 +1030,7 @@ describe('switchWakeupRuntime', () => {
           symbolRegistry: sharedSymbolRegistry,
           autoSymbolManager: {
             maybeSearchOnEvent: async () => {},
-            maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+            evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
             startSwitchOnDistance: async (params) => ({
               started: false,
               direction: params.direction,
@@ -1103,7 +1103,7 @@ describe('switchWakeupRuntime', () => {
       timerHarness,
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
           direction: params.direction,
@@ -1172,7 +1172,7 @@ describe('switchWakeupRuntime', () => {
       timerHarness,
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
           direction: params.direction,
@@ -1234,7 +1234,7 @@ describe('switchWakeupRuntime', () => {
       timerHarness,
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
           direction: params.direction,
@@ -1302,7 +1302,7 @@ describe('switchWakeupRuntime', () => {
       },
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
           direction: params.direction,
@@ -1363,7 +1363,7 @@ describe('switchWakeupRuntime', () => {
     const runtimeHarness = createBaseHarness({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
           direction: params.direction,

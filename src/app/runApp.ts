@@ -15,7 +15,6 @@ import { applyStartupSnapshotFailureState } from '../main/lifecycle/startupFailu
 import { displayAccountAndPositions } from '../services/accountDisplay/index.js';
 import { logger } from '../utils/logger/index.js';
 import { formatError } from '../utils/error/index.js';
-import { TRADING } from '../constants/index.js';
 import { createCleanup } from './shutdown/createCleanup.js';
 import { createLifecycleRuntime } from './lifecycle/createLifecycleRuntime.js';
 import { createMonitorContexts } from './context/createMonitorContexts.js';
@@ -227,7 +226,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       clearTimer: (handle) => {
         clearTimeout(handle);
       },
-      recoveryRetryDelayMs: TRADING.INTERVAL_MS,
       logger: appLogger,
     });
 
@@ -275,33 +273,57 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       }
     }
 
-    if (initialRebuildSucceeded) {
-      postGateRuntime.postTradeConsistencyRuntime.start();
-      postGateRuntime.postTradeConsistencyRuntime.completeRebuildBaseline();
-      await postGateRuntime.quoteSubscriptionRuntime.reconcileFromCurrentTruth();
-      postGateRuntime.tradingQuoteDisplayRuntime.start();
-      postGateRuntime.quoteSubscriptionRuntime.start();
-      postGateRuntime.seatRuntimeCleanupDispatcher.start();
-      postGateRuntime.seatActivationDispatcher.start();
-      postGateRuntime.autoSearchWakeupRuntime.start();
-      postGateRuntime.periodicSwitchWakeupRuntime.start();
-      postGateRuntime.monitorDisplayRuntime.start();
-      postGateRuntime.tradingRiskEventRuntime.start();
-      postGateRuntime.monitorQuoteEventRuntime.start();
-      postGateRuntime.switchWakeupRuntime.start();
-      asyncRuntime.monitorTaskProcessor.start();
-      asyncRuntime.buyProcessor.start();
-      asyncRuntime.sellProcessor.start();
-      postGateRuntime.trader.startOrderMonitorRuntime();
-      await timeWakeupRuntime.start();
-      businessEventProgram.start();
-    } else {
-      await timeWakeupRuntime.start();
+    const waitForInitialTimeWakeup = (): Promise<void> =>
+      Promise.race([timeWakeupRuntime.start(), timeWakeupRuntime.drainFatalError()]);
+    const toError = (error: unknown): Error =>
+      error instanceof Error ? error : new Error(formatAppError(error));
+
+    let waitError: Error | null = null;
+    try {
+      if (initialRebuildSucceeded) {
+        postGateRuntime.postTradeConsistencyRuntime.start();
+        postGateRuntime.postTradeConsistencyRuntime.completeRebuildBaseline();
+        await postGateRuntime.quoteSubscriptionRuntime.reconcileFromCurrentTruth();
+        postGateRuntime.tradingQuoteDisplayRuntime.start();
+        postGateRuntime.quoteSubscriptionRuntime.start();
+        postGateRuntime.seatRuntimeCleanupDispatcher.start();
+        postGateRuntime.seatActivationDispatcher.start();
+        postGateRuntime.autoSearchWakeupRuntime.start();
+        postGateRuntime.periodicSwitchWakeupRuntime.start();
+        postGateRuntime.monitorDisplayRuntime.start();
+        postGateRuntime.tradingRiskEventRuntime.start();
+        postGateRuntime.monitorQuoteEventRuntime.start();
+        postGateRuntime.switchWakeupRuntime.start();
+        asyncRuntime.monitorTaskProcessor.start();
+        asyncRuntime.buyProcessor.start();
+        asyncRuntime.sellProcessor.start();
+        postGateRuntime.trader.startOrderMonitorRuntime();
+        await waitForInitialTimeWakeup();
+        businessEventProgram.start();
+      } else {
+        await waitForInitialTimeWakeup();
+      }
+
+      appLogger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
+      await Promise.race([waitForShutdown(), timeWakeupRuntime.drainFatalError()]);
+    } catch (error) {
+      waitError = toError(error);
     }
 
-    appLogger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
-    await waitForShutdown();
-    await cleanup.execute();
+    try {
+      await cleanup.execute();
+    } catch (cleanupError) {
+      if (waitError !== null) {
+        appLogger.error('[runApp] cleanup 失败，保留原始退出错误', formatAppError(cleanupError));
+        throw waitError;
+      }
+
+      throw toError(cleanupError);
+    }
+
+    if (waitError !== null) {
+      throw waitError;
+    }
   };
 }
 

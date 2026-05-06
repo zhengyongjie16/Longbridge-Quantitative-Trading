@@ -3,16 +3,15 @@
  *
  * 核心职责：执行一次权威时间语义评估，更新交易门禁、生命周期、末日保护，并返回下一次系统级时间唤醒计划。
  */
-import { DOOMSDAY, TIME, TRADING } from '../../constants/index.js';
+import { DOOMSDAY, TIME } from '../../constants/index.js';
 import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProtection/utils.js';
-import { formatError } from '../../utils/error/index.js';
 import { logger } from '../../utils/logger/index.js';
 import {
   getHKDateKey,
   getRequiredHKDateKey,
   isInContinuousHKSession,
   isWithinAfternoonOpenProtection,
-  isWithinMorningOpenProtection,
+  isWithinMorningOpenWindow,
   resolveHKDayStartUtcMs,
 } from '../../utils/time/index.js';
 import { planNextTimeWakeup } from '../timeWakeupPlanner/index.js';
@@ -233,29 +232,22 @@ export async function timeWakeupEvaluationProgram({
   let isTradingDayToday: boolean | null = cachedTradingDayInfo?.isTradingDay ?? true;
   let isHalfDayToday = cachedTradingDayInfo?.isHalfDay ?? false;
   if (!cachedTradingDayInfo) {
-    try {
-      const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
-      isTradingDayToday = tradingDayInfo.isTradingDay;
-      isHalfDayToday = tradingDayInfo.isHalfDay;
-      lastState.cachedTradingDayInfo = {
-        dateKey: currentDayKey,
-        info: tradingDayInfo,
-      };
+    const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
+    isTradingDayToday = tradingDayInfo.isTradingDay;
+    isHalfDayToday = tradingDayInfo.isHalfDay;
+    lastState.cachedTradingDayInfo = {
+      dateKey: currentDayKey,
+      info: tradingDayInfo,
+    };
 
-      if (tradingDayInfo.isTradingDay) {
-        logger.info(`今天是${isHalfDayToday ? '半日交易日' : '交易日'}`);
-      } else {
-        logger.info('今天不是交易日');
-      }
-    } catch (err) {
-      isTradingDayToday = null;
-      isHalfDayToday = false;
-      pushFutureCandidate(candidates, 'RECOVERY_RETRY', currentMs + TRADING.INTERVAL_MS, currentMs);
-      logger.warn('无法获取交易日信息，进入保护性暂停（交易日状态未知）', formatError(err));
+    if (tradingDayInfo.isTradingDay) {
+      logger.info(`今天是${isHalfDayToday ? '半日交易日' : '交易日'}`);
+    } else {
+      logger.info('今天不是交易日');
     }
   }
 
-  if (isTradingDayToday === true) {
+  if (isTradingDayToday) {
     pushFutureCandidate(
       candidates,
       'TRADING_GATE_EDGE',
@@ -284,9 +276,8 @@ export async function timeWakeupEvaluationProgram({
     }
   }
 
-  const canTradeNow =
-    isTradingDayToday === true && isInContinuousHKSession(currentTime, isHalfDayToday);
-  if (lastState.canTrade !== false && isTradingDayToday === false) {
+  const canTradeNow = isTradingDayToday && isInContinuousHKSession(currentTime, isHalfDayToday);
+  if (lastState.canTrade !== false && !isTradingDayToday) {
     logger.info('今天不是交易日，暂停实时监控。');
   }
 
@@ -309,7 +300,7 @@ export async function timeWakeupEvaluationProgram({
     const morningActive =
       morning.enabled &&
       morning.minutes !== null &&
-      isWithinMorningOpenProtection(currentTime, morning.minutes);
+      isWithinMorningOpenWindow(currentTime, morning.minutes);
     const afternoonActive =
       !isHalfDayToday &&
       afternoon.enabled &&
@@ -376,7 +367,7 @@ export async function timeWakeupEvaluationProgram({
     return createEvaluationResult(currentTime, candidates);
   }
 
-  if (isTradingDayToday !== true) {
+  if (!isTradingDayToday) {
     return createEvaluationResult(currentTime, candidates);
   }
 

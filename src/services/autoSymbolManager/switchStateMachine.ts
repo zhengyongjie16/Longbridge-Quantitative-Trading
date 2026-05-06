@@ -3,7 +3,7 @@
  *
  * 功能：管理从撤单到回补买入的完整换标流程。
  * 职责：统一处理距离换标与周期换标的启动入口，推进换标状态机（撤单/卖出/绑定/等待行情/回补/完成），处理周期换标到期后的空仓等待与触发。
- * 执行流程：startSwitchOnDistance/advancePendingSwitch/maybeSwitchOnInterval 触发 → startSwitchFlow 预寻标与入口判定；周期换标在无候选时直接业务收口，其余需要换标的路径写入 switchStates 并由 processSwitchState 推进到完成或失败。
+ * 执行流程：startSwitchOnDistance/advancePendingSwitch/evaluatePeriodicSwitchDue 触发 → startSwitchFlow 预寻标与入口判定；周期换标在无候选时直接业务收口，其余需要换标的路径写入 switchStates 并由 processSwitchState 推进到完成或失败。
  */
 import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
@@ -25,7 +25,7 @@ import type {
   StartSwitchFlowParams,
   StartSwitchOnDistanceParams,
   SwitchProcessParams,
-  SwitchOnIntervalParams,
+  PeriodicSwitchDueParams,
   SwitchState,
   SwitchStateMachine,
   SwitchStateMachineDeps,
@@ -209,7 +209,7 @@ function resolveDistanceTriggerSide(params: {
 /**
  * 创建换标状态机，管理从撤单到回补买入的完整换标流程，并提供周期换标触发能力。
  * @param deps - 依赖（trader、orderRecorder、riskChecker、switchStates、buildOrderSignal 等）
- * @returns SwitchStateMachine 实例（maybeSwitchOnInterval、startSwitchOnDistance、advancePendingSwitch、hasPendingSwitch）
+ * @returns SwitchStateMachine 实例（evaluatePeriodicSwitchDue、startSwitchOnDistance、advancePendingSwitch、hasPendingSwitch）
  */
 export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchStateMachine {
   const {
@@ -979,14 +979,14 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
   }
 
   /**
-   * 每 tick 检查是否满足周期换标触发条件。
+   * 在周期换标 due 事件到达时检查是否满足触发条件。
    * 到期后若当前席位标的仍被本地订单链路占用，则进入 pending 等待；仅当本地未平仓买单记录与本地 pending order 都清空后才触发周期换标。
    */
-  async function maybeSwitchOnInterval({
+  async function evaluatePeriodicSwitchDue({
     direction,
     currentTime,
     canTradeNow,
-  }: SwitchOnIntervalParams): Promise<SwitchDriveResult> {
+  }: PeriodicSwitchDueParams): Promise<SwitchDriveResult> {
     if (!autoSearchConfig.autoSearchEnabled || autoSearchConfig.switchIntervalMinutes <= 0) {
       clearPeriodicPending(direction);
       return createNoopDriveResult();
@@ -1243,7 +1243,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
   }
 
   return {
-    maybeSwitchOnInterval,
+    evaluatePeriodicSwitchDue,
     startSwitchOnDistance,
     advancePendingSwitch,
     hasPendingSwitch,

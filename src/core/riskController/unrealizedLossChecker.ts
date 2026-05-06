@@ -69,7 +69,7 @@ function calculateCostAndQuantity(
 /**
  * 创建浮亏检查器。
  * 维护标的级浮亏缓存（R1/N1），提供 refresh 与 check；check 时计算 R2 - R1，超过 maxUnrealizedLossPerSymbol 则返回 shouldLiquidate。
- * 买入前、行情展示与主循环浮亏监控共用同一套 R1/N1 缓存，避免重复计算。
+ * 买入前、行情展示与浮亏监控共用同一套 R1/N1 缓存，避免重复计算。
  * @param deps 依赖，含 maxUnrealizedLossPerSymbol（null 或 ≤0 表示禁用浮亏清仓阈值检查）
  * @returns 实现 UnrealizedLossChecker 接口的实例（含 refresh/check/clearUnrealizedLossData）
  */

@@ -6,7 +6,7 @@
  * - 以 per-monitor single-flight + latest-only collapse 推进普通 latest snapshot
  * - 在事件路径中直接生成普通 immediate / delayed signals
  * - 在普通指标推进成功后立即写入 indicatorCache 延迟验证样本
- * - 不负责生命周期 tick、末日保护和周期换标 tick
+ * - 不负责生命周期时间唤醒、末日保护和周期换标 due 事件
  */
 import { TRADING } from '../../constants/index.js';
 import { logger } from '../../utils/logger/index.js';

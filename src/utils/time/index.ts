@@ -140,17 +140,14 @@ export function isInContinuousHKSession(
 }
 
 /**
- * 判断是否在早盘开盘保护时段（仅早盘有效）。
+ * 判断是否在早盘开盘后指定分钟窗口内（仅早盘有效）。
  * 默认行为：date 无效或 minutes 非正返回 false；下午时段不生效。
  *
  * @param date 时间对象（UTC）
- * @param minutes 保护时长（分钟）
- * @returns 在早盘开盘保护窗口内为 true，否则为 false
+ * @param minutes 窗口时长（分钟）
+ * @returns 在早盘开盘窗口内为 true，否则为 false
  */
-export function isWithinMorningOpenProtection(
-  date: Date | null | undefined,
-  minutes: number,
-): boolean {
+export function isWithinMorningOpenWindow(date: Date | null | undefined, minutes: number): boolean {
   if (!date || !Number.isFinite(minutes) || minutes <= 0) {
     return false;
   }

@@ -50,6 +50,47 @@ const noImportAliasRule = {
   },
 };
 
+const redundantTypeAliasRule = {
+  meta: {
+    type: 'problem',
+    schema: [],
+    messages: {
+      redundantNamedAlias: '不允许定义仅指向另一个命名类型的重复类型别名，请直接使用原类型。',
+      redundantPrimitiveAlias: '不允许为基础类型定义等价类型别名，请直接使用原始基础类型。',
+    },
+  },
+  create(context) {
+    const filename = getNormalizedFilename(context);
+    if (!isSrcFile(filename)) {
+      return {};
+    }
+
+    return {
+      TSTypeAliasDeclaration(node) {
+        const { typeAnnotation } = node;
+
+        if (
+          typeAnnotation.type === 'TSTypeReference' &&
+          typeAnnotation.typeArguments === undefined
+        ) {
+          reportNode(context, node, 'redundantNamedAlias');
+          return;
+        }
+
+        if (
+          typeAnnotation.type === 'TSStringKeyword' ||
+          typeAnnotation.type === 'TSNumberKeyword' ||
+          typeAnnotation.type === 'TSBooleanKeyword' ||
+          typeAnnotation.type === 'TSBigIntKeyword' ||
+          typeAnnotation.type === 'TSSymbolKeyword'
+        ) {
+          reportNode(context, node, 'redundantPrimitiveAlias');
+        }
+      },
+    };
+  },
+};
+
 function getNormalizedFilename(context) {
   return (context.filename ?? context.physicalFilename).replaceAll('\\', '/');
 }
@@ -226,6 +267,7 @@ export default defineConfig(
       local: {
         rules: {
           'no-import-alias': noImportAliasRule,
+          'no-redundant-type-alias': redundantTypeAliasRule,
           'type-definitions-location': typeDefinitionsLocationRule,
           'types-file-only-types': typesFileOnlyTypesRule,
           'utils-file-no-types': utilsFileNoTypesRule,
@@ -361,6 +403,7 @@ export default defineConfig(
       'no-nested-ternary': 'error',
       'prefer-arrow-callback': 'error',
       'local/no-import-alias': 'error',
+      'local/no-redundant-type-alias': 'error',
       'local/type-definitions-location': 'error',
       'local/types-file-only-types': 'error',
       'local/utils-file-no-types': 'error',

@@ -8,6 +8,7 @@
  */
 import { OrderSide, OrderType } from 'longbridge';
 import { ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS } from '../../../constants/index.js';
+import { scheduleBoundedOneShotAt } from '../../../utils/timer/index.js';
 import type { QuoteUpdatedEvent } from '../../../types/services.js';
 import type { OrderMonitorConfig, TrackedOrder } from '../types.js';
 import { clearRouteTimers } from './routingIndex.js';
@@ -21,6 +22,16 @@ import type {
   RouteRuntime,
   RouteRuntimeDeps,
 } from './types.js';
+
+const NATIVE_TIMER_NOW = (): Date => new Date(Date.now());
+
+function scheduleNativeTimer(callback: () => void, delayMs: number): ReturnType<typeof setTimeout> {
+  return setTimeout(callback, delayMs);
+}
+
+function clearNativeTimer(handle: ReturnType<typeof setTimeout>): void {
+  clearTimeout(handle);
+}
 
 function resolveTimeoutTimerKind(side: TrackedOrder['side']): OrderMonitorTimerKind {
   if (side === OrderSide.Buy) {
@@ -170,7 +181,6 @@ export function createRouteRuntime(deps: RouteRuntimeDeps): RouteRuntime {
 
     const desiredSchedules = new Map<OrderMonitorTimerKey, number>();
     const orderIds = runtime.trackedOrderIdsBySymbol.get(symbol);
-    const now = Date.now();
     for (const orderId of orderIds ?? []) {
       const trackedOrder = runtime.trackedOrders.get(orderId);
       if (!trackedOrder) {
@@ -188,7 +198,7 @@ export function createRouteRuntime(deps: RouteRuntimeDeps): RouteRuntime {
         continue;
       }
 
-      clearTimeout(timerRegistration.handle);
+      timerRegistration.handle.cancel();
       routeState.timerHandles.delete(timerKey);
     }
 
@@ -197,16 +207,21 @@ export function createRouteRuntime(deps: RouteRuntimeDeps): RouteRuntime {
         continue;
       }
 
-      const delayMs = Math.max(atMs - now, 0);
-      const timerHandle = setTimeout(() => {
-        const latestRouteState = getRouteState(symbol);
-        if (latestRouteState?.generation !== generation) {
-          return;
-        }
+      const timerHandle = scheduleBoundedOneShotAt({
+        atMs,
+        now: NATIVE_TIMER_NOW,
+        scheduleTimer: scheduleNativeTimer,
+        clearTimer: clearNativeTimer,
+        onDue: () => {
+          const latestRouteState = getRouteState(symbol);
+          if (latestRouteState?.generation !== generation) {
+            return;
+          }
 
-        latestRouteState.timerHandles.delete(timerKey);
-        triggerRoute(symbol, 'TIMER');
-      }, delayMs);
+          latestRouteState.timerHandles.delete(timerKey);
+          triggerRoute(symbol, 'TIMER');
+        },
+      });
       routeState.timerHandles.set(timerKey, {
         atMs,
         handle: timerHandle,

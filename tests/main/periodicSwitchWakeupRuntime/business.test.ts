@@ -4,6 +4,7 @@
  * 覆盖周期换标 due timer 的 ownership、baseline 隔离、waiting-empty 显式唤醒与 stop 清理语义。
  */
 import { describe, expect, it } from 'bun:test';
+import { TIME } from '../../../src/constants/index.js';
 import { createPeriodicSwitchWakeupRuntime } from '../../../src/main/periodicSwitchWakeupRuntime/index.js';
 import {
   createMonitorConfigDouble,
@@ -27,6 +28,7 @@ import type {
 } from '../../../src/main/periodicSwitchWakeupRuntime/types.js';
 import type { MonitorTaskInput } from '../../../src/main/asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import { calculateTradingDurationDueAtMs } from '../../../src/utils/time/index.js';
 
 type ScheduledTask = MonitorTaskInput<MonitorTaskDataMap, 'AUTO_SYMBOL_TICK'>;
 type TimerHandle = ReturnType<typeof setTimeout>;
@@ -39,6 +41,12 @@ type PeriodicHarness = Readonly<{
   subscriptions: ReturnType<typeof createSubscriptionHarness>;
   monitorConfig: MonitorConfig;
 }>;
+
+function hkMs(dateKey: string, hour: number, minute: number): number {
+  return Date.parse(
+    `${dateKey}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000+08:00`,
+  );
+}
 
 function createActiveSeat(symbol: string, lastSeatActivatedAt: number): SeatState {
   return {
@@ -346,6 +354,68 @@ describe('PeriodicSwitchWakeupRuntime', () => {
     expect(harness.tasks).toHaveLength(1);
     expect(harness.tasks[0]?.data.direction).toBe('LONG');
     expect(harness.timers.getPendingTimerCount()).toBe(1);
+  });
+
+  it('使用真实交易时长 due 计算时按午休后的实际到期时间注册 timer', () => {
+    const startMs = hkMs('2026-04-29', 11, 50);
+    const dueAtMs = hkMs('2026-04-29', 13, 10);
+    const monitorConfig = createSwitchEnabledMonitorConfig({ switchIntervalMinutes: 20 });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      longSeat: createActiveSeat('BULL.HK', startMs),
+      shortSeat: createActiveSeat('BEAR.HK', startMs),
+      longVersion: 1,
+      shortVersion: 2,
+    });
+    const calendarSnapshot = new Map([['2026-04-29', { isTradingDay: true, isHalfDay: false }]]);
+    const harness = createHarness({
+      nowMs: hkMs('2026-04-29', 11, 55),
+      monitorConfig,
+      symbolRegistry,
+      calculateDueAtMs: ({ startMs: routeStartMs, switchIntervalMinutes }) =>
+        calculateTradingDurationDueAtMs({
+          startMs: routeStartMs,
+          targetDurationMs: switchIntervalMinutes * TIME.MILLISECONDS_PER_MINUTE,
+          calendarSnapshot,
+        }),
+    });
+
+    harness.runtime.start();
+
+    expect(harness.tasks).toHaveLength(0);
+    expect(harness.timers.getPendingTimerAts().sort((left, right) => left - right)).toEqual([
+      dueAtMs,
+      dueAtMs,
+    ]);
+  });
+
+  it('超长周期换标 due timer 只注册最大安全分段，到真实 due 后才派发', () => {
+    const nowMs = 100_000;
+    const dueAtMs = nowMs + TIME.MAX_TIMER_DELAY_MS + 5;
+    const harness = createHarness({
+      nowMs,
+      calculateDueAtMs: () => dueAtMs,
+    });
+
+    harness.runtime.start();
+
+    expect(harness.tasks).toHaveLength(0);
+    expect(harness.timers.getPendingTimerAts().sort((left, right) => left - right)).toEqual([
+      nowMs + TIME.MAX_TIMER_DELAY_MS,
+      nowMs + TIME.MAX_TIMER_DELAY_MS,
+    ]);
+
+    harness.timers.setNow(nowMs + TIME.MAX_TIMER_DELAY_MS);
+    harness.timers.fireNext();
+    expect(harness.tasks).toHaveLength(0);
+    expect(harness.timers.getPendingTimerAts().sort((left, right) => left - right)).toEqual([
+      nowMs + TIME.MAX_TIMER_DELAY_MS,
+      dueAtMs,
+    ]);
+
+    harness.timers.setNow(dueAtMs);
+    harness.timers.fireNext();
+    expect(harness.tasks).toHaveLength(1);
   });
 
   it('timer 触发时 baseline 已过期则不派发', () => {

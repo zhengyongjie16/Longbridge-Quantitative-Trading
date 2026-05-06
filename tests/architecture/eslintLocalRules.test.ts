@@ -167,6 +167,63 @@ describe('local ESLint rules', () => {
     expect(hasRuleMessage(messages, 'local/type-definitions-location')).toBe(false);
   });
 
+  it('rejects redundant named type aliases in src files', async () => {
+    const messages = await lintText(
+      'src/main/periodicSwitchWakeupRuntime/types.ts',
+      [
+        "import type { BoundedOneShotTimerController } from '../../utils/timer/types.js';",
+        'type PeriodicSwitchTimerHandle = BoundedOneShotTimerController;',
+        'export type Probe = { readonly timerHandle: PeriodicSwitchTimerHandle | null };',
+      ].join('\n'),
+    );
+
+    expect(hasRuleMessage(messages, 'local/no-redundant-type-alias')).toBe(true);
+  });
+
+  it('rejects redundant qualified named type aliases in src files', async () => {
+    const messages = await lintText(
+      'src/main/periodicSwitchWakeupRuntime/types.ts',
+      [
+        "import type * as TimerTypes from '../../utils/timer/types.js';",
+        'type PeriodicSwitchTimerHandle = TimerTypes.BoundedOneShotTimerController;',
+        'export type Probe = { readonly timerHandle: PeriodicSwitchTimerHandle | null };',
+      ].join('\n'),
+    );
+
+    expect(hasRuleMessage(messages, 'local/no-redundant-type-alias')).toBe(true);
+  });
+
+  it('rejects primitive equivalent type aliases in src files', async () => {
+    const messages = await lintText('src/core/strategy/types.ts', 'export type Price = number;\n');
+
+    expect(hasRuleMessage(messages, 'local/no-redundant-type-alias')).toBe(true);
+  });
+
+  it('allows derived type aliases in src files', async () => {
+    const messages = await lintText(
+      'src/main/periodicSwitchWakeupRuntime/types.ts',
+      [
+        "type Direction = 'LONG' | 'SHORT';",
+        'type Route = { readonly direction: Direction };',
+        "export type DirectionFromRoute = Route['direction'];",
+        'export type RouteKey = `${string}:${Direction}`;',
+        'export type ReadonlyRoute = Readonly<Route>;',
+        'export type RouteHandler = (route: Route) => void;',
+      ].join('\n'),
+    );
+
+    expect(hasRuleMessage(messages, 'local/no-redundant-type-alias')).toBe(false);
+  });
+
+  it('does not restrict redundant type aliases in tests', async () => {
+    const messages = await lintText(
+      'tests/probe.test.ts',
+      'type Source = { readonly id: string };\ntype Probe = Source;\n',
+    );
+
+    expect(hasRuleMessage(messages, 'local/no-redundant-type-alias')).toBe(false);
+  });
+
   it('allows import type and type declarations in types files', async () => {
     const messages = await lintText(
       'src/core/strategy/types.ts',

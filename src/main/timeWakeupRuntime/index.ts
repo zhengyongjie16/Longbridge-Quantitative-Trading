@@ -7,13 +7,18 @@
  * - 评估中收到请求只标记 dirty，完成后立即再评估
  * - 停止时清理 timer 并等待在途评估完成
  */
-import { TIME } from '../../constants/index.js';
 import { formatError } from '../../utils/error/index.js';
+import { scheduleBoundedOneShotAt } from '../../utils/timer/index.js';
+import type { BoundedOneShotTimerController } from '../../utils/timer/types.js';
 import type {
   TimeWakeupRuntime,
   TimeWakeupRuntimeDeps,
   TimeWakeupRuntimeStateSnapshot,
 } from './types.js';
+
+function normalizeFatalError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(formatError(error));
+}
 
 /**
  * 创建系统级时间唤醒 runtime。
@@ -27,30 +32,45 @@ export function createTimeWakeupRuntime<TTimerHandle>(
   let running = false;
   let inFlight = false;
   let dirty = false;
-  let timer: TTimerHandle | null = null;
+  let timer: BoundedOneShotTimerController | null = null;
   let activePromise: Promise<void> | null = null;
+  let fatalError: Error | null = null;
+  const fatalRejectors = new Set<(error: Error) => void>();
 
   function clearCurrentTimer(): void {
     if (timer === null) {
       return;
     }
 
-    deps.clearTimer(timer);
+    timer.cancel();
     timer = null;
   }
 
-  function scheduleRecoveryRetry(): void {
-    clearCurrentTimer();
-    if (!running) {
+  /**
+   * 将系统级时间评估切入 fatal 状态。
+   * fatal 表示权威时间事实不可确认或计划非法，必须停止 timer 与 dirty 重入，交给 app 顶层清理并暴露根因。
+   */
+  function failFatal(error: unknown): void {
+    if (fatalError !== null) {
       return;
     }
 
-    timer = deps.scheduleTimer(() => {
-      timer = null;
-      requestEvaluate();
-    }, deps.recoveryRetryDelayMs);
+    fatalError = normalizeFatalError(error);
+    running = false;
+    dirty = false;
+    clearCurrentTimer();
+    deps.logger.error('[TimeWakeupRuntime] 系统级时间唤醒进入 fatal 状态', fatalError.message);
+    for (const reject of fatalRejectors) {
+      reject(fatalError);
+    }
+
+    fatalRejectors.clear();
   }
 
+  /**
+   * 根据单次权威评估结果安排下一次系统级 one-shot timer。
+   * 只接受未来的有限时间点；已到期计划立即重评估，非法计划进入 fatal，避免形成隐式轮询或静默停摆。
+   */
   function scheduleAt(atMs: number | null): void {
     clearCurrentTimer();
     if (!running || atMs === null) {
@@ -59,11 +79,11 @@ export function createTimeWakeupRuntime<TTimerHandle>(
 
     const nowMs = deps.now().getTime();
     if (!Number.isFinite(atMs)) {
-      deps.logger.error(
-        `[TimeWakeupRuntime] 时间唤醒计划非法，停止系统级时间唤醒 atMs=${String(atMs)} nowMs=${String(nowMs)}`,
+      failFatal(
+        new Error(
+          `[TimeWakeupRuntime] 时间唤醒计划非法 atMs=${String(atMs)} nowMs=${String(nowMs)}`,
+        ),
       );
-      running = false;
-      dirty = false;
       return;
     }
 
@@ -77,31 +97,33 @@ export function createTimeWakeupRuntime<TTimerHandle>(
       return;
     }
 
-    const delayMs = atMs - nowMs;
-    if (delayMs > TIME.MAX_TIMER_DELAY_MS) {
-      timer = deps.scheduleTimer(() => {
-        timer = null;
-        const currentNowMs = deps.now().getTime();
-        if (atMs <= currentNowMs) {
-          requestEvaluate();
+    let scheduledController: BoundedOneShotTimerController | null = null;
+    const controller = scheduleBoundedOneShotAt({
+      atMs,
+      now: deps.now,
+      scheduleTimer: deps.scheduleTimer,
+      clearTimer: deps.clearTimer,
+      onDue: () => {
+        if (timer !== scheduledController) {
           return;
         }
 
-        scheduleAt(atMs);
-      }, TIME.MAX_TIMER_DELAY_MS);
-      return;
-    }
-
-    timer = deps.scheduleTimer(() => {
-      timer = null;
-      requestEvaluate();
-    }, delayMs);
+        timer = null;
+        requestEvaluate();
+      },
+    });
+    scheduledController = controller;
+    timer = controller;
   }
 
   function shouldRunPendingEvaluation(): boolean {
     return running && dirty;
   }
 
+  /**
+   * 串行执行时间评估 dirty-drain。
+   * 评估期间的新请求只标记 dirty，当前评估提交计划后再补跑一轮，保证同一时刻只有一个权威时间评估 owner。
+   */
   async function runEvaluationLoop(): Promise<void> {
     inFlight = true;
     try {
@@ -111,11 +133,7 @@ export function createTimeWakeupRuntime<TTimerHandle>(
           const result = await deps.evaluate();
           scheduleAt(result.plan.hasWork ? result.plan.nextWakeupAtMs : null);
         } catch (error) {
-          deps.logger.error(
-            '[TimeWakeupRuntime] 时间评估失败，将按恢复性 retry 重新唤醒',
-            formatError(error),
-          );
-          scheduleRecoveryRetry();
+          failFatal(error);
         }
       } while (shouldRunPendingEvaluation());
     } finally {
@@ -123,6 +141,10 @@ export function createTimeWakeupRuntime<TTimerHandle>(
     }
   }
 
+  /**
+   * 请求一次系统级时间重评估。
+   * 外部事件和 timer 到期都通过该入口收敛；运行中请求不重入，只转换为 dirty 标记。
+   */
   function requestEvaluate(): void {
     if (!running) {
       return;
@@ -162,6 +184,16 @@ export function createTimeWakeupRuntime<TTimerHandle>(
     }
   }
 
+  function drainFatalError(): Promise<never> {
+    if (fatalError !== null) {
+      return Promise.reject(fatalError);
+    }
+
+    return new Promise<never>((_, reject) => {
+      fatalRejectors.add(reject);
+    });
+  }
+
   function getStateSnapshot(): TimeWakeupRuntimeStateSnapshot {
     return {
       running,
@@ -175,6 +207,7 @@ export function createTimeWakeupRuntime<TTimerHandle>(
     start,
     requestEvaluate,
     stopAndDrain,
+    drainFatalError,
     getStateSnapshot,
   };
 }

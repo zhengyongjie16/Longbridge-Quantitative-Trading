@@ -207,12 +207,12 @@ describe('app createAsyncRuntime wiring', () => {
     try {
       const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
       const replanCalls: Parameters<PeriodicSwitchWakeupRuntime['replanRouteAfterTask']>[0][] = [];
-      let intervalCalls = 0;
+      let periodicDueCalls = 0;
       const context = createMonitorTaskContext({
         autoSymbolManager: {
           maybeSearchOnEvent: async () => {},
-          maybeSwitchOnInterval: async () => {
-            intervalCalls += 1;
+          evaluatePeriodicSwitchDue: async () => {
+            periodicDueCalls += 1;
             return { kind: 'NOOP' };
           },
           startSwitchOnDistance: async (params) => ({
@@ -267,7 +267,7 @@ describe('app createAsyncRuntime wiring', () => {
         waitCondition: () => monitorTaskQueue.isEmpty(),
       });
 
-      expect(intervalCalls).toBe(0);
+      expect(periodicDueCalls).toBe(0);
       expect(replanCalls).toEqual([
         {
           monitorSymbol: 'HSI.HK',
@@ -290,8 +290,8 @@ describe('app createAsyncRuntime wiring', () => {
     const context = createMonitorTaskContext({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => {
-          throw new Error('periodic tick failed');
+        evaluatePeriodicSwitchDue: async () => {
+          throw new Error('periodic due failed');
         },
         startSwitchOnDistance: async (params) => ({
           started: false,

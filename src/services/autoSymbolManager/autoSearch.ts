@@ -2,7 +2,7 @@
  * 自动换标模块：自动寻标（AutoSearch）
  *
  * 功能：在席位为空时按冷却间隔触发自动寻标。
- * 职责：开盘保护（在开盘延迟窗口内跳过寻标），寻标失败时累计失败计数并达上限后冻结席位，寻标成功后更新席位状态为 ACTIVATING。
+ * 职责：自动寻标开盘延迟（在早盘延迟窗口内跳过寻标）、失败冻结与成功后席位 ACTIVATING 更新。
  * 执行流程：maybeSearchOnEvent 检查席位状态与冷却 → 调用 findBestWarrant → 成功则更新为 ACTIVATING，失败则累计失败计数或冻结。
  */
 import type { AutoSearchDeps, AutoSearchManager, SearchOnEventParams } from './types.js';
@@ -23,7 +23,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
     resolveDirectionalAutoSearchPolicy,
     buildFindBestWarrantInput,
     findBestWarrant,
-    isWithinMorningOpenProtection,
+    isWithinMorningAutoSearchOpenDelay,
     searchCooldownMs,
     getHKDateKey,
     maxSearchFailuresPerDay,
@@ -31,7 +31,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
   } = deps;
 
   /**
-   * 在席位为空时执行自动寻标，受开盘保护与冷却时间限制。
+   * 在席位为空时执行自动寻标，受自动寻标开盘延迟与冷却时间限制。
    */
   async function maybeSearchOnEvent({
     direction,
@@ -59,7 +59,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
 
     if (
       autoSearchConfig.autoSearchOpenDelayMinutes > 0 &&
-      isWithinMorningOpenProtection(currentTime, autoSearchConfig.autoSearchOpenDelayMinutes)
+      isWithinMorningAutoSearchOpenDelay(currentTime, autoSearchConfig.autoSearchOpenDelayMinutes)
     ) {
       return;
     }

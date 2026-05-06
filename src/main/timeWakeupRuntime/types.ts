@@ -33,7 +33,6 @@ export type TimeWakeupRuntimeDeps<TTimerHandle = TimeWakeupTimerHandle> = Readon
   now: () => Date;
   scheduleTimer: (callback: () => void, delayMs: number) => TTimerHandle;
   clearTimer: (handle: TTimerHandle) => void;
-  recoveryRetryDelayMs: number;
   logger: Pick<Logger, 'error'>;
 }>;
 
@@ -47,5 +46,6 @@ export interface TimeWakeupRuntime {
   readonly start: () => Promise<void>;
   readonly requestEvaluate: () => void;
   readonly stopAndDrain: () => Promise<void>;
+  readonly drainFatalError: () => Promise<never>;
   readonly getStateSnapshot: () => TimeWakeupRuntimeStateSnapshot;
 }

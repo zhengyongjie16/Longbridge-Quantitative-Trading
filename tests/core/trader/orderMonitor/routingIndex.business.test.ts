@@ -16,6 +16,22 @@ import type {
   OrderMonitorTrackedOrder,
 } from '../../../../src/core/trader/orderMonitor/types.js';
 
+function createCancellableTimer(callback: () => void, delayMs: number) {
+  let handle: ReturnType<typeof setTimeout> | null = setTimeout(callback, delayMs);
+
+  return {
+    cancel: () => {
+      if (handle === null) {
+        return;
+      }
+
+      clearTimeout(handle);
+      handle = null;
+    },
+    hasTimer: () => handle !== null,
+  };
+}
+
 function createRuntime(): OrderMonitorRuntimeStore {
   return {
     trackedOrders: new Map<string, OrderMonitorTrackedOrder>(),
@@ -66,12 +82,11 @@ describe('orderMonitor routingIndex', () => {
     }
 
     let timerFired = false;
-    const timerHandle = setTimeout(() => {
-      timerFired = true;
-    }, 20);
     routeState.timerHandles.set('ORDER-1:SELL_TIMEOUT', {
       atMs: Date.now() + 20,
-      handle: timerHandle,
+      handle: createCancellableTimer(() => {
+        timerFired = true;
+      }, 20),
     });
 
     detachTrackedOrder(runtime, 'BULL.HK', 'ORDER-1');
@@ -112,14 +127,14 @@ describe('orderMonitor routingIndex', () => {
     let bearTimerFired = false;
     bullRouteState.timerHandles.set('ORDER-1:BUY_TIMEOUT', {
       atMs: Date.now() + 20,
-      handle: setTimeout(() => {
+      handle: createCancellableTimer(() => {
         bullTimerFired = true;
       }, 20),
     });
 
     bearRouteState.timerHandles.set('ORDER-2:SELL_TIMEOUT', {
       atMs: Date.now() + 20,
-      handle: setTimeout(() => {
+      handle: createCancellableTimer(() => {
         bearTimerFired = true;
       }, 20),
     });

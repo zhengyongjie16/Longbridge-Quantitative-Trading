@@ -362,7 +362,7 @@ function rebuildRuntimeFromSnapshot(params: {
  *
  * 该分支负责处理“上一拍还是活动 bar，本拍只看到了最终 shift 后快照”的场景：
  * 如果旧最后一根尚未确认，就先把它按 finalized previous bar 提交，再继续消费后续新增 candles，
- * 从而保证 confirmed 与 next bar 在同一主循环间隔内到达时，committed 状态仍与全量重算一致。
+ * 从而保证 confirmed 与 next bar 在同一事件处理轮次内到达时，committed 状态仍与全量重算一致。
  *
  * @param params 运行态与最新缓存快照
  * @returns 推进后的增量运行态；无法可靠推进时回退为重建或返回 null

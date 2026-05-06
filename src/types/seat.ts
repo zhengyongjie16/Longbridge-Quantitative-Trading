@@ -163,7 +163,7 @@ export interface SymbolRegistry {
  * 生命周期状态。
  * 类型用途：表示 7x24 跨日缓存治理的阶段性状态（ACTIVE / MIDNIGHT_CLEANING / MIDNIGHT_CLEANED / OPEN_REBUILDING / OPEN_REBUILD_FAILED），用于 LastState 与门禁判断。
  * 数据来源：lifecycle 模块内部状态机更新。
- * 使用范围：主循环、LastState、门禁、跨日流程等；全项目可引用。
+ * 使用范围：运行期状态、LastState、门禁、跨日流程等；全项目可引用。
  */
 export type LifecycleState =
   | 'ACTIVE'

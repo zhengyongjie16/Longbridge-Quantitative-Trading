@@ -382,7 +382,7 @@ export function createAutoSymbolManagerDouble(
 ): AutoSymbolManagerPort {
   const base: AutoSymbolManagerPort = {
     maybeSearchOnEvent: async () => {},
-    maybeSwitchOnInterval: async () => ({
+    evaluatePeriodicSwitchDue: async () => ({
       kind: 'NOOP',
     }),
     startSwitchOnDistance: async (params) => ({

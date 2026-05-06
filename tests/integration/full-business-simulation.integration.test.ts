@@ -297,7 +297,7 @@ describe('full business simulation integration', () => {
       delayedSignalVerifier,
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({
+        evaluatePeriodicSwitchDue: async () => ({
           kind: 'NOOP',
         }),
         startSwitchOnDistance: async (params) => ({
@@ -1003,7 +1003,7 @@ describe('full business simulation integration', () => {
       delayedSignalVerifier,
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
-        maybeSwitchOnInterval: async () => ({
+        evaluatePeriodicSwitchDue: async () => ({
           kind: 'NOOP',
         }),
         startSwitchOnDistance: async (params) => ({

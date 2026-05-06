@@ -17,6 +17,7 @@ import type {
   OrderStateChangedEvent,
   Unsubscribe,
 } from '../../../types/services.js';
+import type { BoundedOneShotTimerController } from '../../../utils/timer/types.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../protectiveLiquidationEpisodeTracker/types.js';
 import type {
   OrderCacheManager,
@@ -181,7 +182,7 @@ export type RouteTimerSchedule = Readonly<{
  */
 type OrderMonitorTimerRegistration = {
   readonly atMs: number;
-  readonly handle: ReturnType<typeof setTimeout>;
+  readonly handle: BoundedOneShotTimerController;
 };
 
 /**

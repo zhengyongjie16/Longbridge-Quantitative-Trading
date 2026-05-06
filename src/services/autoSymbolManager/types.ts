@@ -134,10 +134,10 @@ export type SwitchProcessParams = Readonly<{
 
 /**
  * 周期换标触发检查入参。
- * 类型用途：包含方向、当前时间与交易时段状态，由 switchStateMachine.maybeSwitchOnInterval 消费。
+ * 类型用途：包含方向、当前时间与交易时段状态，由 switchStateMachine.evaluatePeriodicSwitchDue 消费。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
-export type SwitchOnIntervalParams = {
+export type PeriodicSwitchDueParams = {
   readonly direction: 'LONG' | 'SHORT';
   readonly currentTime: Date;
   readonly canTradeNow: boolean;
@@ -274,11 +274,14 @@ type TradingCalendarSnapshotProvider = () => TradingCalendarSnapshot;
 type HKDateKeyResolver = (date: Date | null | undefined) => string | null;
 
 /**
- * 开盘保护检查函数（内部类型）。
- * 类型用途：判断当前时间是否在开盘延迟保护窗口内。
+ * 自动寻标开盘延迟检查函数（内部类型）。
+ * 类型用途：判断当前时间是否处于自动寻标早盘开盘延迟窗口。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
-type MorningOpenProtectionChecker = (date: Date | null | undefined, minutes: number) => boolean;
+type MorningAutoSearchOpenDelayChecker = (
+  date: Date | null | undefined,
+  minutes: number,
+) => boolean;
 
 /**
  * 基于共享策略构建 FindBestWarrantInput 的完整依赖参数（内部类型）。
@@ -510,7 +513,7 @@ export type AutoSearchDeps = {
   readonly resolveDirectionalAutoSearchPolicy: ResolveDirectionalAutoSearchPolicy;
   readonly buildFindBestWarrantInput: BuildFindBestWarrantInput;
   readonly findBestWarrant: FindBestWarrant;
-  readonly isWithinMorningOpenProtection: MorningOpenProtectionChecker;
+  readonly isWithinMorningAutoSearchOpenDelay: MorningAutoSearchOpenDelayChecker;
   readonly searchCooldownMs: number;
   readonly getHKDateKey: HKDateKeyResolver;
   readonly maxSearchFailuresPerDay: number;
@@ -531,7 +534,7 @@ export interface AutoSearchManager {
 /**
  * 启动换标流程的入参。
  * 类型用途：供 switchStateMachine.startSwitchFlow 统一接收距离换标/周期换标请求，并用判别联合表达触发语义。
- * 数据来源：由 startSwitchOnDistance / maybeSwitchOnInterval 组装后传入。
+ * 数据来源：由 startSwitchOnDistance / evaluatePeriodicSwitchDue 组装后传入。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 export type StartSwitchFlowParams =
@@ -608,7 +611,7 @@ export type SwitchStateMachineDeps = {
  * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export interface SwitchStateMachine {
-  maybeSwitchOnInterval: (params: SwitchOnIntervalParams) => Promise<SwitchDriveResult>;
+  evaluatePeriodicSwitchDue: (params: PeriodicSwitchDueParams) => Promise<SwitchDriveResult>;
   startSwitchOnDistance: (
     params: StartSwitchOnDistanceParams,
   ) => Promise<StartSwitchOnDistanceResult>;

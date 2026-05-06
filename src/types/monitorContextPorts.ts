@@ -124,7 +124,7 @@ export interface AutoSymbolManagerPort {
     readonly currentTime: Date;
     readonly canTradeNow: boolean;
   }) => Promise<void>;
-  maybeSwitchOnInterval: (params: {
+  evaluatePeriodicSwitchDue: (params: {
     readonly direction: 'LONG' | 'SHORT';
     readonly currentTime: Date;
     readonly canTradeNow: boolean;

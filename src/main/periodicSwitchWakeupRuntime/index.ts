@@ -6,6 +6,7 @@
  * - 基于 seat truth baseline 隔离旧 timer、旧 waiting-empty 与旧任务回调
  * - 通过 AUTO_SYMBOL_TICK latest-only 任务推进周期换标，不向 timeWakeupPlanner 暴露候选
  */
+import { scheduleBoundedOneShotAt } from '../../utils/timer/index.js';
 import type { MonitorTaskInput } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { TradingGateStateChangedEvent } from '../tradingGateEventRuntime/types.js';
@@ -47,9 +48,7 @@ function isFailedBaseline(
   return state.failedBaseline !== null && baselineMatches(state.failedBaseline, baseline);
 }
 
-function getPeriodicSwitchDirections(): ReadonlyArray<PeriodicSwitchDirection> {
-  return ['LONG', 'SHORT'];
-}
+const PERIODIC_SWITCH_DIRECTIONS: ReadonlyArray<PeriodicSwitchDirection> = ['LONG', 'SHORT'];
 
 /**
  * 创建周期换标唤醒 runtime。
@@ -90,7 +89,7 @@ export function createPeriodicSwitchWakeupRuntime(
       return;
     }
 
-    deps.clearTimer(state.timerHandle);
+    state.timerHandle.cancel();
     state.timerHandle = null;
   }
 
@@ -221,27 +220,33 @@ export function createPeriodicSwitchWakeupRuntime(
     }
 
     clearRouteTimer(route);
-    const timerHandle = deps.scheduleTimer(() => {
-      if (state.timerHandle !== timerHandle) {
-        return;
-      }
+    const timerHandle = scheduleBoundedOneShotAt({
+      atMs: dueAtMs,
+      now: deps.now,
+      scheduleTimer: deps.scheduleTimer,
+      clearTimer: deps.clearTimer,
+      onDue: () => {
+        if (state.timerHandle !== timerHandle) {
+          return;
+        }
 
-      state.timerHandle = null;
-      if (!running) {
-        return;
-      }
+        state.timerHandle = null;
+        if (!running) {
+          return;
+        }
 
-      const currentBaseline = readCurrentBaseline(route);
-      if (currentBaseline !== null && baselineMatches(currentBaseline, baseline)) {
-        dispatchAutoSymbolTick(baseline);
-      }
-    }, dueAtMs - nowMs);
+        const currentBaseline = readCurrentBaseline(route);
+        if (currentBaseline !== null && baselineMatches(currentBaseline, baseline)) {
+          dispatchAutoSymbolTick(baseline);
+        }
+      },
+    });
     state.timerHandle = timerHandle;
   }
 
   function seedRoutes(): void {
     for (const monitorConfig of deps.tradingConfig.monitors) {
-      for (const direction of getPeriodicSwitchDirections()) {
+      for (const direction of PERIODIC_SWITCH_DIRECTIONS) {
         planRoute({ monitorSymbol: monitorConfig.monitorSymbol, direction });
       }
     }
@@ -278,7 +283,7 @@ export function createPeriodicSwitchWakeupRuntime(
     }
 
     for (const monitorConfig of deps.tradingConfig.monitors) {
-      for (const direction of getPeriodicSwitchDirections()) {
+      for (const direction of PERIODIC_SWITCH_DIRECTIONS) {
         const route = { monitorSymbol: monitorConfig.monitorSymbol, direction };
         const state = routeStates.get(buildRouteKey(route));
         if (state !== undefined && state.waitingEmpty !== null) {
@@ -326,6 +331,11 @@ export function createPeriodicSwitchWakeupRuntime(
     }
   }
 
+  /**
+   * 根据 AUTO_SYMBOL_TICK 的处理结果回写 route 状态。
+   * processed 只按当前 baseline 重排未来 due；blocked/skipped/failed 分别交还给 gate owner、清理等待或 fail-fast，
+   * 避免周期换标在门禁关闭、快照过期或业务失败后产生隐藏 retry。
+   */
   function replanRouteAfterTask(
     params: Parameters<PeriodicSwitchWakeupRuntime['replanRouteAfterTask']>[0],
   ): void {
@@ -433,7 +443,7 @@ export function createPeriodicSwitchWakeupRuntime(
 
     for (const state of routeStates.values()) {
       if (state.timerHandle !== null) {
-        deps.clearTimer(state.timerHandle);
+        state.timerHandle.cancel();
       }
     }
 

@@ -4,7 +4,7 @@
  * 功能：
  * - 验证缓存缺失时返回 null
  * - 验证事件到达时能推进增量 runtime 并更新状态
- * - 验证重复调用会基于已存在 runtime 继续推进，而不再依赖主循环缓存版本短路
+ * - 验证重复调用会基于已存在 runtime 继续推进，而不再依赖旧轮询缓存版本短路
  */
 import { describe, expect, it } from 'bun:test';
 import { Period } from 'longbridge';

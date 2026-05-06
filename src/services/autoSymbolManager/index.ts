@@ -3,7 +3,7 @@
  *
  * 功能：负责席位初始化、自动寻标与换标流程的完整管理。
  * 职责：支持「距离换标 + 周期换标」统一状态机推进，并处理撤单/卖出/买入完整链路。
- * 执行流程：AutoSearchWakeupRuntime 调用 maybeSearchOnEvent；AUTO_SYMBOL_TICK 只调用 maybeSwitchOnInterval；事件驱动 runtime 调用 startSwitchOnDistance / advancePendingSwitch 推进距离换标状态机。
+ * 执行流程：AutoSearchWakeupRuntime 调用 maybeSearchOnEvent；AUTO_SYMBOL_TICK 只调用 evaluatePeriodicSwitchDue；事件驱动 runtime 调用 startSwitchOnDistance / advancePendingSwitch 推进距离换标状态机。
  */
 import { OrderSide } from 'longbridge';
 import { findBestWarrant } from '../autoSymbolFinder/index.js';
@@ -11,7 +11,7 @@ import {
   calculateTradingDurationMsBetween,
   getHKDateKey,
   getTradingMinutesSinceOpen,
-  isWithinMorningOpenProtection,
+  isWithinMorningOpenWindow,
 } from '../../utils/time/index.js';
 import { logger } from '../../utils/logger/index.js';
 import {
@@ -91,7 +91,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     resolveDirectionalAutoSearchPolicy: thresholdResolver.resolveDirectionalAutoSearchPolicy,
     buildFindBestWarrantInput: thresholdResolver.buildFindBestWarrantInput,
     findBestWarrant: injectedFindBestWarrant,
-    isWithinMorningOpenProtection,
+    isWithinMorningAutoSearchOpenDelay: isWithinMorningOpenWindow,
     searchCooldownMs: AUTO_SYMBOL_SEARCH_COOLDOWN_MS,
     getHKDateKey,
     maxSearchFailuresPerDay: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
@@ -139,7 +139,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   }
   return {
     maybeSearchOnEvent: (params) => autoSearch.maybeSearchOnEvent(params),
-    maybeSwitchOnInterval: (params) => switchStateMachine.maybeSwitchOnInterval(params),
+    evaluatePeriodicSwitchDue: (params) => switchStateMachine.evaluatePeriodicSwitchDue(params),
     startSwitchOnDistance: (params) => switchStateMachine.startSwitchOnDistance(params),
     advancePendingSwitch: (params) => switchStateMachine.advancePendingSwitch(params),
     hasPendingSwitch: (direction) => switchStateMachine.hasPendingSwitch(direction),

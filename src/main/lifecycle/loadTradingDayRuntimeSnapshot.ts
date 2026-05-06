@@ -25,7 +25,7 @@ import {
   getHKDateKey,
   getTradingMinutesSinceOpen,
   isInContinuousHKSession,
-  isWithinMorningOpenProtection,
+  isWithinMorningOpenWindow,
 } from '../../utils/time/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { prepareSeatsForRuntime } from '../recovery/seatPreparation.js';
@@ -181,7 +181,7 @@ export function createLoadTradingDayRuntimeSnapshot(
           return false;
         }
 
-        return !isWithinMorningOpenProtection(currentTime, openDelayMinutes);
+        return !isWithinMorningOpenWindow(currentTime, openDelayMinutes);
       },
       warrantListCacheConfig,
     });

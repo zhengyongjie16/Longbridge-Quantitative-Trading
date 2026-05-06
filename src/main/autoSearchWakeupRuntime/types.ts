@@ -12,19 +12,6 @@ import type { TradingGateEventRuntime } from '../tradingGateEventRuntime/types.j
 export type AutoSearchRouteKey = `${string}:${'LONG' | 'SHORT'}:${number}`;
 
 /**
- * 自动寻标唤醒来源。
- * 类型用途：标记本次 AutoSearchWakeupRuntime 重新评估空席位的触发因子。
- * 数据来源：seat event、gate event 或 one-shot timer。
- * 使用范围：AutoSearchWakeupRuntime 内部日志与测试。
- */
-export type AutoSearchWakeupKind =
-  | 'SEAT_EMPTY'
-  | 'GATE_OPEN'
-  | 'SEARCH_COOLDOWN_TIMER'
-  | 'OPEN_DELAY_TIMER'
-  | 'START_SEED';
-
-/**
  * 自动寻标 runtime 依赖。
  * 类型用途：创建运行时空席位自动寻标事件 owner 所需的权威状态与 timer 能力。
  * 数据来源：app runtime 装配层。

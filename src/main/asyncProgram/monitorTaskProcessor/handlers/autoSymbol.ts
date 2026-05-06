@@ -2,7 +2,7 @@
  * 自动寻标任务处理器
  *
  * 核心职责：
- * - 处理 AUTO_SYMBOL_TICK 周期换标 tick 任务
+ * - 处理 AUTO_SYMBOL_TICK 周期换标 due 任务
  * - 执行前校验席位快照，防止旧任务在换标后被错误执行
  */
 import { logger } from '../../../../utils/logger/index.js';
@@ -62,7 +62,7 @@ function handoffPeriodicWakeup(params: {
 
 /**
  * 创建周期换标任务处理器（AUTO_SYMBOL_TICK）。
- * 执行前校验席位快照，防止换标后执行旧任务；tick 仅触发周期换标检查。
+ * 执行前校验席位快照，防止换标后执行旧任务；该任务只触发周期换标 due 检查。
  *
  * @param deps 依赖注入，包含 getContextOrSkip、switchWakeupRuntime、getCanTradeNow
  * @returns AUTO_SYMBOL_TICK 处理函数
@@ -168,7 +168,7 @@ export function createAutoSymbolHandlers({
       return 'blocked';
     }
 
-    const intervalResult = await context.autoSymbolManager.maybeSwitchOnInterval({
+    const dueResult = await context.autoSymbolManager.evaluatePeriodicSwitchDue({
       direction: data.direction,
       currentTime: new Date(data.currentTimeMs),
       canTradeNow,
@@ -177,7 +177,7 @@ export function createAutoSymbolHandlers({
       context,
       monitorSymbol: data.monitorSymbol,
       direction: data.direction,
-      result: intervalResult,
+      result: dueResult,
     });
 
     handoffPeriodicWakeup({

@@ -7,19 +7,22 @@
  * - 每次唤醒重新读取权威状态，不维护 seat 事实副本
  */
 import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, TIME } from '../../constants/index.js';
+import { scheduleBoundedOneShotAt } from '../../utils/timer/index.js';
 import type { SeatStateChangedEvent } from '../../types/seat.js';
+import type { BoundedOneShotTimerController } from '../../utils/timer/types.js';
 import {
   getRequiredHKDateKey,
   resolveHKDayStartUtcMs,
-  isWithinMorningOpenProtection,
+  isWithinMorningOpenWindow,
 } from '../../utils/time/index.js';
 import type { TradingGateStateChangedEvent } from '../tradingGateEventRuntime/types.js';
 import type {
   AutoSearchRouteKey,
-  AutoSearchWakeupKind,
   AutoSearchWakeupRuntime,
   AutoSearchWakeupRuntimeDeps,
 } from './types.js';
+
+const AUTO_SEARCH_DIRECTIONS: ReadonlyArray<'LONG' | 'SHORT'> = ['LONG', 'SHORT'];
 
 function buildRouteKey(params: {
   readonly monitorSymbol: string;
@@ -54,7 +57,7 @@ export function createAutoSearchWakeupRuntime(
   let running = false;
   let unsubscribeSeatStateChanged: (() => void) | null = null;
   let unsubscribeGateStateChanged: (() => void) | null = null;
-  const timers = new Map<AutoSearchRouteKey, ReturnType<typeof setTimeout>>();
+  const timers = new Map<AutoSearchRouteKey, BoundedOneShotTimerController>();
   const activePromises = new Set<Promise<void>>();
 
   function clearRouteTimer(routeKey: AutoSearchRouteKey): void {
@@ -63,7 +66,7 @@ export function createAutoSearchWakeupRuntime(
       return;
     }
 
-    deps.clearTimer(timer);
+    timer.cancel();
     timers.delete(routeKey);
   }
 
@@ -72,15 +75,19 @@ export function createAutoSearchWakeupRuntime(
     readonly direction: 'LONG' | 'SHORT';
     readonly seatVersion: number;
     readonly atMs: number;
-    readonly kind: Extract<AutoSearchWakeupKind, 'SEARCH_COOLDOWN_TIMER' | 'OPEN_DELAY_TIMER'>;
   }): void {
     const routeKey = buildRouteKey(params);
     clearRouteTimer(routeKey);
-    const delayMs = Math.max(0, params.atMs - deps.now().getTime());
-    const timer = deps.scheduleTimer(() => {
-      timers.delete(routeKey);
-      triggerSeat(params.monitorSymbol, params.direction, params.seatVersion);
-    }, delayMs);
+    const timer = scheduleBoundedOneShotAt({
+      atMs: params.atMs,
+      now: deps.now,
+      scheduleTimer: deps.scheduleTimer,
+      clearTimer: deps.clearTimer,
+      onDue: () => {
+        timers.delete(routeKey);
+        triggerSeat(params.monitorSymbol, params.direction, params.seatVersion);
+      },
+    });
     timers.set(routeKey, timer);
   }
 
@@ -147,13 +154,12 @@ export function createAutoSearchWakeupRuntime(
         direction,
         seatVersion,
         atMs: cooldownEndMs,
-        kind: 'SEARCH_COOLDOWN_TIMER',
       });
       return;
     }
 
     const openDelayMinutes = monitorContext.config.autoSearchConfig.autoSearchOpenDelayMinutes;
-    if (openDelayMinutes > 0 && isWithinMorningOpenProtection(now, openDelayMinutes)) {
+    if (openDelayMinutes > 0 && isWithinMorningOpenWindow(now, openDelayMinutes)) {
       const openDelayEndMs = resolveOpenDelayEndMs(now, openDelayMinutes);
       if (openDelayEndMs !== null) {
         scheduleRouteTimer({
@@ -161,7 +167,6 @@ export function createAutoSearchWakeupRuntime(
           direction,
           seatVersion,
           atMs: openDelayEndMs,
-          kind: 'OPEN_DELAY_TIMER',
         });
       }
 
@@ -194,7 +199,7 @@ export function createAutoSearchWakeupRuntime(
     }
 
     for (const monitorConfig of deps.tradingConfig.monitors) {
-      for (const direction of ['LONG', 'SHORT'] as const) {
+      for (const direction of AUTO_SEARCH_DIRECTIONS) {
         const monitorContext = deps.monitorContexts.get(monitorConfig.monitorSymbol);
         if (monitorContext?.config.autoSearchConfig.autoSearchEnabled !== true) {
           continue;
@@ -210,7 +215,7 @@ export function createAutoSearchWakeupRuntime(
 
   function seedEmptySeats(): void {
     for (const monitorConfig of deps.tradingConfig.monitors) {
-      for (const direction of ['LONG', 'SHORT'] as const) {
+      for (const direction of AUTO_SEARCH_DIRECTIONS) {
         const monitorContext = deps.monitorContexts.get(monitorConfig.monitorSymbol);
         if (monitorContext?.config.autoSearchConfig.autoSearchEnabled !== true) {
           continue;

@@ -1,14 +1,13 @@
 /**
  * 时间唤醒候选来源。
  * 类型用途：标记系统级时间唤醒候选的业务来源。
- * 数据来源：lifecycle、doomsday、恢复性重试、交易门禁、HK 日期边界与市场边界计算结果。
+ * 数据来源：lifecycle、doomsday、交易门禁、HK 日期边界与市场边界计算结果。
  * 使用范围：TimeWakeupPlanner 输入候选与输出计划。
  */
 type TimeWakeupCandidateSource =
   | 'LIFECYCLE_RETRY'
   | 'DOOMSDAY_RETRY'
   | 'DOOMSDAY_WINDOW_ENTRY'
-  | 'RECOVERY_RETRY'
   | 'TRADING_GATE_EDGE'
   | 'OPEN_PROTECTION_EDGE'
   | 'MARKET_CLOSE_EDGE'

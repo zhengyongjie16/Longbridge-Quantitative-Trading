@@ -278,6 +278,34 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     expect(load(createLoadParams())).rejects.toThrow('无法获取账户信息');
   });
 
+  it('持仓快照拉取失败时 fail-fast，不能按空持仓继续重建', async () => {
+    let fetchAllOrdersCalled = false;
+    const deps = createBaseDeps({
+      trader: createReadyTrader({
+        getStockPositions: async () => {
+          throw new Error('positions unavailable');
+        },
+        fetchAllOrdersFromAPI: async () => {
+          fetchAllOrdersCalled = true;
+          return [];
+        },
+      }),
+    });
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+
+    let caughtError: unknown = null;
+    try {
+      await load(createLoadParams());
+    } catch (error) {
+      caughtError = error;
+    }
+
+    expect(caughtError).toBeInstanceOf(Error);
+    expect((caughtError as Error).message).toMatch(/无法刷新账户和持仓信息/);
+    expect(fetchAllOrdersCalled).toBe(false);
+  });
+
   it('failOnOrderFetchError 为 true 且订单拉取失败时抛出带"全量订单获取失败"的错误', async () => {
     const deps = createBaseDeps({
       trader: createReadyTrader({

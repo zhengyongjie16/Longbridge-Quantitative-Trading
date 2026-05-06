@@ -20,6 +20,7 @@ import type {
   ProcessSellSignalsParams,
   SignalProcessor,
 } from '../../src/core/signalProcessor/types.js';
+import type { TaskQueue } from '../../src/main/asyncProgram/tradeTaskQueue/types.js';
 import type {
   WarrantListCache,
   WarrantListCacheEntry,
@@ -84,11 +85,24 @@ function recordSteadyRuntimeStart(name: string): void {
   runtimeStartSteps.push(name);
 }
 
-function createStartRecorder(name: string): { readonly start: () => void } {
+function createProcessorRecorder(name: string): AsyncRuntime['buyProcessor'] {
   return {
     start: () => {
       recordSteadyRuntimeStart(name);
     },
+    stop: () => {},
+    stopAndDrain: async () => {},
+    restart: () => {},
+  };
+}
+
+function createMonitorTaskProcessorRecorder(name: string): AsyncRuntime['monitorTaskProcessor'] {
+  return {
+    start: () => {
+      recordSteadyRuntimeStart(name);
+    },
+    stopAndDrain: async () => {},
+    restart: () => {},
   };
 }
 
@@ -107,6 +121,28 @@ function createStartStopRecorder(name: string): {
 function noop(): void {}
 
 async function noopAsync(): Promise<void> {}
+
+function createTradeTaskQueueDouble<TType extends string>(): TaskQueue<TType> {
+  return {
+    push: () => {},
+    pop: () => null,
+    isEmpty: () => true,
+    removeTasks: () => 0,
+    clearAll: () => 0,
+    onTaskAdded: () => noop,
+  };
+}
+
+function createMonitorTaskQueueDouble(): MutableMonitorContextsPostGateRuntime['monitorTaskQueue'] {
+  return {
+    scheduleLatest: () => {},
+    pop: () => null,
+    isEmpty: () => true,
+    removeTasks: () => 0,
+    clearAll: () => 0,
+    onTaskAdded: () => noop,
+  };
+}
 
 function createMockPreGateRuntime(): PreGateRuntime {
   const warrantListEntries = new Map<string, WarrantListCacheEntry>();
@@ -229,6 +265,7 @@ function createMockPostGateRuntime(lastState: LastState): MutableMonitorContexts
       waitForFresh: async () => {},
       onFreshReached: () => noop,
       abortWaiting: () => {},
+      resetAbort: () => {},
       start: () => {
         recordSteadyRuntimeStart('postTradeConsistencyRuntime.start');
       },
@@ -236,6 +273,7 @@ function createMockPostGateRuntime(lastState: LastState): MutableMonitorContexts
         recordSteadyRuntimeStart('postTradeConsistencyRuntime.completeRebuildBaseline');
       },
       stopAndDrain: async () => {},
+      midnightClear: () => {},
     },
     lastState,
     trader,
@@ -243,35 +281,22 @@ function createMockPostGateRuntime(lastState: LastState): MutableMonitorContexts
     doomsdayProtection: createDoomsdayProtectionDouble(),
     signalProcessor,
     indicatorCache: {
-      clear: () => {},
+      push: () => {},
+      getClosest: () => null,
+      clearAll: () => {},
     },
-    buyTaskQueue: {
-      enqueue: async () => {},
-      dequeue: async () => null,
-      size: () => 0,
-      clear: () => {},
-    },
-    sellTaskQueue: {
-      enqueue: async () => {},
-      dequeue: async () => null,
-      size: () => 0,
-      clear: () => {},
-    },
-    monitorTaskQueue: {
-      enqueue: async () => {},
-      dequeue: async () => null,
-      size: () => 0,
-      clear: () => {},
-    },
-  } as unknown as MutableMonitorContextsPostGateRuntime;
+    buyTaskQueue: createTradeTaskQueueDouble(),
+    sellTaskQueue: createTradeTaskQueueDouble(),
+    monitorTaskQueue: createMonitorTaskQueueDouble(),
+  };
 }
 
 function createMockAsyncRuntime(): AsyncRuntime {
   return {
-    monitorTaskProcessor: createStartRecorder('monitorTaskProcessor.start'),
-    buyProcessor: createStartRecorder('buyProcessor.start'),
-    sellProcessor: createStartRecorder('sellProcessor.start'),
-  } as unknown as AsyncRuntime;
+    monitorTaskProcessor: createMonitorTaskProcessorRecorder('monitorTaskProcessor.start'),
+    buyProcessor: createProcessorRecorder('buyProcessor.start'),
+    sellProcessor: createProcessorRecorder('sellProcessor.start'),
+  };
 }
 
 function createShutdownController(): {
@@ -291,12 +316,22 @@ function createShutdownController(): {
   };
 }
 
-function createRunAppHarness(): {
+function createRunAppHarness(
+  options: {
+    readonly rejectTimeWakeupDuringStart?: boolean;
+    readonly cleanupError?: Error;
+  } = {},
+): {
   readonly runApp: RunAppFunction;
   readonly triggerShutdown: () => void;
+  readonly triggerTimeWakeupFatal: (error: Error) => void;
 } {
   const lastState = createMinimalLastState();
   const shutdownController = createShutdownController();
+  let rejectTimeWakeupFatal: ((error: Error) => void) | null = null;
+  const timeWakeupFatalPromise = new Promise<never>((_, reject) => {
+    rejectTimeWakeupFatal = reject;
+  });
   const deps = {
     createPreGateRuntime: async () => createMockPreGateRuntime(),
     createPostGateRuntime: async () => createMockPostGateRuntime(lastState),
@@ -329,17 +364,25 @@ function createRunAppHarness(): {
     createCleanup: (): CleanupController => ({
       execute: async () => {
         cleanupExecuteCount += 1;
+        if (options.cleanupError !== undefined) {
+          throw options.cleanupError;
+        }
       },
     }),
     createTimeWakeupRuntime: () => ({
       start: async () => {
         timeWakeupStartCount += 1;
         runtimeStartSteps.push('timeWakeupRuntime.start.begin');
+        if (options.rejectTimeWakeupDuringStart === true) {
+          rejectTimeWakeupFatal?.(new Error('time wakeup initial fatal'));
+        }
+
         await Promise.resolve();
         runtimeStartSteps.push('timeWakeupRuntime.start.end');
       },
       requestEvaluate: () => {},
       stopAndDrain: async () => {},
+      drainFatalError: () => timeWakeupFatalPromise,
       getStateSnapshot: () => ({
         running: false,
         inFlight: false,
@@ -368,6 +411,9 @@ function createRunAppHarness(): {
   return {
     runApp: createRunApp(deps),
     triggerShutdown: shutdownController.triggerShutdown,
+    triggerTimeWakeupFatal: (error) => {
+      rejectTimeWakeupFatal?.(error);
+    },
   };
 }
 
@@ -375,6 +421,26 @@ async function flushMicrotasks(times: number): Promise<void> {
   for (let index = 0; index < times; index += 1) {
     await Promise.resolve();
   }
+}
+
+async function expectPromiseRejectsWithMessage(
+  promise: Promise<unknown>,
+  expectedMessagePattern: RegExp,
+): Promise<void> {
+  try {
+    await promise;
+  } catch (error: unknown) {
+    if (!(error instanceof Error)) {
+      throw new Error(`[测试] 预期 Promise 以 Error 拒绝，实际为: ${String(error)}`, {
+        cause: error,
+      });
+    }
+
+    expect(error.message).toMatch(expectedMessagePattern);
+    return;
+  }
+
+  throw new Error('[测试] 预期 Promise 拒绝，但实际成功');
 }
 
 async function runAppAndTriggerShutdown(
@@ -422,6 +488,40 @@ describe('runApp business flow', () => {
     expect(timeWakeupStartCount).toBe(1);
     expect(cleanupExecuteCount).toBe(1);
     expect(steadyRuntimeStarts).toEqual([]);
+  });
+
+  it('time wakeup fatal triggers cleanup and propagates the error', async () => {
+    currentScenario = 'startupRebuildPending';
+    const harness = createRunAppHarness();
+    const runPromise = harness.runApp({ env: {} });
+
+    await flushMicrotasks(20);
+    harness.triggerTimeWakeupFatal(new Error('time wakeup fatal'));
+
+    await expectPromiseRejectsWithMessage(runPromise, /time wakeup fatal/);
+    expect(cleanupExecuteCount).toBe(1);
+  });
+
+  it('time wakeup fatal during initial evaluation prevents ordinary K line business events', async () => {
+    currentScenario = 'initialRebuildSucceeds';
+    const harness = createRunAppHarness({ rejectTimeWakeupDuringStart: true });
+
+    await expectPromiseRejectsWithMessage(harness.runApp({ env: {} }), /time wakeup initial fatal/);
+
+    expect(cleanupExecuteCount).toBe(1);
+    expect(steadyRuntimeStarts).not.toContain('businessEventProgram.start');
+  });
+
+  it('time wakeup fatal remains the propagated error when cleanup also fails', async () => {
+    currentScenario = 'startupRebuildPending';
+    const harness = createRunAppHarness({ cleanupError: new Error('cleanup failed') });
+    const runPromise = harness.runApp({ env: {} });
+
+    await flushMicrotasks(20);
+    harness.triggerTimeWakeupFatal(new Error('time wakeup fatal before cleanup'));
+
+    await expectPromiseRejectsWithMessage(runPromise, /time wakeup fatal before cleanup/);
+    expect(cleanupExecuteCount).toBe(1);
   });
 
   it('awaits initial time wakeup evaluation before starting ordinary K line business events', async () => {

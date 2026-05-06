@@ -62,7 +62,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
   /**
    * 获取今日未成交订单（带缓存）。
    * 优先返回缓存；超过 TTL 或 forceRefresh 时调用 API 刷新并更新缓存。
-   * 主循环与末日保护等需未成交订单列表，缓存减少 API 调用。
+   * 末日保护等运行期链路需要未成交订单列表，缓存减少 API 调用。
    *
    * @param symbols 标的列表，null 或空表示全部
    * @param forceRefresh 是否强制刷新，默认 false

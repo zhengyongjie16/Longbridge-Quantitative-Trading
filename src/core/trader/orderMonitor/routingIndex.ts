@@ -52,7 +52,7 @@ function resolveNextRouteGeneration(runtime: OrderMonitorRuntimeStore, symbol: s
  */
 export function clearRouteTimers(routeState: OrderMonitorSymbolRouteState): void {
   for (const timerRegistration of routeState.timerHandles.values()) {
-    clearTimeout(timerRegistration.handle);
+    timerRegistration.handle.cancel();
   }
 
   routeState.timerHandles.clear();

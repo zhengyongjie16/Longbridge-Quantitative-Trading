@@ -178,7 +178,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
     });
 
-    await machine.maybeSwitchOnInterval({
+    await machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -1459,7 +1459,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
     });
 
-    await machine.maybeSwitchOnInterval({
+    await machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,

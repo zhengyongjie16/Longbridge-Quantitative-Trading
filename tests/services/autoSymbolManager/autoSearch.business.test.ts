@@ -77,7 +77,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
           callPrice: 20_500,
         };
       },
-      isWithinMorningOpenProtection: () => false,
+      isWithinMorningAutoSearchOpenDelay: () => false,
       searchCooldownMs: 10_000,
       getHKDateKey,
       maxSearchFailuresPerDay: 3,
@@ -138,7 +138,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
         findCalls += 1;
         return null;
       },
-      isWithinMorningOpenProtection: () => false,
+      isWithinMorningAutoSearchOpenDelay: () => false,
       searchCooldownMs: 10_000,
       getHKDateKey,
       maxSearchFailuresPerDay: 3,
@@ -198,7 +198,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
         findCalls += 1;
         return null;
       },
-      isWithinMorningOpenProtection: () => false,
+      isWithinMorningAutoSearchOpenDelay: () => false,
       searchCooldownMs: 10_000,
       getHKDateKey,
       maxSearchFailuresPerDay: 3,
@@ -258,7 +258,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
           distanceDeltaToThreshold: 0.0001,
         });
       },
-      isWithinMorningOpenProtection: () => false,
+      isWithinMorningAutoSearchOpenDelay: () => false,
       searchCooldownMs: 10_000,
       getHKDateKey,
       maxSearchFailuresPerDay: 3,

@@ -6,7 +6,10 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderStatus, OrderType } from 'longbridge';
-import { ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS } from '../../../../src/constants/index.js';
+import {
+  ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS,
+  TIME,
+} from '../../../../src/constants/index.js';
 import { createMarketDataClientDouble, createQuoteDouble } from '../../../helpers/testDoubles.js';
 import { createRouteRuntime } from '../../../../src/core/trader/orderMonitor/routeRuntime.js';
 import type {
@@ -48,6 +51,7 @@ async function flushMicrotasks(): Promise<void> {
 
 type RuntimeTimerHarness = {
   readonly advanceBy: (delayMs: number) => Promise<void>;
+  readonly getPendingTimerAts: () => ReadonlyArray<number>;
   readonly restore: () => void;
 };
 
@@ -108,6 +112,7 @@ function createRuntimeTimerHarness(initialNowMs: number): RuntimeTimerHarness {
       await flushMicrotasks();
       await flushMicrotasks();
     },
+    getPendingTimerAts: () => [...timers.values()].map((timer) => timer.atMs),
     restore: () => {
       Date.now = originalNow;
       globalThis.setTimeout = originalSetTimeout;
@@ -602,6 +607,57 @@ describe('orderMonitor route runtime', () => {
         .get('BULL.HK')
         ?.timerHandles.has('SELL-QUOTE-RETRY-TIMER:QUOTE_RETRY'),
     ).toBe(true);
+  });
+
+  it('超长 route timer 只注册最大安全分段，到真实 due 后才触发 TIMER wakeup', async () => {
+    const initialNowMs = Date.parse('2026-04-09T09:30:00.000Z');
+    const timerHarness = createRuntimeTimerHarness(initialNowMs);
+
+    try {
+      const runtime = createRuntimeStore();
+      attachTrackedOrder(
+        runtime,
+        createTrackedOrder({
+          orderId: 'SELL-CANCEL-RETRY-LONG-TIMER',
+          symbol: 'BULL.HK',
+          side: OrderSide.Sell,
+          submittedAt: initialNowMs - 1_000,
+          nextCancelAttemptAt: initialNowMs + TIME.MAX_TIMER_DELAY_MS + 5,
+        }),
+      );
+      runtime.routeStatesBySymbol.set('BULL.HK', createRouteState('BULL.HK'));
+      const wakeupKinds: string[] = [];
+      const { marketDataClient } = createQuoteEmitter();
+      const routeRuntime = createRouteRuntime({
+        runtime,
+        config: {
+          ...routeConfig,
+          buyTimeout: { enabled: false, timeoutMs: 0 },
+          sellTimeout: { enabled: false, timeoutMs: 0 },
+        },
+        marketDataClient,
+        processRoute: async ({ wakeupKind }) => {
+          wakeupKinds.push(wakeupKind);
+        },
+      });
+
+      routeRuntime.start();
+      await flushMicrotasks();
+
+      expect(timerHarness.getPendingTimerAts()).toEqual([initialNowMs + TIME.MAX_TIMER_DELAY_MS]);
+
+      await timerHarness.advanceBy(TIME.MAX_TIMER_DELAY_MS);
+      expect(wakeupKinds).toEqual(['RECOVERED']);
+      expect(timerHarness.getPendingTimerAts()).toEqual([
+        initialNowMs + TIME.MAX_TIMER_DELAY_MS + 5,
+      ]);
+
+      await timerHarness.advanceBy(5);
+      expect(wakeupKinds).toEqual(['RECOVERED', 'TIMER']);
+      await routeRuntime.stopAndDrain();
+    } finally {
+      timerHarness.restore();
+    }
   });
 
   it('start 时即使 quoteRetryExhausted=true，只要存在 quoteRetryNextAt 仍会投影 QUOTE_RETRY timer', async () => {

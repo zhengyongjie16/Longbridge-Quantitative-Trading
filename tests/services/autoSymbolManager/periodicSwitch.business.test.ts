@@ -209,7 +209,7 @@ describe('periodic auto-switch regression', () => {
       lastSeatActivatedAt: nowMs - 60 * 60 * 1000,
       findBestSymbol: 'NEW_BULL.HK',
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -229,7 +229,7 @@ describe('periodic auto-switch regression', () => {
       lastSeatActivatedAt: readyMs,
       findBestSymbol: 'NEW_BULL.HK',
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -250,7 +250,7 @@ describe('periodic auto-switch regression', () => {
       findBestSymbol: 'NEW_BULL.HK',
     });
 
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -277,7 +277,7 @@ describe('periodic auto-switch regression', () => {
     });
     const previousVersion = harness.symbolRegistry.getSeatVersion('HSI.HK', 'LONG');
 
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -317,7 +317,7 @@ describe('periodic auto-switch regression', () => {
       blockedBy: 'ORDER_RECORDER',
     });
 
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -344,7 +344,7 @@ describe('periodic auto-switch regression', () => {
       findBestSymbol: 'NEW_BULL.HK',
       getBuyOrdersCount: () => buyOrdersCount,
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -352,7 +352,7 @@ describe('periodic auto-switch regression', () => {
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
     expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
     buyOrdersCount = 0;
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs + 1000),
       canTradeNow: true,
@@ -371,7 +371,7 @@ describe('periodic auto-switch regression', () => {
       findBestSymbol: 'NEW_BULL.HK',
       getOrderHoldSymbols: () => new Set(['OLD_BULL.HK']),
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -396,7 +396,7 @@ describe('periodic auto-switch regression', () => {
       getBuyOrdersCount: () => buyOrdersCount,
       getOrderHoldSymbols: () => holdSymbols,
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -404,7 +404,7 @@ describe('periodic auto-switch regression', () => {
     expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
     buyOrdersCount = 0;
     holdSymbols = new Set(['OLD_BULL.HK']);
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs + 1000),
       canTradeNow: true,
@@ -433,7 +433,7 @@ describe('periodic auto-switch regression', () => {
       blockedBy: 'ORDER_RECORDER',
     });
 
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -456,7 +456,7 @@ describe('periodic auto-switch regression', () => {
       findBestSymbol: 'NEW_BULL.HK',
       getOrderHoldSymbols: () => holdSymbols,
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -465,7 +465,7 @@ describe('periodic auto-switch regression', () => {
     expect(harness.periodicSwitchPending.get('LONG')?.blockedBy).toBe('LOCAL_PENDING_ORDER');
 
     holdSymbols = new Set<string>();
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs + 1000),
       canTradeNow: true,
@@ -497,14 +497,14 @@ describe('periodic auto-switch regression', () => {
       getOrderHoldSymbols: () => holdSymbols,
       logger,
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
     });
     buyOrdersCount = 0;
     holdSymbols = new Set(['OLD_BULL.HK']);
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs + 1000),
       canTradeNow: true,
@@ -534,7 +534,7 @@ describe('periodic auto-switch regression', () => {
       },
     });
 
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -558,7 +558,7 @@ describe('periodic auto-switch regression', () => {
       findBestSymbol: 'NEW_BULL.HK',
       getBuyOrdersCount: () => 1,
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -598,7 +598,7 @@ describe('periodic auto-switch regression', () => {
       getBuyOrdersCount: () => 1,
       distanceToStrikePercent: 2,
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -635,7 +635,7 @@ describe('periodic auto-switch regression', () => {
       getBuyOrdersCount: () => 1,
       distanceToStrikePercent: 0.1,
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -666,7 +666,7 @@ describe('periodic auto-switch regression', () => {
       lastSeatActivatedAt: readyMs,
       findBestSymbol: 'OLD_BULL.HK',
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -690,13 +690,13 @@ describe('periodic auto-switch regression', () => {
       lastSeatActivatedAt: readyMs,
       findBestSymbol: 'NEW_BULL.HK',
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: false,
     });
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs + 1000),
       canTradeNow: true,
@@ -712,19 +712,19 @@ describe('periodic auto-switch regression', () => {
       lastSeatActivatedAt: readyMs,
       findBestSymbol: 'NEW_BULL.HK',
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(Date.parse('2026-02-16T04:30:00.000Z')), // 午休
       canTradeNow: false,
     });
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(Date.parse('2026-02-16T05:00:00.000Z')), // 13:00 HK
       canTradeNow: true,
     });
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(Date.parse('2026-02-16T05:01:00.000Z')), // 13:01 HK
       canTradeNow: true,
@@ -744,13 +744,13 @@ describe('periodic auto-switch regression', () => {
         ['2026-02-17', { isTradingDay: true, isHalfDay: false }],
       ]),
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(Date.parse('2026-02-17T01:30:00.000Z')),
       canTradeNow: true,
     });
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(Date.parse('2026-02-17T01:31:00.000Z')),
       canTradeNow: true,
@@ -767,7 +767,7 @@ describe('periodic auto-switch regression', () => {
       lastSeatActivatedAt: readyMs,
       findBestSymbol: 'NEW_BULL.HK',
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -788,7 +788,7 @@ describe('periodic auto-switch regression', () => {
         executeCalls += 1;
       },
     });
-    await harness.machine.maybeSwitchOnInterval({
+    await harness.machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
@@ -915,7 +915,7 @@ describe('periodic auto-switch regression', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
-    await machine.maybeSwitchOnInterval({
+    await machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
