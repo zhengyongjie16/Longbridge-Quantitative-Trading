@@ -299,6 +299,14 @@ export function createPostGateRuntimeFactory(
       tradingConfig,
       liquidationCooldownTracker,
     });
+    const buyTaskQueue = createBuyTaskQueue();
+    const sellTaskQueue = createSellTaskQueue();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const seatActivationDispatcher = createSeatActivationDispatcher({
+      tradingConfig,
+      symbolRegistry,
+      monitorTaskQueue,
+    });
     const loadTradingDayRuntimeSnapshot = createLoadTradingDayRuntimeSnapshot({
       marketDataClient,
       trader,
@@ -309,6 +317,7 @@ export function createPostGateRuntimeFactory(
       protectiveLiquidationEpisodeTracker,
       tradeLogHydrator,
       warrantListCacheConfig,
+      seatActivationDispatcher,
     });
     const marketMonitor = createMarketMonitor();
     const doomsdayProtection = createDoomsdayProtection();
@@ -322,6 +331,34 @@ export function createPostGateRuntimeFactory(
       lastState,
     });
     quoteSubscriptionRuntimeRef = quoteSubscriptionRuntime;
+    let fatalError: Error | null = null;
+    const fatalRejectors = new Set<(error: Error) => void>();
+    const toError = (error: unknown): Error =>
+      error instanceof Error ? error : new Error(String(error));
+
+    const handleFatalError = (error: unknown): void => {
+      if (fatalError !== null) {
+        return;
+      }
+
+      fatalError = toError(error);
+      for (const reject of fatalRejectors) {
+        reject(fatalError);
+      }
+
+      fatalRejectors.clear();
+    };
+
+    const drainFatalError = (): Promise<never> => {
+      if (fatalError !== null) {
+        return Promise.reject(fatalError);
+      }
+
+      return new Promise<never>((_, reject) => {
+        fatalRejectors.add(reject);
+      });
+    };
+
     const tradingRiskEventRuntime = createTradingRiskEventRuntime({
       marketDataClient,
       trader,
@@ -331,6 +368,7 @@ export function createPostGateRuntimeFactory(
       postTradeConsistencyRuntime,
       doomsdayProtectionEnabled,
       now: () => new Date(),
+      onFatalError: handleFatalError,
     });
     const switchWakeupRuntime = createSwitchWakeupRuntime({
       marketDataClient,
@@ -348,6 +386,7 @@ export function createPostGateRuntimeFactory(
       clearTimer: (handle) => {
         clearTimeout(handle);
       },
+      onFatalError: handleFatalError,
     });
     const monitorQuoteEventRuntime = createDefaultMonitorQuoteEventRuntime({
       marketDataClient,
@@ -411,14 +450,6 @@ export function createPostGateRuntimeFactory(
     // 额外保留缓存安全余量，确保延迟验证读取最近样本时窗口充足。
     const indicatorCache = createIndicatorCache({
       retentionWindowMs: indicatorCacheRetentionSeconds * TIME.MILLISECONDS_PER_SECOND,
-    });
-    const buyTaskQueue = createBuyTaskQueue();
-    const sellTaskQueue = createSellTaskQueue();
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
-    const seatActivationDispatcher = createSeatActivationDispatcher({
-      tradingConfig,
-      symbolRegistry,
-      monitorTaskQueue,
     });
     const seatRuntimeCleanupDispatcher = createSeatRuntimeCleanupDispatcher({
       symbolRegistry,
@@ -490,6 +521,7 @@ export function createPostGateRuntimeFactory(
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
+      drainFatalError,
     };
   };
 }

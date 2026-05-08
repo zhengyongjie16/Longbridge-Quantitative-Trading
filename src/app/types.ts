@@ -230,7 +230,7 @@ export type MonitorContextFactoryDeps = Readonly<{
   config: MonitorConfig;
   state: MonitorState;
   symbolRegistry: SymbolRegistry;
-  quotesMap: ReadonlyMap<string, Quote | null>;
+  quotesMap: ReadonlyMap<string, Quote | null> | null;
   strategy: TradingSignalStrategy;
   orderRecorder: OrderRecorder;
   dailyLossTracker: DailyLossTracker;
@@ -297,12 +297,17 @@ export type CleanupFailure = Readonly<{
  * 数据来源：由 loadStartupSnapshot 返回。
  * 使用范围：仅 app 顶层装配与测试使用。
  */
-export type StartupSnapshotResult = Readonly<{
-  allOrders: ReadonlyArray<RawOrderFromAPI>;
-  quotesMap: ReadonlyMap<string, Quote | null>;
-  startupRebuildPending: boolean;
-  now: Date;
-}>;
+export type StartupSnapshotResult =
+  | Readonly<{
+      kind: 'READY';
+      allOrders: ReadonlyArray<RawOrderFromAPI>;
+      quotesMap: ReadonlyMap<string, Quote | null>;
+      now: Date;
+    }>
+  | Readonly<{
+      kind: 'API_RETRY_PENDING';
+      now: Date;
+    }>;
 
 /**
  * 启动快照加载参数。
@@ -346,7 +351,7 @@ export type RegisterDelayedSignalHandlersParams = Readonly<{
 export type CreateMonitorContextsParams = Readonly<{
   preGateRuntime: PreGateRuntime;
   postGateRuntime: MutableMonitorContextsPostGateRuntime;
-  quotesMap: ReadonlyMap<string, Quote | null>;
+  quotesMap: ReadonlyMap<string, Quote | null> | null;
   strategyFactory?: TradingSignalStrategyFactory;
 }>;
 
@@ -422,6 +427,9 @@ type PostGateRuntime = Readonly<{
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
+
+  /** 等待 post-gate 层 fatal error；与 createAsyncRuntime.drainFatalError 语义一致 */
+  drainFatalError: () => Promise<never>;
 }>;
 
 /**
@@ -444,6 +452,7 @@ export type AsyncRuntime = Readonly<{
   monitorTaskProcessor: MonitorTaskProcessor;
   buyProcessor: Processor;
   sellProcessor: Processor;
+  drainFatalError: () => Promise<never>;
 }>;
 
 /**
@@ -508,6 +517,7 @@ export interface PostTradeConsistencyRuntime {
   readonly onFreshReached: (
     listener: (event: PostTradeConsistencyFreshReachedEvent) => void,
   ) => Unsubscribe;
+  readonly drainFatalError: () => Promise<never>;
   readonly abortWaiting: () => void;
   readonly resetAbort: () => void;
   readonly start: () => void;

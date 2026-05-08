@@ -4,6 +4,7 @@ import type { LastState } from '../types/state.js';
 import type { Trader } from '../types/services.js';
 import { logger } from '../utils/logger/index.js';
 import { formatError } from '../utils/error/index.js';
+import { isExternalApiRequestError, isProgramError } from '../utils/apiFailure/index.js';
 
 /**
  * 刷新账户与持仓缓存（仅数据拉取，不做行情订阅）。默认行为：仅当 lastState.cachedAccount 为空时调用
@@ -32,11 +33,15 @@ export async function refreshAccountAndPositions(
   } catch (err) {
     const message = `无法刷新账户和持仓信息: ${formatError(err)}`;
     logger.warn(message);
-    throw new Error(message, { cause: err });
-  }
+    if (isProgramError(err)) {
+      throw err;
+    }
 
-  if (freshAccount === null) {
-    throw new Error('无法获取账户信息');
+    if (isExternalApiRequestError(err)) {
+      throw err;
+    }
+
+    throw new Error(message, { cause: err });
   }
 
   lastState.cachedAccount = freshAccount;

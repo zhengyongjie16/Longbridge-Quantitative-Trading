@@ -510,6 +510,25 @@ function extractReplaceOrderPrices(
 }
 
 describe('orderMonitor business flow', () => {
+  it('retries private topic subscription during initialization after a transient API failure', async () => {
+    const { deps, tradeCtx } = createDeps();
+    tradeCtx.setFailureRule('tradeSubscribe', {
+      failAtCalls: [1],
+      errorMessage: 'network unavailable',
+    });
+    const monitor = createOrderMonitor(deps);
+
+    let error: unknown = null;
+    try {
+      await monitor.initialize();
+    } catch (err) {
+      error = err;
+    }
+
+    expect(tradeCtx.getCalls('tradeSubscribe')).toHaveLength(2);
+    expect(error).toBeNull();
+  });
+
   it('replaces order when price diff equals threshold on downward move', async () => {
     const result = await executeReplaceScenario({
       initialPrice: 0.059,

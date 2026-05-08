@@ -667,25 +667,30 @@ describe('autoSymbolFinder business flow', () => {
     expect(quoteCtx.getCalls('warrantList')).toHaveLength(2);
   });
 
-  it('returns null and records warning when api call fails', async () => {
+  it('throws ExternalApiRequestError when warrantList api call fails', async () => {
     const quoteCtx = createQuoteContextMock();
     quoteCtx.setFailureRule('warrantList', {
-      failAtCalls: [1],
+      failAtCalls: [1, 2, 3],
       errorMessage: 'warrant list mock failed',
     });
 
-    const { logger, warns } = createLoggerRecorder();
-    const result = await findBestWarrant({
-      ctx: createQuoteContextDouble(quoteCtx),
-      monitorSymbol: 'HSI.HK',
-      tradingMinutes: 10,
-      policy: createDirectionalPolicy('LONG'),
-      expiryMinMonths: 3,
-      logger,
-    });
+    const { logger } = createLoggerRecorder();
+    let error: unknown = null;
+    try {
+      await findBestWarrant({
+        ctx: createQuoteContextDouble(quoteCtx),
+        monitorSymbol: 'HSI.HK',
+        tradingMinutes: 10,
+        policy: createDirectionalPolicy('LONG'),
+        expiryMinMonths: 3,
+        logger,
+      });
+    } catch (err) {
+      error = err;
+    }
 
-    expect(result).toBeNull();
-    expect(warns.some((msg) => msg.includes('warrantList 获取失败'))).toBeTrue();
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).name).toBe('ExternalApiRequestError');
   });
 
   it('returns null and logs when no warrant can satisfy business thresholds', async () => {

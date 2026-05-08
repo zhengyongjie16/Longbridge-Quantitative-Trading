@@ -9,6 +9,7 @@
  */
 import { API } from '../../constants/index.js';
 import type { ProtectiveLiquidationDirection } from '../../core/trader/protectiveLiquidationEpisodeTracker/types.js';
+import type { AccountSnapshot, Position } from '../../types/account.js';
 import type { MonitorContext } from '../../types/state.js';
 import type {
   PostTradeConsistencyFreshReachedEvent,
@@ -16,6 +17,7 @@ import type {
   Trader,
 } from '../../types/services.js';
 import { formatError } from '../../utils/error/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { createRefreshGate } from '../../utils/refreshGate/index.js';
 import { isSeatActive } from '../../utils/seat/guards.js';
@@ -63,6 +65,10 @@ function createEmptyRefreshNeed(): PostTradeConsistencyRefreshNeed {
  */
 function hasRefreshNeed(need: PostTradeConsistencyRefreshNeed): boolean {
   return need.refreshAccount || need.refreshPositions;
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(formatError(error));
 }
 
 /**
@@ -149,19 +155,6 @@ function registerAttributedSeatSymbolOrThrow(
   }
 
   attributedContexts.set(symbol, monitorContext);
-}
-
-/**
- * 判断错误是否为交易标的重复归属。
- *
- * @param error 待判断错误
- * @returns 属于结构性 duplicate ownership 错误时返回 true
- */
-function isAttributedSeatSymbolConflictError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.message.startsWith('[PostTradeConsistencyRuntime] 标的重复归属:')
-  );
 }
 
 /**
@@ -277,14 +270,21 @@ async function refreshAttributedUnrealizedLossData(
     );
 
     try {
-      await monitorContext.riskChecker.refreshUnrealizedLossData(
+      const refreshResult = await monitorContext.riskChecker.refreshUnrealizedLossData(
         monitorContext.orderRecorder,
         symbol,
         isLongSymbol,
         null,
         dailyLossOffset,
       );
+      if (refreshResult === null) {
+        throw new TypeError(`[PostTradeConsistencyRuntime] 浮亏缓存刷新返回 null: ${symbol}`);
+      }
     } catch (error) {
+      if (!isExternalApiRequestError(error)) {
+        throw error;
+      }
+
       refreshOk = false;
       logger.warn(`[PostTradeConsistencyRuntime] 刷新浮亏缓存失败: ${symbol}`, formatError(error));
     }
@@ -333,6 +333,8 @@ export function createPostTradeConsistencyRuntime(
   let immediateHandle: ReturnType<typeof setImmediate> | null = null;
   let retryHandle: ReturnType<typeof setTimeout> | null = null;
   let drainResolve: (() => void) | null = null;
+  let fatalError: Error | null = null;
+  const fatalRejectors = new Set<(error: Error) => void>();
   const freshReachedListeners = new Set<(event: PostTradeConsistencyFreshReachedEvent) => void>();
 
   /**
@@ -346,6 +348,20 @@ export function createPostTradeConsistencyRuntime(
     }
 
     return businessDeps;
+  }
+
+  function recordFatalError(error: unknown): Error {
+    if (fatalError !== null) {
+      return fatalError;
+    }
+
+    fatalError = toError(error);
+    for (const reject of fatalRejectors) {
+      reject(fatalError);
+    }
+
+    fatalRejectors.clear();
+    return fatalError;
   }
 
   /**
@@ -365,7 +381,12 @@ export function createPostTradeConsistencyRuntime(
 
     immediateHandle = setImmediate(() => {
       immediateHandle = null;
-      void runRefresh();
+      void runRefresh().catch((error: unknown) => {
+        const fatal = recordFatalError(error);
+        logger.error('[PostTradeConsistencyRuntime] 刷新调度发生未处理错误', {
+          error: formatError(fatal),
+        });
+      });
     });
   }
 
@@ -387,7 +408,7 @@ export function createPostTradeConsistencyRuntime(
    * 执行一次成交后刷新。
    *
    * 固定顺序：账户/持仓刷新 -> positionCache.update -> 保护性清仓完成判定与冷却推进 -> R1/N1 刷新 -> markFresh。
-   * 任一步骤失败都保留 pending 版本并进入重试语义。
+   * 外部失败保留 pending 版本并进入重试；程序内部契约/不变量错误则立即 fail-fast。
    */
   async function runRefresh(): Promise<void> {
     if (!started || inFlight || !hasRefreshNeed(pendingNeed)) {
@@ -405,7 +426,10 @@ export function createPostTradeConsistencyRuntime(
     try {
       const resolvedBusinessDeps = getBusinessDepsOrThrow();
       const trader = getTrader();
-      const [accountSnapshot, positions] = await Promise.all([
+      const [accountSnapshot, positions]: readonly [
+        AccountSnapshot | null,
+        ReadonlyArray<Position> | null,
+      ] = await Promise.all([
         need.refreshAccount ? trader.getAccountSnapshot() : Promise.resolve(null),
         need.refreshPositions ? trader.getStockPositions() : Promise.resolve(null),
       ]);
@@ -422,8 +446,9 @@ export function createPostTradeConsistencyRuntime(
 
       refreshOk = await runPostRefreshBusinessFlow(trader, lastState, resolvedBusinessDeps);
     } catch (error) {
-      if (isAttributedSeatSymbolConflictError(error)) {
+      if (!isExternalApiRequestError(error)) {
         fatalInvariantDetected = true;
+        recordFatalError(error);
         started = false;
         pendingNeed = createEmptyRefreshNeed();
         pendingVersion = null;
@@ -550,6 +575,16 @@ export function createPostTradeConsistencyRuntime(
     };
   }
 
+  function drainFatalError(): Promise<never> {
+    if (fatalError !== null) {
+      return Promise.reject(fatalError);
+    }
+
+    return new Promise<never>((_, reject) => {
+      fatalRejectors.add(reject);
+    });
+  }
+
   /**
    * 终止当前 freshness 等待轮次。
    *
@@ -585,8 +620,9 @@ export function createPostTradeConsistencyRuntime(
    * 停止运行时并等待当前在途刷新完成。
    *
    * 已积压但尚未执行的需求不会被清除，供后续重新 start 时继续消费。
+   * 若最后一次刷新以 fatal 程序错误结束，则在排空时重新抛出该错误。
    *
-   * @returns 在没有在途刷新后 resolve
+   * @returns 在没有在途刷新后 resolve；fatal 刷新错误会在此处抛出
    */
   async function stopAndDrain(): Promise<void> {
     started = false;
@@ -600,13 +636,15 @@ export function createPostTradeConsistencyRuntime(
       retryHandle = null;
     }
 
-    if (!inFlight) {
-      return;
+    if (inFlight) {
+      await new Promise<void>((resolve) => {
+        drainResolve = resolve;
+      });
     }
 
-    await new Promise<void>((resolve) => {
-      drainResolve = resolve;
-    });
+    if (fatalError !== null) {
+      throw fatalError;
+    }
   }
 
   /**
@@ -651,6 +689,7 @@ export function createPostTradeConsistencyRuntime(
     getStatus,
     waitForFresh,
     onFreshReached,
+    drainFatalError,
     abortWaiting,
     resetAbort,
     start,

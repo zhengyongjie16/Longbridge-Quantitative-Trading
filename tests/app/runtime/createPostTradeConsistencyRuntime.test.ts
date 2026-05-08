@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { createPostTradeConsistencyRuntime } from '../../../src/app/runtime/createPostTradeConsistencyRuntime.js';
+import { createExternalApiRequestError } from '../../../src/utils/apiFailure/index.js';
 import type { LastState } from '../../../src/types/state.js';
 
 import {
@@ -232,7 +233,14 @@ describe('createPostTradeConsistencyRuntime', () => {
     expect(staleStatus.staleVersion).toBe(2);
     expect(staleStatus.currentVersion).toBe(0);
 
-    firstAccountRefresh.reject(new Error('first refresh fails'));
+    firstAccountRefresh.reject(
+      createExternalApiRequestError({
+        operation: 'TradeContext.accountBalance',
+        attempts: 1,
+        cause: new Error('first refresh fails'),
+      }),
+    );
+
     firstPositionRefresh.resolve([
       createPositionDouble({
         symbol: 'BULL.HK',
@@ -307,7 +315,11 @@ describe('createPostTradeConsistencyRuntime', () => {
           getAccountSnapshot: async () => {
             accountCallCount += 1;
             if (accountCallCount === 1) {
-              throw new Error('account API temporary unavailable');
+              throw createExternalApiRequestError({
+                operation: 'TradeContext.accountBalance',
+                attempts: 1,
+                cause: new Error('account API temporary unavailable'),
+              });
             }
 
             return createAccountSnapshotDouble(66_000);
@@ -343,6 +355,296 @@ describe('createPostTradeConsistencyRuntime', () => {
     expect(runtime.getStatus()).toEqual({
       started: false,
       currentVersion: 1,
+      staleVersion: 1,
+    });
+  });
+
+  it('fails fast when account refresh hits TypeError and exposes the fatal channel immediately', async () => {
+    const lastState = createLastState();
+    let accountCallCount = 0;
+    const runtime = createPostTradeConsistencyRuntime({
+      getTrader: () =>
+        createTraderDouble({
+          getAccountSnapshot: async () => {
+            accountCallCount += 1;
+            throw new TypeError('TradeContext.accountBalance returned no primary account');
+          },
+          getStockPositions: async () => [],
+        }),
+      lastState,
+    });
+
+    bindMinimalBusinessDeps(runtime);
+    runtime.recordSettlementRefreshNeed({
+      refreshAccount: true,
+      refreshPositions: false,
+    });
+
+    const waiterResult = runtime.waitForFresh().then(
+      () => null,
+      (error: unknown) => error,
+    );
+    const fatalResult = runtime.drainFatalError().then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    runtime.start();
+
+    const waitError = await waiterResult;
+    const fatalError = await fatalResult;
+    let drainError: unknown = null;
+    try {
+      await runtime.stopAndDrain();
+    } catch (error) {
+      drainError = error;
+    }
+
+    expect(fatalError).toBeInstanceOf(TypeError);
+    expect((fatalError as Error).message).toBe(
+      'TradeContext.accountBalance returned no primary account',
+    );
+    expect(drainError).toBeInstanceOf(TypeError);
+    expect((drainError as Error).message).toBe(
+      'TradeContext.accountBalance returned no primary account',
+    );
+    expect(waitError).toBeInstanceOf(Error);
+    expect((waitError as Error).message).toBe(
+      '[postTradeConsistencyRuntime] freshness wait aborted: FATAL_INVARIANT',
+    );
+    expect(accountCallCount).toBe(1);
+    expect(runtime.getStatus()).toEqual({
+      started: false,
+      currentVersion: 0,
+      staleVersion: 1,
+    });
+  });
+
+  it('fails fast when positions committed hook throws ordinary Error', async () => {
+    const lastState = createLastState();
+    const internalError = new Error('position commit failed');
+    const runtime = createPostTradeConsistencyRuntime({
+      getTrader: () =>
+        createTraderDouble({
+          getAccountSnapshot: async () => createAccountSnapshotDouble(100),
+          getStockPositions: async () => [
+            createPositionDouble({
+              symbol: 'BULL.HK',
+              quantity: 1,
+              availableQuantity: 1,
+            }),
+          ],
+        }),
+      lastState,
+      onPositionsCommitted: async () => {
+        throw internalError;
+      },
+    });
+
+    bindMinimalBusinessDeps(runtime);
+    runtime.recordSettlementRefreshNeed({
+      refreshAccount: true,
+      refreshPositions: true,
+    });
+
+    runtime.start();
+    const fatalResult = await Promise.race([
+      runtime.drainFatalError().then(
+        () => null,
+        (error: unknown) => error,
+      ),
+      Bun.sleep(80).then(() => null),
+    ]);
+
+    let drainError: unknown = null;
+    try {
+      await runtime.stopAndDrain();
+    } catch (error) {
+      drainError = error;
+    }
+
+    expect(fatalResult).toBe(internalError);
+    expect(drainError).toBe(internalError);
+    expect(runtime.getStatus()).toEqual({
+      started: false,
+      currentVersion: 0,
+      staleVersion: 1,
+    });
+  });
+
+  it('fails fast when unrealized loss refresh returns null', async () => {
+    const lastState = createLastState();
+    let riskRefreshCallCount = 0;
+    const monitorContext = createMonitorContextDouble({
+      config: createMonitorConfigDouble({
+        monitorSymbol: 'HSI.HK',
+      }),
+      symbolRegistry: createSymbolRegistryDouble({
+        monitorSymbol: 'HSI.HK',
+        longSeat: {
+          symbol: 'BULL.HK',
+          status: 'ACTIVE',
+          lastSwitchAt: null,
+          lastSearchAt: null,
+          lastSeatActivatedAt: null,
+          searchFailCountToday: 0,
+          frozenTradingDayKey: null,
+        },
+        shortSeat: {
+          symbol: 'BEAR.HK',
+          status: 'EMPTY',
+          lastSwitchAt: null,
+          lastSearchAt: null,
+          lastSeatActivatedAt: null,
+          searchFailCountToday: 0,
+          frozenTradingDayKey: null,
+        },
+      }),
+      riskChecker: createRiskCheckerDouble({
+        refreshUnrealizedLossData: async () => {
+          riskRefreshCallCount += 1;
+          return null;
+        },
+      }),
+    });
+    const runtime = createPostTradeConsistencyRuntime({
+      getTrader: () =>
+        createTraderDouble({
+          getAccountSnapshot: async () => createAccountSnapshotDouble(100),
+          getStockPositions: async () => [
+            createPositionDouble({
+              symbol: 'BULL.HK',
+              quantity: 1,
+              availableQuantity: 1,
+            }),
+          ],
+        }),
+      lastState,
+    });
+
+    runtime.bindBusinessDeps({
+      monitorContexts: new Map([['HSI.HK', monitorContext]]),
+      dailyLossTracker: createDailyLossTrackerDouble(),
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+    });
+
+    runtime.recordSettlementRefreshNeed({
+      refreshAccount: true,
+      refreshPositions: true,
+    });
+
+    runtime.start();
+    let caught: unknown = null;
+    try {
+      await runtime.drainFatalError();
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect(riskRefreshCallCount).toBe(1);
+    expect(runtime.getStatus()).toEqual({
+      started: false,
+      currentVersion: 0,
+      staleVersion: 1,
+    });
+  });
+
+  it('fails fast when unrealized loss refresh hits TypeError and does not schedule retry', async () => {
+    const lastState = createLastState();
+    let accountCallCount = 0;
+    let riskRefreshCallCount = 0;
+
+    const monitorContext = createMonitorContextDouble({
+      config: createMonitorConfigDouble({
+        monitorSymbol: 'HSI.HK',
+      }),
+      symbolRegistry: createSymbolRegistryDouble({
+        monitorSymbol: 'HSI.HK',
+        longSeat: {
+          symbol: 'BULL.HK',
+          status: 'ACTIVE',
+          lastSwitchAt: null,
+          lastSearchAt: null,
+          lastSeatActivatedAt: null,
+          searchFailCountToday: 0,
+          frozenTradingDayKey: null,
+        },
+        shortSeat: {
+          symbol: 'BEAR.HK',
+          status: 'EMPTY',
+          lastSwitchAt: null,
+          lastSearchAt: null,
+          lastSeatActivatedAt: null,
+          searchFailCountToday: 0,
+          frozenTradingDayKey: null,
+        },
+      }),
+      riskChecker: createRiskCheckerDouble({
+        refreshUnrealizedLossData: async () => {
+          riskRefreshCallCount += 1;
+          throw new TypeError('refresh unrealized loss contract violated');
+        },
+      }),
+    });
+
+    const runtime = createPostTradeConsistencyRuntime({
+      getTrader: () =>
+        createTraderDouble({
+          getAccountSnapshot: async () => {
+            accountCallCount += 1;
+            return createAccountSnapshotDouble(77_000);
+          },
+          getStockPositions: async () => [
+            createPositionDouble({
+              symbol: 'BULL.HK',
+              quantity: 300,
+              availableQuantity: 300,
+            }),
+          ],
+        }),
+      lastState,
+    });
+
+    runtime.bindBusinessDeps({
+      monitorContexts: new Map([['HSI.HK', monitorContext]]),
+      dailyLossTracker: createDailyLossTrackerDouble(),
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+    });
+
+    runtime.recordSettlementRefreshNeed({
+      refreshAccount: true,
+      refreshPositions: true,
+    });
+
+    const waiterResult = runtime.waitForFresh().then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    runtime.start();
+
+    const waitError = await waiterResult;
+    let drainError: unknown = null;
+    try {
+      await runtime.stopAndDrain();
+    } catch (error) {
+      drainError = error;
+    }
+
+    expect(drainError).toBeInstanceOf(TypeError);
+    expect((drainError as Error).message).toBe('refresh unrealized loss contract violated');
+    expect(waitError).toBeInstanceOf(Error);
+    expect((waitError as Error).message).toBe(
+      '[postTradeConsistencyRuntime] freshness wait aborted: FATAL_INVARIANT',
+    );
+    expect(accountCallCount).toBe(1);
+    expect(riskRefreshCallCount).toBe(1);
+    expect(runtime.getStatus()).toEqual({
+      started: false,
+      currentVersion: 0,
       staleVersion: 1,
     });
   });

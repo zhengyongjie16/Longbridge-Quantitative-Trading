@@ -38,4 +38,7 @@ export type BaseProcessorConfig<TType extends string> = {
 
   /** 可选：是否可处理任务的门禁，false 时仅跳过 */
   readonly getCanProcessTask?: () => boolean;
+
+  /** 可选：非 API 程序错误进入 fatal 通道 */
+  readonly onFatalError?: (error: unknown) => void;
 };

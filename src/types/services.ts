@@ -21,6 +21,7 @@ import type { MonitorConfig } from './config.js';
 import type { TradingCalendarSnapshot } from './tradingCalendar.js';
 import type { CancelOrderOutcome, OrderClosedReason } from './trader.js';
 import type { CandleData } from './data.js';
+import type { ExternalApiRetryConfig } from '../utils/apiFailure/types.js';
 import type { DecimalLike } from '../utils/helpers/types.js';
 
 /**
@@ -630,10 +631,15 @@ export interface Trader {
   // ========== 账户相关 ==========
 
   /** 获取账户快照 */
-  getAccountSnapshot: () => Promise<AccountSnapshot | null>;
+  getAccountSnapshot: (params?: {
+    readonly retryConfig?: ExternalApiRetryConfig;
+  }) => Promise<AccountSnapshot>;
 
   /** 获取持仓列表 */
-  getStockPositions: (symbols?: ReadonlyArray<string> | null) => Promise<ReadonlyArray<Position>>;
+  getStockPositions: (params?: {
+    readonly symbols?: ReadonlyArray<string> | null;
+    readonly retryConfig?: ExternalApiRetryConfig;
+  }) => Promise<ReadonlyArray<Position>>;
 
   // ========== 订单缓存 ==========
 

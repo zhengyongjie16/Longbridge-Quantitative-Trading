@@ -10,6 +10,7 @@ import { createDelayedSignalVerifier } from '../../../../src/main/asyncProgram/d
 import { performVerification } from '../../../../src/main/asyncProgram/delayedSignalVerifier/utils.js';
 import { createSignal } from '../../../../mock/factories/signalFactory.js';
 import type { VerificationIndicator } from '../../../../src/types/indicatorProfile.js';
+import type { IndicatorCache } from '../../../../src/main/asyncProgram/indicatorCache/types.js';
 
 const K_VERIFICATION_INDICATORS: ReadonlyArray<VerificationIndicator> = ['K'];
 const ADX_VERIFICATION_INDICATORS: ReadonlyArray<VerificationIndicator> = ['ADX'];
@@ -81,6 +82,90 @@ describe('delayedSignalVerifier business flow', () => {
     await Bun.sleep(20);
 
     expect(verified).toBe(1);
+  });
+
+  it('exposes verification execution errors to fatal handler', async () => {
+    const baseTime = 91_000;
+    const errors: unknown[] = [];
+    const indicatorCache: IndicatorCache = {
+      push: () => {},
+      getClosest: () => {
+        throw new TypeError('indicator cache broken');
+      },
+      clearAll: () => {},
+    };
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
+      onFatalError: (error) => {
+        errors.push(error);
+      },
+    });
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: baseTime,
+      indicators1: { K: 10 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
+    });
+
+    await Bun.sleep(20);
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(TypeError);
+    expect((errors[0] as Error).message).toContain('indicator cache broken');
+  });
+
+  it('exposes onVerified callback errors to fatal handler', async () => {
+    const baseTime = 92_000;
+    const indicatorCache = createIndicatorCache();
+    const errors: unknown[] = [];
+    const verifierDeps = {
+      indicatorCache,
+      onFatalError: (error: unknown) => {
+        errors.push(error);
+      },
+    };
+    const verifier = createDelayedSignalVerifier(verifierDeps);
+
+    for (const sample of [
+      { values: createSampleK(11), timestamp: baseTime },
+      { values: createSampleK(12), timestamp: baseTime + 5_000 },
+      { values: createSampleK(13), timestamp: baseTime + 10_000 },
+    ]) {
+      indicatorCache.push('HSI.HK', sample.values, sample.timestamp);
+    }
+
+    verifier.onVerified(() => {
+      throw new Error('queue push failed');
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: baseTime,
+      indicators1: { K: 10 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
+    });
+
+    await Bun.sleep(20);
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(Error);
+    expect((errors[0] as Error).message).toContain('queue push failed');
   });
 
   it('passes BUYCALL when T0/T+5/T+10 are all above initial value', async () => {

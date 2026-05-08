@@ -61,4 +61,5 @@ export type VerifiedCallback = (signal: Signal, monitorSymbol: string) => void;
  */
 export type DelayedSignalVerifierDeps = {
   readonly indicatorCache: IndicatorCache;
+  readonly onFatalError?: (error: unknown) => void;
 };

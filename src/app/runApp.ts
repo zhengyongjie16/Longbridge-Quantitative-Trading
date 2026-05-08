@@ -15,6 +15,7 @@ import { applyStartupSnapshotFailureState } from '../main/lifecycle/startupFailu
 import { displayAccountAndPositions } from '../services/accountDisplay/index.js';
 import { logger } from '../utils/logger/index.js';
 import { formatError } from '../utils/error/index.js';
+import { isExternalApiRequestError } from '../utils/apiFailure/index.js';
 import { createCleanup } from './shutdown/createCleanup.js';
 import { createLifecycleRuntime } from './lifecycle/createLifecycleRuntime.js';
 import { createMonitorContexts } from './context/createMonitorContexts.js';
@@ -125,14 +126,14 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       symbolRegistry: preGateRuntime.symbolRegistry,
       positions: postGateRuntime.lastState.cachedPositions,
     });
-    const runtimeValidationResult = validateRuntimeSymbols({
-      inputs: runtimeValidationCollector.runtimeValidationInputs,
-      quotesMap: startupSnapshot.quotesMap,
-    });
 
-    if (startupSnapshot.startupRebuildPending) {
-      appLogger.warn('启动快照失败，跳过运行时标的验证，等待生命周期重建恢复');
+    if (startupSnapshot.kind === 'API_RETRY_PENDING') {
+      appLogger.warn('启动快照 API 请求失败，跳过运行时标的验证，等待生命周期重建恢复');
     } else {
+      const runtimeValidationResult = validateRuntimeSymbols({
+        inputs: runtimeValidationCollector.runtimeValidationInputs,
+        quotesMap: startupSnapshot.quotesMap,
+      });
       if (runtimeValidationResult.warnings.length > 0) {
         appLogger.warn('标的验证出现警告：');
         for (const [index, warning] of runtimeValidationResult.warnings.entries()) {
@@ -157,7 +158,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
     buildMonitorContexts({
       preGateRuntime,
       postGateRuntime,
-      quotesMap: startupSnapshot.quotesMap,
+      quotesMap: startupSnapshot.kind === 'READY' ? startupSnapshot.quotesMap : null,
     });
 
     postGateRuntime.postTradeConsistencyRuntime.bindBusinessDeps({
@@ -254,7 +255,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
     });
 
     let initialRebuildSucceeded = false;
-    if (startupSnapshot.startupRebuildPending) {
+    if (startupSnapshot.kind === 'API_RETRY_PENDING') {
       appLogger.warn('启动阶段跳过初次重建，保持静止并等待生命周期重建任务自动恢复');
     } else {
       try {
@@ -265,9 +266,23 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
         });
         initialRebuildSucceeded = true;
       } catch (err) {
+        if (!isExternalApiRequestError(err)) {
+          const rebuildError = err instanceof Error ? err : new Error(formatAppError(err));
+          try {
+            await cleanup.execute();
+          } catch (cleanupError) {
+            appLogger.error(
+              '[runApp] cleanup 失败，保留原始初始重建错误',
+              formatAppError(cleanupError),
+            );
+          }
+
+          throw rebuildError;
+        }
+
         applyStartupSnapshotFailure(postGateRuntime.lastState, startupSnapshot.now);
         appLogger.error(
-          '启动初始重建失败：已阻断交易并切换为开盘重建重试模式',
+          '启动初始重建 API 请求失败：已阻断交易并切换为开盘重建重试模式',
           formatAppError(err),
         );
       }
@@ -305,7 +320,13 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       }
 
       appLogger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
-      await Promise.race([waitForShutdown(), timeWakeupRuntime.drainFatalError()]);
+      await Promise.race([
+        waitForShutdown(),
+        timeWakeupRuntime.drainFatalError(),
+        asyncRuntime.drainFatalError(),
+        postGateRuntime.postTradeConsistencyRuntime.drainFatalError(),
+        postGateRuntime.autoSearchWakeupRuntime.drainFatalError(),
+      ]);
     } catch (error) {
       waitError = toError(error);
     }

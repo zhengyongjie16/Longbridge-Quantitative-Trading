@@ -153,6 +153,7 @@ describe('switchWakeupRuntime', () => {
       readonly now?: () => Date;
       readonly timerHarness?: ReturnType<typeof createTimerHarness>;
       readonly autoSymbolManager?: AutoSymbolManagerPort;
+      readonly onFatalError?: (error: unknown) => void;
     } = {},
   ): Readonly<{
     runtime: ReturnType<typeof createSwitchWakeupRuntime>;
@@ -236,9 +237,9 @@ describe('switchWakeupRuntime', () => {
         };
       },
     });
-    const runtime = createSwitchWakeupRuntime({
+    const runtimeDeps = {
       marketDataClient: {
-        onQuoteUpdated: (listener) => {
+        onQuoteUpdated: (listener: (event: QuoteUpdatedEvent) => void) => {
           quoteUpdatedListener = listener;
           return () => {
             if (quoteUpdatedListener === listener) {
@@ -258,11 +259,14 @@ describe('switchWakeupRuntime', () => {
         (() => {
           return new Date('2026-04-07T02:00:00.000Z');
         }),
-      scheduleTimer: (callback, delayMs) => timerHarness.schedule(callback, delayMs),
-      clearTimer: (handle) => {
+      scheduleTimer: (callback: () => void, delayMs: number) =>
+        timerHarness.schedule(callback, delayMs),
+      clearTimer: (handle: ReturnType<typeof setTimeout>) => {
         timerHarness.clear(handle);
       },
-    });
+      ...(params.onFatalError ? { onFatalError: params.onFatalError } : {}),
+    };
+    const runtime = createSwitchWakeupRuntime(runtimeDeps);
 
     return {
       runtime,
@@ -305,6 +309,54 @@ describe('switchWakeupRuntime', () => {
       wakeups,
     };
   }
+
+  it('exposes pending switch route errors to fatal handler', async () => {
+    const fatalErrors: unknown[] = [];
+    const runtimeHarness = createBaseHarness({
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: { kind: 'NOOP' },
+        }),
+        advancePendingSwitch: async () => {
+          throw new TypeError('switch route broken');
+        },
+        hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+    });
+
+    emitQuoteUpdated('BULL.HK', 1.23);
+    await waitTick();
+    await waitTick();
+    await runtimeHarness.runtime.stopAndDrain();
+
+    expect(fatalErrors).toHaveLength(1);
+    expect(fatalErrors[0]).toBeInstanceOf(TypeError);
+    expect((fatalErrors[0] as Error).message).toContain('switch route broken');
+  });
 
   it('re-drives the same pending switch on order, freshness, quote and retry-timer wakeups', async () => {
     const advanceCalls: Array<{

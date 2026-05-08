@@ -28,7 +28,7 @@ import { formatSymbolDisplay } from '../../../utils/display/index.js';
 export function createDelayedSignalVerifier(
   deps: DelayedSignalVerifierDeps,
 ): DelayedSignalVerifierPort {
-  const { indicatorCache } = deps;
+  const { indicatorCache, onFatalError } = deps;
 
   // 待验证信号 Map（signalId -> entry）
   const pendingSignals = new Map<string, PendingSignalEntry>();
@@ -42,36 +42,47 @@ export function createDelayedSignalVerifier(
    * 通过则触发 onVerified 回调，失败则记录日志并结束本次验证。
    */
   function executeVerification(signalId: string): void {
-    const entry = pendingSignals.get(signalId);
-    if (!entry) {
-      return;
-    }
-
-    // 从待验证列表中移除
-    pendingSignals.delete(signalId);
-    const { signal, monitorSymbol } = entry;
-
-    // 执行验证
-    const result = performVerification(indicatorCache, entry);
-    const actionDesc = ACTION_DESCRIPTIONS[signal.action];
-    if (result.passed) {
-      logger.info(
-        `[延迟验证通过] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`,
-      );
-
-      // 通知所有验证通过的回调
-      // 注意：验证通过的信号会继续流入后续买入/卖出处理链路
-      for (const callback of verifiedCallbacks) {
-        try {
-          callback(signal, monitorSymbol);
-        } catch (err) {
-          logger.error('[延迟验证] 执行 onVerified 回调时发生错误', err);
-        }
+    try {
+      const entry = pendingSignals.get(signalId);
+      if (!entry) {
+        return;
       }
-    } else {
-      logger.info(
-        `[延迟验证失败] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`,
-      );
+
+      // 从待验证列表中移除
+      pendingSignals.delete(signalId);
+      const { signal, monitorSymbol } = entry;
+
+      // 执行验证
+      const result = performVerification(indicatorCache, entry);
+      const actionDesc = ACTION_DESCRIPTIONS[signal.action];
+      if (result.passed) {
+        logger.info(
+          `[延迟验证通过] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`,
+        );
+
+        // 通知所有验证通过的回调
+        // 注意：验证通过的信号会继续流入后续买入/卖出处理链路
+        for (const callback of verifiedCallbacks) {
+          try {
+            callback(signal, monitorSymbol);
+          } catch (err) {
+            logger.error('[延迟验证] 执行 onVerified 回调时发生错误', err);
+            onFatalError?.(err);
+          }
+        }
+      } else {
+        logger.info(
+          `[延迟验证失败] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`,
+        );
+      }
+    } catch (err) {
+      logger.error('[延迟验证] 执行验证流程时发生错误', err);
+      if (onFatalError) {
+        onFatalError(err);
+        return;
+      }
+
+      throw err;
     }
   }
   return {

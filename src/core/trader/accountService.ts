@@ -8,6 +8,8 @@
  * 依赖：ctx（Trade API 上下文）、rateLimiter（频率限制）
  */
 import { decimalToNumber } from '../../utils/helpers/index.js';
+import { wrapExternalApiRequest } from '../../utils/apiFailure/index.js';
+import type { ExternalApiRetryConfig } from '../../utils/apiFailure/types.js';
 import type { AccountSnapshot, Position, CashInfo } from '../../types/account.js';
 import type { AccountService, AccountServiceDeps } from './types.js';
 
@@ -21,16 +23,22 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
 
   /**
    * 获取账户快照（余额、净资产、购买力、现金详情等）。
-   * 供下单前风控与资金校验使用；无主账户时返回 null。
+   * 供下单前风控与资金校验使用；若返回结果不含主账户则按内部契约错误 fail-fast。
    *
-   * @returns 账户快照或 null
+   * @returns 账户快照
    */
-  const getAccountSnapshot = async (): Promise<AccountSnapshot | null> => {
+  const getAccountSnapshot = async (params?: {
+    readonly retryConfig?: ExternalApiRetryConfig;
+  }): Promise<AccountSnapshot> => {
     await rateLimiter.throttle();
-    const balances = await ctx.accountBalance();
+    const balances = await wrapExternalApiRequest({
+      operation: 'TradeContext.accountBalance',
+      request: () => ctx.accountBalance(),
+      ...(params?.retryConfig ? { retryConfig: params.retryConfig } : {}),
+    });
     const primary = balances[0];
     if (!primary) {
-      return null;
+      throw new TypeError('TradeContext.accountBalance returned no primary account');
     }
 
     const totalCash = decimalToNumber(primary.totalCash);
@@ -62,13 +70,19 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
    * @param symbols 标的代码数组，null 或未传时获取所有持仓
    * @returns 持仓列表（含 accountChannel、symbol、availableQuantity 等）
    */
-  const getStockPositions = async (
-    symbols: ReadonlyArray<string> | null = null,
-  ): Promise<ReadonlyArray<Position>> => {
+  const getStockPositions = async (params?: {
+    readonly symbols?: ReadonlyArray<string> | null;
+    readonly retryConfig?: ExternalApiRetryConfig;
+  }): Promise<ReadonlyArray<Position>> => {
+    const symbols = params?.symbols ?? null;
     await rateLimiter.throttle();
 
     // stockPositions 接受 Array<string> | undefined | null，直接传递即可
-    const resp = await ctx.stockPositions(symbols ? [...symbols] : undefined);
+    const resp = await wrapExternalApiRequest({
+      operation: 'TradeContext.stockPositions',
+      request: () => ctx.stockPositions(symbols ? [...symbols] : undefined),
+      ...(params?.retryConfig ? { retryConfig: params.retryConfig } : {}),
+    });
     const channels = resp.channels;
     if (channels.length === 0) {
       return [];

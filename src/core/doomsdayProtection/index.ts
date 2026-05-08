@@ -37,7 +37,7 @@ import {
   isWithinDoomsdayBuyCutoffWindow,
   isWithinDoomsdayClearanceTakeoverWindow,
 } from './utils.js';
-import { formatError } from '../../utils/error/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { getHKDateKey } from '../../utils/time/index.js';
 import { isCancelAcceptedOrTerminalNonFilledClose } from '../../utils/trading/orderStatus.js';
 
@@ -454,7 +454,7 @@ export function createDoomsdayProtection(deps?: {
       if (!isWithinDoomsdayBuyCutoffWindow(currentTime, isHalfDay)) {
         // 不在买入截止窗口内，直接返回。
         // 当天执行标记由日期键自然隔离，无需额外重置 cancelCheckExecutedDate。
-        return { executed: false, cancelRequestAcceptedCount: 0 };
+        return { executed: false, cancelRequestAcceptedCount: 0, nextRetryAtMs: null };
       }
 
       // 检查当天是否已执行过撤单检查
@@ -464,7 +464,7 @@ export function createDoomsdayProtection(deps?: {
       const todayDateString = getHKDateKey(currentTime);
       if (cancelCheckExecutedDate === todayDateString) {
         // 当天已执行过，直接返回
-        return { executed: false, cancelRequestAcceptedCount: 0 };
+        return { executed: false, cancelRequestAcceptedCount: 0, nextRetryAtMs: null };
       }
 
       // 收集所有唯一的交易标的
@@ -484,7 +484,7 @@ export function createDoomsdayProtection(deps?: {
       }
 
       if (allTradingSymbols.size === 0) {
-        return { executed: false, cancelRequestAcceptedCount: 0 };
+        return { executed: false, cancelRequestAcceptedCount: 0, nextRetryAtMs: null };
       }
 
       const symbolsArray = [...allTradingSymbols];
@@ -495,20 +495,19 @@ export function createDoomsdayProtection(deps?: {
       logger.info(`[末日保护程序] 首次进入买入截止窗口（${closeTimeRange}），检查未成交买入订单`);
       const pendingOrders = await trader.getPendingOrders(symbolsArray, true);
 
-      // 标记当天已执行过检查（无论是否有订单需要撤销）
-      cancelCheckExecutedDate = todayDateString;
-
       // 过滤出买入订单
       const pendingBuyOrders = pendingOrders.filter((order) => order.side === OrderSide.Buy);
       if (pendingBuyOrders.length === 0) {
+        cancelCheckExecutedDate = todayDateString;
         logger.info('[末日保护程序] 无未成交买入订单，无需撤单');
-        return { executed: false, cancelRequestAcceptedCount: 0 };
+        return { executed: false, cancelRequestAcceptedCount: 0, nextRetryAtMs: null };
       }
 
       logger.info(`[末日保护程序] 发现 ${pendingBuyOrders.length} 个未成交买入订单，准备撤单`);
 
       // 撤销所有买入订单
       let cancelRequestAcceptedCount = 0;
+      let cancelRetryRequired = false;
       for (const order of pendingBuyOrders) {
         try {
           const cancelOutcome = await trader.cancelOrder(order.orderId);
@@ -525,14 +524,16 @@ export function createDoomsdayProtection(deps?: {
             continue;
           }
 
+          cancelRetryRequired = true;
           logger.warn(
             `[末日保护程序] 撤销买入订单未确认成功：${order.orderId} kind=${cancelOutcome.kind}`,
           );
         } catch (err) {
-          logger.warn(
-            `[末日保护程序] 撤销买入订单失败：${order.symbol} 订单ID=${order.orderId}`,
-            formatError(err),
-          );
+          if (isExternalApiRequestError(err)) {
+            throw err;
+          }
+
+          throw err;
         }
       }
 
@@ -542,7 +543,16 @@ export function createDoomsdayProtection(deps?: {
         );
       }
 
-      return { executed: true, cancelRequestAcceptedCount };
+      if (cancelRetryRequired) {
+        return {
+          executed: true,
+          cancelRequestAcceptedCount,
+          nextRetryAtMs: now().getTime() + quoteRetryIntervalMs,
+        };
+      }
+
+      cancelCheckExecutedDate = todayDateString;
+      return { executed: true, cancelRequestAcceptedCount, nextRetryAtMs: null };
     },
   };
 }

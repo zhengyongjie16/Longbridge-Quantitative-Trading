@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { timeWakeupEvaluationProgram } from '../../../src/main/timeWakeupEvaluationProgram/index.js';
+import { createExternalApiRequestError } from '../../../src/utils/apiFailure/index.js';
 import type { TimeWakeupEvaluationContext } from '../../../src/main/timeWakeupEvaluationProgram/types.js';
 import type { LastState, MonitorContext } from '../../../src/types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../src/types/config.js';
@@ -26,6 +27,7 @@ import {
   createMonitorConfigDouble,
   createMonitorContextDouble,
   createPositionCacheDouble,
+  createPositionDouble,
   createQuoteSubscriptionRuntimeDouble,
   createTraderDouble,
 } from '../../helpers/testDoubles.js';
@@ -43,6 +45,8 @@ type TimeWakeupEvaluationHarnessOptions = Readonly<{
   onCancelPendingBuyOrders?: () => void;
   onExecuteClearance?: () => void;
   onPositionsCommitted?: () => void;
+  executeClearanceError?: Error;
+  traderOverrides?: Parameters<typeof createTraderDouble>[0];
   cachedTradingDayInfo?: LastState['cachedTradingDayInfo'];
   isTradingDay?: (date: Date) => Promise<TradingDayInfo>;
 }>;
@@ -138,7 +142,7 @@ function createTimeWakeupEvaluationHarness(
       isTradingDay:
         options.isTradingDay ?? (async () => ({ isTradingDay: true, isHalfDay: false })),
     }),
-    trader: createTraderDouble(),
+    trader: createTraderDouble(options.traderOverrides),
     lastState,
     doomsdayProtection: createDoomsdayProtectionDouble({
       cancelPendingBuyOrders: async () => {
@@ -147,11 +151,16 @@ function createTimeWakeupEvaluationHarness(
           options.cancelPendingBuyOrdersResult ?? {
             executed: false,
             cancelRequestAcceptedCount: 0,
+            nextRetryAtMs: null,
           }
         );
       },
       executeClearance: async (clearanceContext) => {
         options.onExecuteClearance?.();
+        if (options.executeClearanceError !== undefined) {
+          throw options.executeClearanceError;
+        }
+
         await clearanceContext.onPositionsCommitted?.();
         return (
           options.doomsdayClearanceResult ?? {
@@ -188,6 +197,81 @@ function createTimeWakeupEvaluationHarness(
 }
 
 describe('timeWakeupEvaluationProgram', () => {
+  it('交易日 API 失败时只安排 API_RETRY 且不更新交易门禁事实', async () => {
+    let gateEmitted = false;
+    let lifecycleCalled = false;
+    const context = createTimeWakeupEvaluationHarness({
+      now: new Date('2026-04-29T09:30:00.000+08:00'),
+      initialCanTrade: false,
+      cachedTradingDayInfo: null,
+      isTradingDay: async () => {
+        throw createExternalApiRequestError({
+          operation: 'test.isTradingDay',
+          attempts: 1,
+          cause: new Error('calendar unavailable'),
+        });
+      },
+      lifecycleTick: async () => {
+        lifecycleCalled = true;
+        return { nextRetryAtMs: null, pendingOpenRebuild: false };
+      },
+      emitGateStateChanged: () => {
+        gateEmitted = true;
+      },
+    });
+    context.lastState.cachedTradingDayInfo = null;
+
+    const result = await timeWakeupEvaluationProgram(context);
+
+    expect(result.plan.hasWork).toBe(true);
+    expect(result.plan.candidates.some((candidate) => candidate.source === 'API_RETRY')).toBe(true);
+    expect(context.lastState.cachedTradingDayInfo).toBeNull();
+    expect(context.lastState.canTrade).toBe(false);
+    expect(gateEmitted).toBe(false);
+    expect(lifecycleCalled).toBe(false);
+  });
+
+  it('交易日非 API 错误保持 fail-fast', async () => {
+    const context = createTimeWakeupEvaluationHarness({
+      now: new Date('2026-04-29T09:30:00.000+08:00'),
+      cachedTradingDayInfo: null,
+      isTradingDay: async () => {
+        throw new TypeError('calendar contract broken');
+      },
+    });
+    context.lastState.cachedTradingDayInfo = null;
+
+    await expectPromiseRejectsWithMessage(
+      timeWakeupEvaluationProgram(context),
+      /calendar contract broken/,
+    );
+  });
+
+  it('生命周期 API 失败时只安排 API_RETRY 且不提前提交交易门禁变化', async () => {
+    let gateEmitted = false;
+    const context = createTimeWakeupEvaluationHarness({
+      now: new Date('2026-04-29T09:30:00.000+08:00'),
+      initialCanTrade: false,
+      lifecycleTick: async () => {
+        throw createExternalApiRequestError({
+          operation: 'test.lifecycle',
+          attempts: 1,
+          cause: new Error('rebuild unavailable'),
+        });
+      },
+      emitGateStateChanged: () => {
+        gateEmitted = true;
+      },
+    });
+
+    const result = await timeWakeupEvaluationProgram(context);
+
+    expect(result.plan.hasWork).toBe(true);
+    expect(result.plan.candidates.some((candidate) => candidate.source === 'API_RETRY')).toBe(true);
+    expect(context.lastState.canTrade).toBe(false);
+    expect(gateEmitted).toBe(false);
+  });
+
   it('在 lifecycle tick 后发布 gate event', async () => {
     const calls: string[] = [];
     const context = createTimeWakeupEvaluationHarness({
@@ -497,6 +581,7 @@ describe('timeWakeupEvaluationProgram', () => {
       cancelPendingBuyOrdersResult: {
         executed: true,
         cancelRequestAcceptedCount: 1,
+        nextRetryAtMs: null,
       },
     });
 
@@ -543,6 +628,54 @@ describe('timeWakeupEvaluationProgram', () => {
       source: 'DOOMSDAY_RETRY',
       atMs: retryAtMs,
     });
+  });
+
+  it('末日清仓 submitOrder 结果未知后刷新事实并拒绝系统级重复提交', async () => {
+    const refreshedPositions = [
+      createPositionDouble({ symbol: 'BULL.HK', quantity: 0, availableQuantity: 0 }),
+    ];
+    const calls: string[] = [];
+    const context = createTimeWakeupEvaluationHarness({
+      now: new Date('2026-04-29T15:56:00.000+08:00'),
+      executeClearanceError: createExternalApiRequestError({
+        operation: 'TradeContext.submitOrder',
+        attempts: 1,
+        cause: new Error('submit outcome unknown'),
+      }),
+      traderOverrides: {
+        fetchAllOrdersFromAPI: async (forceRefresh) => {
+          calls.push(`fetchAllOrders:${String(forceRefresh)}`);
+          return [];
+        },
+        getStockPositions: async () => {
+          calls.push('getStockPositions');
+          return refreshedPositions;
+        },
+      },
+      onPositionsCommitted: () => {
+        calls.push('reconcilePositionHold');
+      },
+    });
+    context.lastState.cachedPositions = [
+      createPositionDouble({ symbol: 'BULL.HK', quantity: 500, availableQuantity: 500 }),
+    ];
+    context.lastState.positionCache.update(context.lastState.cachedPositions);
+
+    let caught: unknown = null;
+    try {
+      await timeWakeupEvaluationProgram(context);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toMatchObject({
+      name: 'ExternalApiRequestError',
+      operation: 'TradeContext.submitOrder',
+    });
+
+    expect(calls).toEqual(['fetchAllOrders:true', 'getStockPositions', 'reconcilePositionHold']);
+    expect(context.lastState.cachedPositions).toEqual(refreshedPositions);
+    expect(context.lastState.positionCache.get('BULL.HK')).toEqual(refreshedPositions[0] ?? null);
   });
 
   it('半日市返回 11:45 与 11:55 末日保护窗口入口候选', async () => {

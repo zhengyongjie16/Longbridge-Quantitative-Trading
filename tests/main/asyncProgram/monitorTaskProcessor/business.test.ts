@@ -7,6 +7,8 @@
 import { describe, expect, it } from 'bun:test';
 
 import { createMonitorTaskProcessor } from '../../../../src/main/asyncProgram/monitorTaskProcessor/index.js';
+import { createExternalApiRequestError } from '../../../../src/utils/apiFailure/index.js';
+import { API } from '../../../../src/constants/index.js';
 import { createPositionLimitChecker } from '../../../../src/core/riskController/positionLimitChecker.js';
 import { createRiskChecker } from '../../../../src/core/riskController/index.js';
 import { createUnrealizedLossChecker } from '../../../../src/core/riskController/unrealizedLossChecker.js';
@@ -76,6 +78,7 @@ function createBusinessProcessor(
       clearWaitingEmpty: () => {},
       replanRouteAfterTask: () => {},
     },
+    onFatalError,
   } = params;
 
   return createMonitorTaskProcessor({
@@ -93,6 +96,7 @@ function createBusinessProcessor(
     periodicSwitchWakeupRuntime,
     ...(onProcessed ? { onProcessed } : {}),
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
+    ...(onFatalError ? { onFatalError } : {}),
   });
 }
 
@@ -242,6 +246,173 @@ describe('monitorTaskProcessor business flow', () => {
         driveKind: 'WAIT',
       },
     ]);
+  });
+
+  it('API 错误标记为普通任务失败且不进入 fatal 通道', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const statuses: MonitorTaskStatus[] = [];
+    const fatalErrors: unknown[] = [];
+    const context = createMonitorTaskContext({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        evaluatePeriodicSwitchDue: async () => {
+          throw createExternalApiRequestError({
+            operation: 'test.periodicDue',
+            attempts: 1,
+            cause: new Error('api unavailable'),
+          });
+        },
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        advancePendingSwitch: async (params) => ({
+          advanced: false,
+          direction: params.direction,
+          stillPending: false,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const processor = createMonitorTaskProcessor({
+      monitorTaskQueue: queue,
+      getMonitorContext: () => context,
+      trader: createTraderDouble(),
+      marketDataClient: createMarketDataClientDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
+      switchWakeupRuntime: {
+        handoffPendingSwitch: () => {},
+      },
+      periodicSwitchWakeupRuntime: {
+        markWaitingEmpty: () => {},
+        clearWaitingEmpty: () => {},
+        replanRouteAfterTask: () => {},
+      },
+      lastState: createLastState(),
+      tradingConfig: createTradingConfig(),
+      getCanTradeNow: () => true,
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'AUTO_SYMBOL_TICK',
+          dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG:API_FAIL',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 2,
+            symbol: 'BULL.HK',
+            lastSeatActivatedAt: 12_000,
+            currentTimeMs: Date.now(),
+          },
+        });
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(statuses).toEqual(['failed']);
+    expect(fatalErrors).toEqual([]);
+  });
+
+  it('非 API 程序错误进入 fatal 通道且不标记为普通任务失败', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const statuses: MonitorTaskStatus[] = [];
+    const fatalErrors: unknown[] = [];
+    const context = createMonitorTaskContext({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        evaluatePeriodicSwitchDue: async () => {
+          throw new TypeError('periodic contract broken');
+        },
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        advancePendingSwitch: async (params) => ({
+          advanced: false,
+          direction: params.direction,
+          stillPending: false,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const processor = createMonitorTaskProcessor({
+      monitorTaskQueue: queue,
+      getMonitorContext: () => context,
+      trader: createTraderDouble(),
+      marketDataClient: createMarketDataClientDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
+      switchWakeupRuntime: {
+        handoffPendingSwitch: () => {},
+      },
+      periodicSwitchWakeupRuntime: {
+        markWaitingEmpty: () => {},
+        clearWaitingEmpty: () => {},
+        replanRouteAfterTask: () => {},
+      },
+      lastState: createLastState(),
+      tradingConfig: createTradingConfig(),
+      getCanTradeNow: () => true,
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'AUTO_SYMBOL_TICK',
+          dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG:FATAL',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 2,
+            symbol: 'BULL.HK',
+            lastSeatActivatedAt: 12_000,
+            currentTimeMs: Date.now(),
+          },
+        });
+      },
+      waitCondition: () => fatalErrors.length === 1 || statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(fatalErrors).toHaveLength(1);
+    expect(fatalErrors[0]).toBeInstanceOf(TypeError);
+    expect(statuses).toEqual([]);
   });
 
   it('processes AUTO_SYMBOL_TICK with valid seat snapshot', async () => {
@@ -958,9 +1129,10 @@ describe('monitorTaskProcessor business flow', () => {
     expect(maybeSearchCalls).toBe(0);
   });
 
-  it('marks SEAT_REFRESH as failed when monitor context is missing', async () => {
+  it('sends SEAT_REFRESH missing monitor context to fatal channel', async () => {
     const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const statuses: MonitorTaskStatus[] = [];
+    const fatalErrors: unknown[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue: queue,
       getMonitorContext: () => null,
@@ -978,6 +1150,9 @@ describe('monitorTaskProcessor business flow', () => {
       lastState: createLastState(),
       tradingConfig: createTradingConfig(),
       getCanTradeNow: () => true,
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
       onProcessed: createStatusCollector(statuses),
     });
 
@@ -986,11 +1161,13 @@ describe('monitorTaskProcessor business flow', () => {
       pushTask: () => {
         scheduleSeatRefreshTask(queue, 'HSI.HK:SEAT_REFRESH:LONG:MISSING_CONTEXT');
       },
-      waitCondition: () => statuses.length === 1,
+      waitCondition: () => fatalErrors.length === 1 || statuses.length === 1,
       timeoutMs: 500,
     });
 
-    expect(statuses).toEqual(['failed']);
+    expect(fatalErrors).toHaveLength(1);
+    expect(fatalErrors[0]).toBeInstanceOf(Error);
+    expect(statuses).toEqual([]);
   });
 
   it('processes SEAT_REFRESH and rebuilds long-side runtime caches', async () => {
@@ -1198,7 +1375,7 @@ describe('monitorTaskProcessor business flow', () => {
     const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const statuses: MonitorTaskStatus[] = [];
     const admissionDeferred = createDeferred<null>();
-    let waitForAdmissionStarted = false;
+    const admissionStartedDeferred = createDeferred<null>();
     let getQuotesCalls = 0;
     let fetchAllOrdersCalls = 0;
     let refreshOrdersCalls = 0;
@@ -1239,7 +1416,7 @@ describe('monitorTaskProcessor business flow', () => {
       }),
       quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble({
         waitForAdmission: async () => {
-          waitForAdmissionStarted = true;
+          admissionStartedDeferred.resolve(null);
           await admissionDeferred.promise;
         },
       }),
@@ -1249,8 +1426,8 @@ describe('monitorTaskProcessor business flow', () => {
     processor.start();
     scheduleSeatRefreshTask(queue, 'HSI.HK:SEAT_REFRESH:LONG:ADMISSION');
 
-    await waitUntil(() => waitForAdmissionStarted, 500);
-    await Bun.sleep(30);
+    await admissionStartedDeferred.promise;
+    await Promise.resolve();
 
     expect(statuses).toEqual([]);
     expect(getQuotesCalls).toBe(0);
@@ -1347,9 +1524,71 @@ describe('monitorTaskProcessor business flow', () => {
     expect(riskCheckResult.allowed).toBeTrue();
   });
 
-  it('marks SEAT_REFRESH as failed without emptying seat when order refresh throws', async () => {
+  it('marks activating seat EMPTY after SEAT_REFRESH API retry is exhausted', async () => {
     const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const statuses: MonitorTaskStatus[] = [];
+    const fatalErrors: unknown[] = [];
+    let getQuotesCalls = 0;
+    const context = createMonitorTaskContext({
+      longSymbolName: 'OLD_BULL',
+    });
+    context.symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+      ...context.symbolRegistry.getSeatState('HSI.HK', 'LONG'),
+      symbol: 'BULL.HK',
+      status: 'ACTIVATING',
+      callPrice: 20_000,
+    } as never);
+    const originalSeatVersion = context.symbolRegistry.getSeatVersion('HSI.HK', 'LONG');
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () => {
+          getQuotesCalls += 1;
+          throw createExternalApiRequestError({
+            operation: 'test.seatRefreshQuotes',
+            attempts: 1,
+            cause: new Error('quote unavailable'),
+          });
+        },
+      }),
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    processor.start();
+    scheduleSeatRefreshTask(queue, 'HSI.HK:SEAT_REFRESH:LONG:API_FAIL');
+
+    await waitUntil(() => statuses.length === 1 || fatalErrors.length === 1, 500);
+    await Bun.sleep(Math.max(API.DEFAULT_RETRY_DELAY_MS - 100, 0));
+
+    expect(statuses).toEqual(['failed']);
+    expect(getQuotesCalls).toBe(1);
+
+    await waitUntil(() => statuses.length === 2 || fatalErrors.length === 1, 800);
+    await processor.stopAndDrain();
+
+    expect(statuses).toEqual(['failed', 'failed']);
+    expect(fatalErrors).toEqual([]);
+    expect(getQuotesCalls).toBe(2);
+    expect(context.symbolRegistry.getSeatState('HSI.HK', 'LONG')).toMatchObject({
+      symbol: null,
+      status: 'EMPTY',
+      callPrice: null,
+    });
+    expect(context.longSymbolName).toBe('OLD_BULL');
+    expect(context.symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBeGreaterThan(
+      originalSeatVersion,
+    );
+  });
+
+  it('sends SEAT_REFRESH non API order refresh errors to fatal channel', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const statuses: MonitorTaskStatus[] = [];
+    const fatalErrors: unknown[] = [];
     let getQuotesCalls = 0;
 
     const context = createMonitorTaskContext({
@@ -1377,6 +1616,9 @@ describe('monitorTaskProcessor business flow', () => {
           return new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)]]);
         },
       }),
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
       onProcessed: createStatusCollector(statuses),
     });
 
@@ -1385,11 +1627,13 @@ describe('monitorTaskProcessor business flow', () => {
       pushTask: () => {
         scheduleSeatRefreshTask(queue, 'HSI.HK:SEAT_REFRESH:LONG:FAIL');
       },
-      waitCondition: () => statuses.length === 1,
+      waitCondition: () => fatalErrors.length === 1 || statuses.length === 1,
       timeoutMs: 500,
     });
 
-    expect(statuses).toEqual(['failed']);
+    expect(fatalErrors).toHaveLength(1);
+    expect(fatalErrors[0]).toBeInstanceOf(Error);
+    expect(statuses).toEqual([]);
     expect(getQuotesCalls).toBe(1);
     expect(context.symbolRegistry.getSeatState('HSI.HK', 'LONG')).toMatchObject({
       symbol: 'BULL.HK',

@@ -33,6 +33,7 @@ import {
   isQuoteReadyForRequirement,
   resolveNextQuoteRetry,
 } from '../../../utils/quoteRetry/index.js';
+import { isExternalApiRequestError } from '../../../utils/apiFailure/index.js';
 import { logger } from '../../../utils/logger/index.js';
 import { isSeatActive } from '../../../utils/seat/guards.js';
 import {
@@ -106,6 +107,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
     scheduleRetry,
     clearRetry,
     getCanProcessTask,
+    onFatalError,
   } = deps;
   const retryStates = new Map<string, SellRetryState>();
   let lifecycleActive = true;
@@ -296,6 +298,14 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       });
       return;
     } catch (err) {
+      if (!isExternalApiRequestError(err)) {
+        throw err;
+      }
+
+      if (err.operation === 'TradeContext.submitOrder') {
+        throw err;
+      }
+
       logProcessorTaskFailure('SellProcessor', symbolDisplay, signal.action, err);
       return;
     }
@@ -305,6 +315,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
     taskQueue,
     processTask,
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
+    ...(onFatalError ? { onFatalError } : {}),
   });
 
   return {

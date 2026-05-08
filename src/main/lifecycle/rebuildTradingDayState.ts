@@ -30,6 +30,7 @@ import {
 } from './seatActivationCarryover.js';
 import { prewarmTradingCalendarSnapshotForRebuild } from './tradingCalendarPrewarmer.js';
 import { formatError } from '../../utils/error/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 
 /**
  * 将席位状态和行情数据同步到单个 MonitorContext。
@@ -288,6 +289,10 @@ export function createRebuildTradingDayState(
       await displayAccountAndPositions({ lastState, quotesMap });
       clearSeatActivationCarryover(symbolRegistry);
     } catch (err) {
+      if (isExternalApiRequestError(err)) {
+        throw err;
+      }
+
       throw new Error(`[Lifecycle] 重建交易日状态失败: ${formatError(err)}`, { cause: err });
     }
   };

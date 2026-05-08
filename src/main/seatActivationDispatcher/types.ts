@@ -43,4 +43,5 @@ export type SeatActivationDispatcherDeps = Readonly<{
 export interface SeatActivationDispatcher {
   readonly start: () => void;
   readonly stop: () => void;
+  readonly dispatchCurrentActivatingSeats: () => void;
 }

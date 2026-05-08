@@ -30,8 +30,6 @@ import {
 import { logger } from '../../utils/logger/index.js';
 import { prepareSeatsForRuntime } from '../recovery/seatPreparation.js';
 import { collectRuntimeQuoteSymbols, refreshAccountAndPositions } from '../utils.js';
-import type { RawOrderFromAPI } from '../../types/services.js';
-import { formatError } from '../../utils/error/index.js';
 import { decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { resolveOrderOwnership } from '../../core/orderRecorder/orderOwnershipParser.js';
 import { hasProtectiveLiquidationRemark } from '../../core/trader/utils.js';
@@ -108,6 +106,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     protectiveLiquidationEpisodeTracker,
     tradeLogHydrator,
     warrantListCacheConfig,
+    seatActivationDispatcher,
   } = deps;
 
   /**
@@ -121,7 +120,6 @@ export function createLoadTradingDayRuntimeSnapshot(
     const {
       now,
       requireTradingDay,
-      failOnOrderFetchError,
       resetRuntimeSubscriptions,
       hydrateCooldownFromTradeLog,
       forceOrderRefresh,
@@ -150,16 +148,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     }
 
     logger.debug('账户和持仓信息获取成功，开始解析席位');
-    let allOrders: ReadonlyArray<RawOrderFromAPI> = [];
-    try {
-      allOrders = await trader.fetchAllOrdersFromAPI(forceOrderRefresh);
-    } catch (err) {
-      if (failOnOrderFetchError) {
-        throw new Error(`[全量订单获取失败] ${formatError(err)}`, { cause: err });
-      }
-
-      logger.warn('[全量订单获取失败] 将按空订单继续初始化', formatError(err));
-    }
+    const allOrders = await trader.fetchAllOrdersFromAPI(forceOrderRefresh);
 
     trader.seedOrderHoldSymbols(allOrders);
     await prepareSeatsForRuntime({
@@ -185,6 +174,7 @@ export function createLoadTradingDayRuntimeSnapshot(
       },
       warrantListCacheConfig,
     });
+    seatActivationDispatcher.dispatchCurrentActivatingSeats();
     protectiveLiquidationEpisodeTracker.resetAll();
     const completedBoundaryByDirection = hydrateCooldownFromTradeLog
       ? tradeLogHydrator.hydrate()

@@ -44,7 +44,7 @@ export function createTradingDayInfoResolver(
 
 /**
  * 执行开盘重建：拉取运行时快照并重建当日状态。
- * 默认行为：固定使用 requireTradingDay=true、failOnOrderFetchError=true、resetRuntimeSubscriptions=true、hydrateCooldownFromTradeLog=true、forceOrderRefresh=true。
+ * 默认行为：固定使用 requireTradingDay=true、resetRuntimeSubscriptions=true、hydrateCooldownFromTradeLog=true、forceOrderRefresh=true。
  *
  * @param params 开盘重建参数，包含 now、快照加载函数与重建函数
  * @returns 重建完成后返回 Promise<void>
@@ -56,7 +56,6 @@ export async function executeTradingDayOpenRebuild(
   const openRebuildSnapshot = await loadTradingDayRuntimeSnapshot({
     now,
     requireTradingDay: true,
-    failOnOrderFetchError: true,
     resetRuntimeSubscriptions: true,
     hydrateCooldownFromTradeLog: true,
     forceOrderRefresh: true,

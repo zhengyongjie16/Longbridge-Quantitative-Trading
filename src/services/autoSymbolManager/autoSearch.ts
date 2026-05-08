@@ -5,6 +5,7 @@
  * 职责：自动寻标开盘延迟（在早盘延迟窗口内跳过寻标）、失败冻结与成功后席位 ACTIVATING 更新。
  * 执行流程：maybeSearchOnEvent 检查席位状态与冷却 → 调用 findBestWarrant → 成功则更新为 ACTIVATING，失败则累计失败计数或冻结。
  */
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import type { AutoSearchDeps, AutoSearchManager, SearchOnEventParams } from './types.js';
 import { isSeatFrozenToday, resolveNextSearchFailureState } from './utils.js';
 
@@ -87,7 +88,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
       false,
     );
 
-    let best: { readonly symbol: string; readonly callPrice: number } | null = null;
+    let best: { readonly symbol: string; readonly callPrice: number } | null;
     try {
       const input = await buildFindBestWarrantInput({
         currentTime,
@@ -95,7 +96,29 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
       });
       best = await findBestWarrant(input);
     } catch (err) {
-      logger.error(`[自动寻标] ${monitorSymbol} ${direction} 寻标异常: ${String(err)}`);
+      const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
+      updateSeatState(
+        direction,
+        buildSeatState({
+          symbol: null,
+          status: 'EMPTY',
+          lastSwitchAt: currentSeat.lastSwitchAt ?? null,
+          lastSearchAt: seatState.lastSearchAt ?? null,
+          lastSeatActivatedAt: currentSeat.lastSeatActivatedAt ?? null,
+          callPrice: null,
+          searchFailCountToday: currentSeat.searchFailCountToday,
+          frozenTradingDayKey: currentSeat.frozenTradingDayKey,
+        }),
+        false,
+      );
+
+      if (isExternalApiRequestError(err)) {
+        logger.warn(
+          `[自动寻标] ${monitorSymbol} ${direction} API 请求失败，等待事件重试: ${err.message}`,
+        );
+      }
+
+      throw err;
     }
 
     if (!best) {

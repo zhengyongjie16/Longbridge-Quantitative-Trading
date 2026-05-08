@@ -19,6 +19,7 @@
  */
 import { LIFECYCLE } from '../../constants/index.js';
 import { formatError } from '../../utils/error/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import type {
   CacheDomain,
   DayLifecycleManager,
@@ -119,7 +120,7 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
   /**
    * 由时间唤醒评估驱动的生命周期推进。
    * 按优先级依次处理：跨日午夜清理 → 等待开盘重建 → 恢复交易门禁。
-   * 任一阶段失败均记录错误并进入指数退避重试，不吞错。
+   * 外部 API 失败记录错误并进入指数退避重试；内部逻辑错误直接抛出以保持 fail-fast。
    */
   async function tick(now: Date, runtime: LifecycleRuntimeFlags): Promise<DayLifecycleTickResult> {
     if (shouldRunMidnightClear(runtime, mutableState)) {
@@ -155,6 +156,10 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
         nextRetryAtMs = null;
         logger.info('[Lifecycle] 已完成午夜清理，等待开盘重建');
       } catch (err) {
+        if (!isExternalApiRequestError(err)) {
+          throw err;
+        }
+
         midnightClearFailureCount += 1;
         const retryDelayMs = resolveRetryDelayMs(rebuildRetryDelayMs, midnightClearFailureCount);
         nextMidnightRetryAtMs = nowMs + retryDelayMs;
@@ -196,6 +201,10 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
       nextRetryAtMs = null;
       logger.info('[Lifecycle] 开盘重建完成，交易门禁已恢复');
     } catch (err) {
+      if (!isExternalApiRequestError(err)) {
+        throw err;
+      }
+
       rebuildFailureCount += 1;
       mutableState.lifecycleState = 'OPEN_REBUILD_FAILED';
       mutableState.isTradingEnabled = false;

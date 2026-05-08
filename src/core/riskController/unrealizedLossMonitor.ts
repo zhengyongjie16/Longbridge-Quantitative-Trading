@@ -9,6 +9,7 @@
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
 import { formatError } from '../../utils/error/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type { Quote } from '../../types/quote.js';
 import type {
@@ -93,27 +94,34 @@ export const createUnrealizedLossMonitor = (
       lotSize: quote.lotSize ?? null,
     };
 
+    let submittedCount: number;
     try {
-      const { submittedCount } = await trader.executeSignals([liquidationSignal]);
-      if (submittedCount === 0) {
-        return false;
+      const executionResult = await trader.executeSignals([liquidationSignal]);
+      submittedCount = executionResult.submittedCount;
+    } catch (error) {
+      if (isExternalApiRequestError(error) && error.operation === 'TradeContext.submitOrder') {
+        throw error;
       }
 
-      orderRecorder.clearBuyOrders(symbol, isLong, quote);
-      await riskChecker.refreshUnrealizedLossData(
-        orderRecorder,
-        symbol,
-        isLong,
-        quote,
-        dailyLossTracker.getLossOffset(monitorSymbol, isLong),
-      );
-      return true;
-    } catch (error) {
       const direction = isLong ? '做多标的' : '做空标的';
       const symbolDisplay = formatSymbolDisplay(symbol, quote.name ?? null);
       logger.error(`[保护性清仓失败] ${direction} ${symbolDisplay}`, formatError(error));
       return false;
     }
+
+    if (submittedCount === 0) {
+      return false;
+    }
+
+    orderRecorder.clearBuyOrders(symbol, isLong, quote);
+    await riskChecker.refreshUnrealizedLossData(
+      orderRecorder,
+      symbol,
+      isLong,
+      quote,
+      dailyLossTracker.getLossOffset(monitorSymbol, isLong),
+    );
+    return true;
   };
 
   /**

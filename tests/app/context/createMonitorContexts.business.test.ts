@@ -177,6 +177,7 @@ function createRuntime(
       }),
       waitForFresh: async () => {},
       onFreshReached: () => () => {},
+      drainFatalError: () => new Promise<never>(() => {}),
       abortWaiting: () => {},
       resetAbort: () => {},
       start: () => {},
@@ -221,6 +222,7 @@ function createRuntime(
       cancelPendingBuyOrders: async () => ({
         executed: false,
         cancelRequestAcceptedCount: 0,
+        nextRetryAtMs: null,
       }),
     },
     signalProcessor: {
@@ -257,6 +259,7 @@ function createRuntime(
       clearAll: () => 0,
       onTaskAdded: () => () => {},
     },
+    drainFatalError: () => new Promise<never>(() => {}),
   };
 
   return {

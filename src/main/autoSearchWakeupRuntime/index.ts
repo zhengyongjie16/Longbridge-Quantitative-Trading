@@ -6,7 +6,8 @@
  * - 消费 seat/gate/timer 显式唤醒源
  * - 每次唤醒重新读取权威状态，不维护 seat 事实副本
  */
-import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, TIME } from '../../constants/index.js';
+import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, TIME, TRADING } from '../../constants/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { scheduleBoundedOneShotAt } from '../../utils/timer/index.js';
 import type { SeatStateChangedEvent } from '../../types/seat.js';
 import type { BoundedOneShotTimerController } from '../../utils/timer/types.js';
@@ -58,7 +59,10 @@ export function createAutoSearchWakeupRuntime(
   let unsubscribeSeatStateChanged: (() => void) | null = null;
   let unsubscribeGateStateChanged: (() => void) | null = null;
   const timers = new Map<AutoSearchRouteKey, BoundedOneShotTimerController>();
+  const activeRouteKeys = new Set<AutoSearchRouteKey>();
   const activePromises = new Set<Promise<void>>();
+  const fatalRejectors = new Set<(error: Error) => void>();
+  let fatalError: Error | null = null;
 
   function clearRouteTimer(routeKey: AutoSearchRouteKey): void {
     const timer = timers.get(routeKey);
@@ -91,9 +95,36 @@ export function createAutoSearchWakeupRuntime(
     timers.set(routeKey, timer);
   }
 
+  function toError(error: unknown): Error {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+
+  function handleFatalError(error: unknown): void {
+    if (fatalError !== null) {
+      return;
+    }
+
+    fatalError = toError(error);
+    for (const reject of fatalRejectors) {
+      reject(fatalError);
+    }
+
+    fatalRejectors.clear();
+  }
+
+  function drainFatalError(): Promise<never> {
+    if (fatalError !== null) {
+      return Promise.reject(fatalError);
+    }
+
+    return new Promise<never>((_, reject) => {
+      fatalRejectors.add(reject);
+    });
+  }
+
   function registerActivePromise(promise: Promise<void>): void {
     activePromises.add(promise);
-    void promise.finally(() => {
+    void promise.catch(handleFatalError).finally(() => {
       activePromises.delete(promise);
     });
   }
@@ -135,12 +166,13 @@ export function createAutoSearchWakeupRuntime(
 
     const seatState = deps.symbolRegistry.getSeatState(monitorSymbol, direction);
     const seatVersion = deps.symbolRegistry.getSeatVersion(monitorSymbol, direction);
+    const routeKey = buildRouteKey({ monitorSymbol, direction, seatVersion });
     if (expectedSeatVersion !== undefined && expectedSeatVersion !== seatVersion) {
       return;
     }
 
     if (seatState.status !== 'EMPTY') {
-      clearRouteTimer(buildRouteKey({ monitorSymbol, direction, seatVersion }));
+      clearRouteTimer(routeKey);
       return;
     }
 
@@ -173,11 +205,27 @@ export function createAutoSearchWakeupRuntime(
       return;
     }
 
-    await monitorContext.autoSymbolManager.maybeSearchOnEvent({
-      direction,
-      currentTime: now,
-      canTradeNow: deps.lastState.canTrade,
-    });
+    activeRouteKeys.add(routeKey);
+    try {
+      await monitorContext.autoSymbolManager.maybeSearchOnEvent({
+        direction,
+        currentTime: now,
+        canTradeNow: deps.lastState.canTrade,
+      });
+    } catch (error) {
+      if (!isExternalApiRequestError(error)) {
+        throw error;
+      }
+
+      scheduleRouteTimer({
+        monitorSymbol,
+        direction,
+        seatVersion,
+        atMs: nowMs + TRADING.INTERVAL_MS,
+      });
+    } finally {
+      activeRouteKeys.delete(routeKey);
+    }
   }
 
   function handleSeatStateChanged(event: SeatStateChangedEvent): void {
@@ -187,6 +235,15 @@ export function createAutoSearchWakeupRuntime(
 
     const monitorContext = deps.monitorContexts.get(event.monitorSymbol);
     if (monitorContext?.config.autoSearchConfig.autoSearchEnabled !== true) {
+      return;
+    }
+
+    const routeKey = buildRouteKey({
+      monitorSymbol: event.monitorSymbol,
+      direction: event.direction,
+      seatVersion: event.nextVersion,
+    });
+    if (activeRouteKeys.has(routeKey)) {
       return;
     }
 
@@ -259,5 +316,6 @@ export function createAutoSearchWakeupRuntime(
   return {
     start,
     stopAndDrain,
+    drainFatalError,
   };
 }

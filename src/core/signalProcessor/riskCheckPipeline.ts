@@ -17,7 +17,11 @@ import type { Signal } from '../../types/signal.js';
 import type { LiquidationCooldownConfig, MultiMonitorTradingConfig } from '../../types/config.js';
 import type { RiskCheckContext } from '../../types/services.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
-import { formatError } from '../../utils/error/index.js';
+
+const HIGH_FRESHNESS_API_RETRY_CONFIG = {
+  retries: 0,
+  delayMs: 0,
+} as const;
 
 /** 生成风险检查冷却 Map 的键，按标的和买卖方向区分 */
 function getRiskCheckCooldownKey(symbol: string, action: Signal['action']): string {
@@ -257,21 +261,12 @@ export const createRiskCheckPipeline = ({
         let realtimePositions: Awaited<ReturnType<typeof trader.getStockPositions>>;
         try {
           [realtimeAccount, realtimePositions] = await Promise.all([
-            trader.getAccountSnapshot(),
-            trader.getStockPositions(),
+            trader.getAccountSnapshot({ retryConfig: HIGH_FRESHNESS_API_RETRY_CONFIG }),
+            trader.getStockPositions({ retryConfig: HIGH_FRESHNESS_API_RETRY_CONFIG }),
           ]);
         } catch (err) {
-          const reason = '获取实时账户和持仓信息失败，买入信号被拒绝';
-          sig.reason = reason;
-          logger.warn(`[风险检查] ${reason}：${signalLabel}`, formatError(err));
-          continue;
-        }
-
-        if (realtimeAccount === null) {
-          const reason = '买入操作无法获取账户信息，买入信号被拒绝';
-          sig.reason = reason;
-          logger.warn(`[风险检查] ${reason}：${signalLabel}`);
-          continue;
+          lastRiskCheckTime.delete(cooldownKey);
+          throw err;
         }
 
         const orderNotional = context.config.targetNotional;

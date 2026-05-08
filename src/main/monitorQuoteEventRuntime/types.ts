@@ -284,6 +284,9 @@ export type SwitchWakeupRuntimeDeps = Readonly<{
 
   /** 清理 retry timer */
   clearTimer: (handle: ReturnType<typeof setTimeout>) => void;
+
+  /** route 内部错误可观测通道 */
+  onFatalError?: (error: unknown) => void;
 }>;
 
 /**

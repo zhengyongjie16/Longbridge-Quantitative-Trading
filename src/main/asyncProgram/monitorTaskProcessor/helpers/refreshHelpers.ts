@@ -63,9 +63,7 @@ export function createRefreshHelpers({
   async function refreshAccountCaches(): Promise<void> {
     if (cachedAccountSnapshot === undefined) {
       cachedAccountSnapshot = await trader.getAccountSnapshot();
-      if (cachedAccountSnapshot) {
-        lastState.cachedAccount = cachedAccountSnapshot;
-      }
+      lastState.cachedAccount = cachedAccountSnapshot;
     }
 
     if (cachedPositionsSnapshot === undefined) {

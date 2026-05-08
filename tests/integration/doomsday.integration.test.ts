@@ -8,6 +8,7 @@ import { describe, expect, it } from 'bun:test';
 import { OrderSide } from 'longbridge';
 
 import { createDoomsdayProtection } from '../../src/core/doomsdayProtection/index.js';
+import { createExternalApiRequestError } from '../../src/utils/apiFailure/index.js';
 
 import type { AutoSymbolManagerPort } from '../../src/types/monitorContextPorts.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
@@ -230,6 +231,58 @@ describe('doomsday integration', () => {
     expect(trader.getPendingOrders).toBeDefined();
   });
 
+  it('throws non API cancel errors without marking close-15 check completed', async () => {
+    const doomsday = createDoomsdayProtection();
+    const monitorConfig = createMonitorConfigDouble();
+    let cancelCalls = 0;
+    const trader = createTraderDouble({
+      getPendingOrders: async () => [
+        {
+          orderId: 'B-1',
+          symbol: 'BULL.HK',
+          side: OrderSide.Buy,
+          submittedPrice: 1,
+          quantity: 100,
+          executedQuantity: 0,
+          status: 'New' as never,
+          orderType: 'ELO' as never,
+        },
+      ],
+      cancelOrder: async () => {
+        cancelCalls += 1;
+        throw new TypeError('cancel contract broken');
+      },
+    });
+    const context = {
+      currentTime: new Date('2026-02-16T07:50:00.000Z'),
+      isHalfDay: false,
+      monitorConfigs: [monitorConfig],
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig)],
+      ]),
+      trader,
+    };
+
+    let error: unknown = null;
+    try {
+      await doomsday.cancelPendingBuyOrders(context);
+    } catch (err) {
+      error = err;
+    }
+
+    let retryError: unknown = null;
+    try {
+      await doomsday.cancelPendingBuyOrders(context);
+    } catch (err) {
+      retryError = err;
+    }
+
+    expect(error).toBeInstanceOf(TypeError);
+    expect(retryError).toBeInstanceOf(TypeError);
+    expect((retryError as Error).message).toBe('cancel contract broken');
+    expect(cancelCalls).toBe(2);
+  });
+
   it('does not count already-filled buy orders as cancelled in close-15 window', async () => {
     const doomsday = createDoomsdayProtection();
     const monitorConfig = createMonitorConfigDouble();
@@ -267,6 +320,49 @@ describe('doomsday integration', () => {
 
     expect(result.executed).toBeTrue();
     expect(result.cancelRequestAcceptedCount).toBe(0);
+  });
+
+  it('rethrows pending-order API failures without marking close-15 check completed', async () => {
+    const doomsday = createDoomsdayProtection();
+    const monitorConfig = createMonitorConfigDouble();
+    let getPendingOrdersCalls = 0;
+    const trader = createTraderDouble({
+      getPendingOrders: async () => {
+        getPendingOrdersCalls += 1;
+        throw createExternalApiRequestError({
+          operation: 'test.getPendingOrders',
+          attempts: getPendingOrdersCalls,
+          cause: new Error('pending orders unavailable'),
+        });
+      },
+    });
+    const context = {
+      currentTime: new Date('2026-02-16T07:50:00.000Z'),
+      isHalfDay: false,
+      monitorConfigs: [monitorConfig],
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig)],
+      ]),
+      trader,
+    };
+
+    let firstError: unknown = null;
+    try {
+      await doomsday.cancelPendingBuyOrders(context);
+    } catch (error) {
+      firstError = error;
+    }
+
+    let secondError: unknown = null;
+    try {
+      await doomsday.cancelPendingBuyOrders(context);
+    } catch (error) {
+      secondError = error;
+    }
+
+    expect(firstError).toMatchObject({ name: 'ExternalApiRequestError' });
+    expect(secondError).toMatchObject({ name: 'ExternalApiRequestError' });
+    expect(getPendingOrdersCalls).toBe(2);
   });
 
   it('executes close-5 liquidation, clears caches and order records for both sides', async () => {
@@ -756,6 +852,116 @@ describe('doomsday integration', () => {
     expect(exhaustedResult).toEqual({ executed: false, signalCount: 0, nextRetryAtMs: null });
     expect(finalResult).toEqual({ executed: false, signalCount: 0, nextRetryAtMs: null });
     expect(submittedSymbols).toEqual(['BULL.HK']);
+  });
+
+  it('rethrows clearance quote API failures without mutating cached facts', async () => {
+    const doomsday = createDoomsdayProtection();
+    const monitorConfig = createMonitorConfigDouble();
+    const lastState = createLastState();
+    let clearCalls = 0;
+    const marketDataClient = createMarketDataClientDouble({
+      getQuotes: async () => {
+        throw createExternalApiRequestError({
+          operation: 'test.getQuotes',
+          attempts: 1,
+          cause: new Error('quote unavailable'),
+        });
+      },
+    });
+    const trader = createTraderDouble();
+    const monitorContexts = new Map([
+      [
+        monitorConfig.monitorSymbol,
+        createMonitorContext(
+          monitorConfig,
+          createOrderRecorderDouble({
+            clearBuyOrders: () => {
+              clearCalls += 1;
+            },
+          }),
+        ),
+      ],
+    ]);
+
+    let error: unknown = null;
+    try {
+      await doomsday.executeClearance({
+        currentTime: new Date('2026-02-16T07:56:00.000Z'),
+        isHalfDay: false,
+        positions: lastState.cachedPositions,
+        monitorConfigs: [monitorConfig],
+        monitorContexts,
+        trader,
+        marketDataClient,
+        lastState,
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toMatchObject({ name: 'ExternalApiRequestError' });
+    expect(clearCalls).toBe(0);
+    expect(lastState.cachedAccount).not.toBeNull();
+    expect(lastState.cachedPositions).toHaveLength(2);
+    expect(lastState.positionCache.get('BULL.HK')).not.toBeNull();
+  });
+
+  it('rethrows clearance execution API failures without clearing caches or order records', async () => {
+    const doomsday = createDoomsdayProtection();
+    const monitorConfig = createMonitorConfigDouble();
+    const lastState = createLastState();
+    let clearCalls = 0;
+    const trader = createTraderDouble({
+      executeSignals: async () => {
+        throw createExternalApiRequestError({
+          operation: 'test.executeSignals',
+          attempts: 1,
+          cause: new Error('submit unavailable'),
+        });
+      },
+    });
+    const monitorContexts = new Map([
+      [
+        monitorConfig.monitorSymbol,
+        createMonitorContext(
+          monitorConfig,
+          createOrderRecorderDouble({
+            clearBuyOrders: () => {
+              clearCalls += 1;
+            },
+          }),
+        ),
+      ],
+    ]);
+    const marketDataClient = createMarketDataClientDouble({
+      getQuotes: async () =>
+        new Map([
+          ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+          ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+        ]),
+    });
+
+    let error: unknown = null;
+    try {
+      await doomsday.executeClearance({
+        currentTime: new Date('2026-02-16T07:56:00.000Z'),
+        isHalfDay: false,
+        positions: lastState.cachedPositions,
+        monitorConfigs: [monitorConfig],
+        monitorContexts,
+        trader,
+        marketDataClient,
+        lastState,
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toMatchObject({ name: 'ExternalApiRequestError' });
+    expect(clearCalls).toBe(0);
+    expect(lastState.cachedAccount).not.toBeNull();
+    expect(lastState.cachedPositions).toHaveLength(2);
+    expect(lastState.positionCache.get('BULL.HK')).not.toBeNull();
   });
 
   it('propagates clearance execution error even when duplicate signals are deduplicated', async () => {

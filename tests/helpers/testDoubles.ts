@@ -223,7 +223,7 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
 
   const base: Trader = {
     orderRecorder: baseOrderRecorder,
-    getAccountSnapshot: async () => null,
+    getAccountSnapshot: async () => createAccountSnapshotDouble(100_000),
     getStockPositions: async () => [],
     getPendingOrders: async (): Promise<PendingOrder[]> => [],
     seedOrderHoldSymbols: () => {},
@@ -468,6 +468,7 @@ export function createAutoSearchWakeupRuntimeDouble(
   const base: AutoSearchWakeupRuntime = {
     start: () => {},
     stopAndDrain: async () => {},
+    drainFatalError: () => new Promise<never>(() => {}),
   };
 
   return {
@@ -509,6 +510,7 @@ export function createSeatActivationDispatcherDouble(
   const base: SeatActivationDispatcher = {
     start: () => {},
     stop: () => {},
+    dispatchCurrentActivatingSeats: () => {},
   };
 
   return {
@@ -714,6 +716,7 @@ export function createDoomsdayProtectionDouble(
     ): Promise<CancelPendingBuyOrdersResult> => ({
       executed: false,
       cancelRequestAcceptedCount: 0,
+      nextRetryAtMs: null,
     }),
   };
 

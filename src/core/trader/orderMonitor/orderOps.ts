@@ -9,6 +9,10 @@
 import { OrderSide } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
+import {
+  isExternalApiRequestError,
+  wrapExternalApiRequest,
+} from '../../../utils/apiFailure/index.js';
 import type { CancelOrderOutcome, OrderStateCheckResult } from '../../../types/trader.js';
 import {
   ORDER_MONITOR_REPLACE_TEMP_BLOCK_BACKOFF_MS,
@@ -30,7 +34,7 @@ import {
   isOrderClosedBusinessError,
   isReplaceTempBlockedError,
   isReplaceUnsupportedByTypeError,
-  isRetryableCancelError,
+  isRetryableOrderMutationError,
   isWaitWsOnlyReplaceMode,
   normalizePriceText,
   resolveInitialTrackedStatus,
@@ -274,7 +278,11 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
   async function cancelOrder(orderId: string): Promise<CancelOrderOutcome> {
     try {
       await rateLimiter.throttle();
-      await ctx.cancelOrder(orderId);
+      await wrapExternalApiRequest({
+        operation: 'TradeContext.cancelOrder',
+        request: () => ctx.cancelOrder(orderId),
+        shouldRetry: isRetryableOrderMutationError,
+      });
       cacheManager.clearCache();
       logger.debug(`[订单撤销成功] 订单ID=${orderId}，等待 WS 终态确认`);
       return {
@@ -284,9 +292,13 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
         relatedBuyOrderIds: null,
       };
     } catch (error) {
+      if (isExternalApiRequestError(error)) {
+        throw error;
+      }
+
       const errorCode = extractErrorCode(error);
       const message = extractErrorMessage(error);
-      if (isRetryableCancelError(error)) {
+      if (isRetryableOrderMutationError(error)) {
         return {
           kind: 'RETRYABLE_FAILURE',
           errorCode,
@@ -448,7 +460,11 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
         return;
       }
 
-      await ctx.replaceOrder(replacePayload);
+      await wrapExternalApiRequest({
+        operation: 'TradeContext.replaceOrder',
+        request: () => ctx.replaceOrder(replacePayload),
+        shouldRetry: isRetryableOrderMutationError,
+      });
       cacheManager.clearCache();
       const attachedTrackedOrder = resolveAttachedTrackedOrder(runtime, orderId, trackedOrder);
       if (attachedTrackedOrder === null) {
@@ -466,6 +482,10 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       });
       logger.debug(`[订单修改成功] 订单ID=${orderId} 新价格=${normalizedNewPriceText}`);
     } catch (error) {
+      if (isExternalApiRequestError(error)) {
+        throw error;
+      }
+
       const attachedTrackedOrder = resolveAttachedTrackedOrder(runtime, orderId, trackedOrder);
       if (attachedTrackedOrder === null) {
         logger.debug(`[订单修改] 订单 ${orderId} 已脱离追踪，丢弃过期改单失败结果`);
@@ -494,7 +514,7 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
         return;
       }
 
-      if (isRetryableCancelError(error)) {
+      if (isRetryableOrderMutationError(error)) {
         setReplaceOutcome(runtime, orderId, {
           kind: 'FAILED',
           reason: 'RETRYABLE',

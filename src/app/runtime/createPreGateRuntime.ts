@@ -16,6 +16,7 @@ import { createSymbolRegistry } from '../../services/autoSymbolManager/utils.js'
 import { logger } from '../../utils/logger/index.js';
 import { getHKDateKey, getRequiredHKDateKey } from '../../utils/time/index.js';
 import { formatError } from '../../utils/error/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { createTradingDayInfoResolver } from '../lifecycle/rebuild.js';
 import type { CreatePreGateRuntimeDeps } from './types.js';
 import type { AppEnvironmentParams, PreGateRuntime } from '../types.js';
@@ -76,7 +77,11 @@ export function createPreGateRuntimeFactory(
         dateKey: startupDateKey,
         info: await resolveTradingDayInfo(startupTime),
       };
-    } catch {
+    } catch (error) {
+      if (!isExternalApiRequestError(error)) {
+        throw error;
+      }
+
       startupTradingDayInfo = null;
     }
 

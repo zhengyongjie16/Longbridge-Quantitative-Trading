@@ -23,6 +23,7 @@ import {
   resolveNextQuoteRetry,
 } from '../../../utils/quoteRetry/index.js';
 import { extractOrderId, toDecimal } from '../utils.js';
+import { wrapExternalApiRequest } from '../../../utils/apiFailure/index.js';
 import type { TrackedOrder } from '../types.js';
 import type {
   OrderMonitorTrackedOrder,
@@ -424,13 +425,21 @@ async function submitTimeoutMarketOrder(
       return;
     }
 
-    const response = await ctx.submitOrder({
-      symbol: order.symbol,
-      side: order.side,
-      orderType: OrderType.MO,
-      submittedQuantity: toDecimal(marketConversionQuantity),
-      timeInForce: TimeInForceType.Day,
-      remark: timeoutConversionRemark,
+    const response = await wrapExternalApiRequest({
+      operation: 'TradeContext.submitOrder.timeoutMarketConversion',
+      request: () =>
+        ctx.submitOrder({
+          symbol: order.symbol,
+          side: order.side,
+          orderType: OrderType.MO,
+          submittedQuantity: toDecimal(marketConversionQuantity),
+          timeInForce: TimeInForceType.Day,
+          remark: timeoutConversionRemark,
+        }),
+      retryConfig: {
+        retries: 0,
+        delayMs: 0,
+      },
     });
     brokerSubmissionAccepted = true;
     newOrderId = extractOrderId(response);

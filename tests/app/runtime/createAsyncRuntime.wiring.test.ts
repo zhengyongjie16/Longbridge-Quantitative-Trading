@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'bun:test';
 import { createAsyncRuntime } from '../../../src/app/runtime/createAsyncRuntime.js';
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
+import { createExternalApiRequestError } from '../../../src/utils/apiFailure/index.js';
 import {
   createBuyTaskQueue,
   createSellTaskQueue,
@@ -93,11 +94,13 @@ function createDeps(
       seatActivationDispatcher: {
         start: () => {},
         stop: () => {},
+        dispatchCurrentActivatingSeats: () => {},
       },
       seatRuntimeCleanupDispatcher: createSeatRuntimeCleanupDispatcherDouble(),
       autoSearchWakeupRuntime: {
         start: () => {},
         stopAndDrain: async () => {},
+        drainFatalError: () => new Promise<never>(() => {}),
       },
       periodicSwitchWakeupRuntime,
       tradingRiskEventRuntime: {
@@ -128,6 +131,7 @@ function createDeps(
         getStatus: () => ({ started: false, currentVersion: 0, staleVersion: 0 }),
         waitForFresh: async () => {},
         onFreshReached: () => () => {},
+        drainFatalError: () => new Promise<never>(() => {}),
         abortWaiting: () => {},
         resetAbort: () => {},
         start: () => {},
@@ -152,6 +156,7 @@ function createDeps(
       buyTaskQueue: createBuyTaskQueue(),
       sellTaskQueue: createSellTaskQueue(),
       monitorTaskQueue,
+      drainFatalError: () => new Promise<never>(() => {}),
     },
   };
 }
@@ -284,14 +289,18 @@ describe('app createAsyncRuntime wiring', () => {
     }
   });
 
-  it('replans periodic switch route when AUTO_SYMBOL_TICK processing fails', async () => {
+  it('marks AUTO_SYMBOL_TICK API failures as failed without entering async fatal channel', async () => {
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const replanCalls: Parameters<PeriodicSwitchWakeupRuntime['replanRouteAfterTask']>[0][] = [];
     const context = createMonitorTaskContext({
       autoSymbolManager: {
         maybeSearchOnEvent: async () => {},
         evaluatePeriodicSwitchDue: async () => {
-          throw new Error('periodic due failed');
+          throw createExternalApiRequestError({
+            operation: 'test.periodicDue',
+            attempts: 1,
+            cause: new Error('api unavailable'),
+          });
         },
         startSwitchOnDistance: async (params) => ({
           started: false,
@@ -330,7 +339,7 @@ describe('app createAsyncRuntime wiring', () => {
       pushTask: () => {
         monitorTaskQueue.scheduleLatest({
           type: 'AUTO_SYMBOL_TICK',
-          dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG:FAIL',
+          dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG:API_FAIL',
           monitorSymbol: 'HSI.HK',
           data: {
             monitorSymbol: 'HSI.HK',
@@ -356,5 +365,74 @@ describe('app createAsyncRuntime wiring', () => {
         status: 'failed',
       },
     ]);
+  });
+
+  it('sends non API AUTO_SYMBOL_TICK processing errors to async fatal channel', async () => {
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const replanCalls: Parameters<PeriodicSwitchWakeupRuntime['replanRouteAfterTask']>[0][] = [];
+    const context = createMonitorTaskContext({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        evaluatePeriodicSwitchDue: async () => {
+          throw new TypeError('periodic due contract broken');
+        },
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        advancePendingSwitch: async (params) => ({
+          advanced: false,
+          direction: params.direction,
+          stillPending: false,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        hasPendingSwitch: () => false,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const runtime = createAsyncRuntime(
+      createDeps({
+        lastState: createLastState(),
+        monitorContexts: new Map([['HSI.HK', context]]),
+        monitorTaskQueue,
+        periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeRecorder(replanCalls),
+      }),
+    );
+    const fatalErrorPromise = runtime.drainFatalError().catch((error: unknown) => error);
+
+    await runProcessorFlow({
+      processor: runtime.monitorTaskProcessor,
+      pushTask: () => {
+        monitorTaskQueue.scheduleLatest({
+          type: 'AUTO_SYMBOL_TICK',
+          dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG:FAIL',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 2,
+            symbol: 'BULL.HK',
+            lastSeatActivatedAt: 12_000,
+            currentTimeMs: 70_000,
+          },
+        });
+      },
+      waitCondition: () => monitorTaskQueue.isEmpty(),
+    });
+
+    const fatalError = await fatalErrorPromise;
+
+    expect(fatalError).toBeInstanceOf(TypeError);
+    expect((fatalError as Error).message).toBe('periodic due contract broken');
+    expect(replanCalls).toEqual([]);
   });
 });

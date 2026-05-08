@@ -32,6 +32,11 @@ import {
   type Period,
 } from 'longbridge';
 import { decimalToNumber, isRecord, isValidPositiveNumber } from '../../utils/helpers/index.js';
+import {
+  createExternalApiAggregateRequestError,
+  isAllExternalApiRequestErrors,
+  wrapExternalApiRequest,
+} from '../../utils/apiFailure/index.js';
 import type { DecimalLike } from '../../utils/helpers/types.js';
 import { logger } from '../../utils/logger/index.js';
 import { API, TRADING } from '../../constants/index.js';
@@ -46,7 +51,6 @@ import type {
 } from '../../types/services.js';
 import type {
   CandlestickUpdatedListener,
-  RetryConfig,
   MarketDataClientDeps,
   QuoteContextLike,
   PushQuoteEventLike,
@@ -62,39 +66,19 @@ import {
   seedCandlestickSeries,
 } from './candlestickCache.js';
 
-// 默认重试配置（使用统一常量）
-const DEFAULT_RETRY: RetryConfig = {
-  retries: API.DEFAULT_RETRY_COUNT,
-  delayMs: API.DEFAULT_RETRY_DELAY_MS,
-};
-
 /**
- * 带重试的异步函数执行包装器
- * @param fn - 需要执行的异步函数
- * @param retries - 重试次数
- * @param delayMs - 重试间隔（毫秒）
+ * 带重试的异步函数执行包装器，将外部 API 调用委托给 apiFailure 模块的统一重试逻辑。
+ *
+ * @param operation 外部 API 操作名
+ * @param fn 需要执行的异步函数
  * @returns 函数执行结果
- * @throws 最后一次执行的错误
+ * @throws 最后一次执行的错误（经 wrapExternalApiRequest 分类）
  */
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  { retries, delayMs }: RetryConfig = DEFAULT_RETRY,
-): Promise<T> {
-  let lastErr: unknown;
-  for (let i = 0; i <= retries; i += 1) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      if (i < retries && delayMs > 0) {
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, delayMs);
-        });
-      }
-    }
-  }
-
-  throw lastErr;
+async function withRetry<T>(operation: string, fn: () => Promise<T>): Promise<T> {
+  return wrapExternalApiRequest({
+    operation,
+    request: fn,
+  });
 }
 
 /**
@@ -412,7 +396,14 @@ export async function createMarketDataClient(
       }
     }
 
-    const realtimeQuotes = await ctx.realtimeQuote(requestedSymbols);
+    const realtimeQuotes = await wrapExternalApiRequest({
+      operation: 'QuoteContext.realtimeQuote',
+      request: () => ctx.realtimeQuote(requestedSymbols),
+      retryConfig: {
+        retries: 0,
+        delayMs: 0,
+      },
+    });
     const realtimeQuoteBySymbol = new Map<string, unknown>();
     for (const realtimeQuote of realtimeQuotes) {
       if (!isRecord(realtimeQuote)) {
@@ -482,7 +473,9 @@ export async function createMarketDataClient(
         (symbol) => !prevCloseCache.has(symbol),
       );
       if (symbolsNeedingPrevClose.length > 0) {
-        const initialQuotes = await withRetry(() => ctx.quote(symbolsNeedingPrevClose));
+        const initialQuotes = await withRetry('QuoteContext.quote', () =>
+          ctx.quote(symbolsNeedingPrevClose),
+        );
         const initializedPrevCloseBySymbol = new Map<string, number>();
         for (const quote of initialQuotes) {
           if (!isRecord(quote)) {
@@ -522,7 +515,9 @@ export async function createMarketDataClient(
       }
 
       if (newSymbols.length > 0) {
-        await withRetry(() => ctx.subscribe(newSymbols, [SubType.Quote]));
+        await withRetry('QuoteContext.subscribe.quote', () =>
+          ctx.subscribe(newSymbols, [SubType.Quote]),
+        );
 
         for (const symbol of newSymbols) {
           subscribedSymbols.add(symbol);
@@ -560,7 +555,10 @@ export async function createMarketDataClient(
       return;
     }
 
-    await withRetry(() => ctx.unsubscribe(removeSymbols, [SubType.Quote]));
+    await withRetry('QuoteContext.unsubscribe.quote', () =>
+      ctx.unsubscribe(removeSymbols, [SubType.Quote]),
+    );
+
     for (const symbol of removeSymbols) {
       subscribedSymbols.delete(symbol);
       prevCloseCache.delete(symbol);
@@ -581,7 +579,9 @@ export async function createMarketDataClient(
     const uncachedSymbols = newSymbols.filter((s) => !staticInfoCache.has(s));
     if (uncachedSymbols.length === 0) return;
 
-    const infoList = await withRetry(() => ctx.staticInfo(uncachedSymbols));
+    const infoList = await withRetry('QuoteContext.staticInfo', () =>
+      ctx.staticInfo(uncachedSymbols),
+    );
     for (const info of infoList) {
       if (!isRecord(info)) {
         continue;
@@ -605,17 +605,20 @@ export async function createMarketDataClient(
    */
   function getQuoteContext(): Promise<MarketQuoteContext> {
     return Promise.resolve({
-      warrantQuote: (symbols) => ctx.warrantQuote([...symbols]),
+      warrantQuote: (symbols) =>
+        withRetry('QuoteContext.warrantQuote', () => ctx.warrantQuote([...symbols])),
       warrantList: async (request) =>
-        ctx.warrantList(
-          request.symbol,
-          request.sortBy,
-          request.sortOrder,
-          [...request.types],
-          request.issuerIds ? [...request.issuerIds] : request.issuerIds,
-          request.expiryFilters ? [...request.expiryFilters] : request.expiryFilters,
-          request.inOutBoundsTypes ? [...request.inOutBoundsTypes] : request.inOutBoundsTypes,
-          request.status ? [...request.status] : request.status,
+        withRetry('QuoteContext.warrantList', () =>
+          ctx.warrantList(
+            request.symbol,
+            request.sortBy,
+            request.sortOrder,
+            [...request.types],
+            request.issuerIds ? [...request.issuerIds] : request.issuerIds,
+            request.expiryFilters ? [...request.expiryFilters] : request.expiryFilters,
+            request.inOutBoundsTypes ? [...request.inOutBoundsTypes] : request.inOutBoundsTypes,
+            request.status ? [...request.status] : request.status,
+          ),
         ),
     });
   }
@@ -672,7 +675,7 @@ export async function createMarketDataClient(
       return [];
     }
 
-    const initialCandles = await withRetry(() =>
+    const initialCandles = await withRetry('QuoteContext.subscribeCandlesticks', () =>
       ctx.subscribeCandlesticks(symbol, period, tradeSessions),
     );
     const returnedCandles = initialCandles.filter(isCandlestickLike);
@@ -715,7 +718,9 @@ export async function createMarketDataClient(
     // 使用港股日期键转换为 NaiveDate，避免本地时区偏移
     const startNaive = resolveHKNaiveDate(startDate);
     const endNaive = resolveHKNaiveDate(endDate);
-    const resp = await withRetry(() => ctx.tradingDays(market, startNaive, endNaive));
+    const resp = await withRetry('QuoteContext.tradingDays', () =>
+      ctx.tradingDays(market, startNaive, endNaive),
+    );
 
     // 将 NaiveDate 数组转换为字符串数组
     const tradingDays = resp.tradingDays.map(String);
@@ -745,7 +750,10 @@ export async function createMarketDataClient(
     // 1. 退订 quote（批量）
     if (symbolsToUnsub.length > 0) {
       try {
-        await withRetry(() => ctx.unsubscribe(symbolsToUnsub, [SubType.Quote]));
+        await withRetry('QuoteContext.unsubscribe.quote.reset', () =>
+          ctx.unsubscribe(symbolsToUnsub, [SubType.Quote]),
+        );
+
         for (const symbol of symbolsToUnsub) {
           subscribedSymbols.delete(symbol);
           prevCloseCache.delete(symbol);
@@ -766,7 +774,9 @@ export async function createMarketDataClient(
 
       const symbol = key.slice(0, colonIdx);
       try {
-        await withRetry(() => ctx.unsubscribeCandlesticks(symbol, periodValue));
+        await withRetry('QuoteContext.unsubscribeCandlesticks.reset', () =>
+          ctx.unsubscribeCandlesticks(symbol, periodValue),
+        );
         subscribedCandlesticks.delete(key);
         successfulCandlestickClears.push({
           symbol,
@@ -787,6 +797,14 @@ export async function createMarketDataClient(
     // 3. 交易日缓存始终清空；quote metadata 仅在 symbol 真正退订后清理，避免订阅状态与 metadata 失配。
     tradingDayCache.clear();
     if (errors.length > 0) {
+      if (isAllExternalApiRequestErrors(errors)) {
+        throw createExternalApiAggregateRequestError({
+          operation: 'QuoteContext.resetRuntimeSubscriptionsAndCaches',
+          attempts: 1,
+          causes: errors,
+        });
+      }
+
       throw new AggregateError(
         errors,
         `[行情重置] 退订失败 ${errors.length} 项，失败项已保留于订阅集合，可重试`,

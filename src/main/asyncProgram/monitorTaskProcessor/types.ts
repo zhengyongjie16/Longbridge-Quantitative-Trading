@@ -47,6 +47,20 @@ export type SeatRefreshTaskData = Readonly<{
   nextSymbol: string;
   callPrice?: number | null;
   symbolName: string | null;
+  apiRetryAttempt?: number;
+}>;
+
+/**
+ * SEAT_REFRESH API 失败延迟重试 timer。
+ * 类型用途：记录单个 dedupeKey 下已安排的延迟重试及其席位快照，避免旧席位 timer 覆盖新席位任务。
+ * 数据来源：MonitorTaskProcessor 在 SEAT_REFRESH 外部 API 失败后创建。
+ * 使用范围：仅 monitorTaskProcessor 内部使用。
+ */
+export type SeatRefreshRetryTimer = Readonly<{
+  handle: ReturnType<typeof setTimeout>;
+  direction: 'LONG' | 'SHORT';
+  seatVersion: number;
+  nextSymbol: string;
 }>;
 
 /**
@@ -138,6 +152,10 @@ export type MonitorTaskProcessorDeps = Readonly<{
 
   /** 周期换标消费期普通交易门禁 */
   getCanTradeNow: () => boolean;
+
+  /** 非 API 程序错误进入 fatal 通道 */
+  onFatalError?: (error: unknown) => void;
+
   onProcessed?: (task: MonitorTask<MonitorTaskDataMap>, status: MonitorTaskStatus) => void;
 }>;
 

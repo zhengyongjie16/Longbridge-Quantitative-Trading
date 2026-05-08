@@ -122,50 +122,33 @@ export const createUnrealizedLossChecker = (
       return Promise.resolve(null);
     }
 
-    try {
-      // 使用公共方法获取订单列表
-      const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, isLongSymbol);
+    const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, isLongSymbol);
+    const { r1: baseR1, n1 } = calculateCostAndQuantity(buyOrders);
+    const rawOffset =
+      dailyLossOffset !== undefined && Number.isFinite(dailyLossOffset) ? dailyLossOffset : 0;
+    const normalizedOffset = Math.min(rawOffset, 0);
+    const adjustedR1 = decimalToNumberValue(decimalSub(baseR1, normalizedOffset));
 
-      // 计算R1（开仓成本）和N1（持仓数量）
-      const { r1: baseR1, n1 } = calculateCostAndQuantity(buyOrders);
-      const rawOffset =
-        dailyLossOffset !== undefined && Number.isFinite(dailyLossOffset) ? dailyLossOffset : 0;
-      const normalizedOffset = Math.min(rawOffset, 0);
+    unrealizedLossData.set(symbol, {
+      r1: adjustedR1,
+      n1,
+      baseR1,
+      dailyLossOffset: normalizedOffset,
+      lastUpdateTime: Date.now(),
+    });
 
-      // 调整后R1 = 基础R1 - 当日偏移
-      // 当日偏移仅记录亏损（<=0）：盈利偏移统一按 0，不减少 R1
-      // 亏损偏移为负数时，减去负数使 R1 增大，从而更容易触发浮亏保护
-      const adjustedR1 = decimalToNumberValue(decimalSub(baseR1, normalizedOffset));
+    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+    const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
 
-      // 更新缓存
-      unrealizedLossData.set(symbol, {
-        r1: adjustedR1,
-        n1,
-        baseR1,
-        dailyLossOffset: normalizedOffset,
-        lastUpdateTime: Date.now(),
-      });
+    logger.info(
+      `[浮亏监控] ${positionType} ${symbolDisplay}: ` +
+        `R1(开仓成本)=${formatDecimal(baseR1, 2)} HKD, ` +
+        `当日偏移=${formatDecimal(normalizedOffset, 2)} HKD, ` +
+        `调整后R1(开仓成本)=${formatDecimal(adjustedR1, 2)} HKD, ` +
+        `N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
+    );
 
-      const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
-
-      // 使用 formatSymbolDisplayFromQuote 格式化标的显示
-      const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
-
-      logger.info(
-        `[浮亏监控] ${positionType} ${symbolDisplay}: ` +
-          `R1(开仓成本)=${formatDecimal(baseR1, 2)} HKD, ` +
-          `当日偏移=${formatDecimal(normalizedOffset, 2)} HKD, ` +
-          `调整后R1(开仓成本)=${formatDecimal(adjustedR1, 2)} HKD, ` +
-          `N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
-      );
-
-      return Promise.resolve({ r1: adjustedR1, n1 });
-    } catch (error) {
-      const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`[浮亏监控] 刷新标的 ${symbolDisplay} 的浮亏数据失败`, errorMessage);
-      return Promise.resolve(null);
-    }
+    return Promise.resolve({ r1: adjustedR1, n1 });
   };
 
   /**

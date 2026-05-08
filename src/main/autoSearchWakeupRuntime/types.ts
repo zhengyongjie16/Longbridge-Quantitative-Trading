@@ -37,4 +37,5 @@ export type AutoSearchWakeupRuntimeDeps = Readonly<{
 export interface AutoSearchWakeupRuntime {
   readonly start: () => void;
   readonly stopAndDrain: () => Promise<void>;
+  readonly drainFatalError: () => Promise<never>;
 }

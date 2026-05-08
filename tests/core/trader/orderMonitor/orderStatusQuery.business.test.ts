@@ -148,27 +148,81 @@ describe('orderStatusQuery business flow', () => {
     }
   });
 
-  it('maps 603001 to QUERY_FAILED NOT_FOUND', async () => {
-    const { orderStatusQuery } = createQueryContext();
-    const result = await orderStatusQuery.checkOrderState('ORDER-NOT-EXIST');
-    expect(result.kind).toBe('QUERY_FAILED');
-    if (result.kind === 'QUERY_FAILED') {
-      expect(result.reason).toBe('NOT_FOUND');
-      expect(result.errorCode).toBe('603001');
+  it('retries orderDetail request failures before mapping the authoritative state', async () => {
+    let attempts = 0;
+    const orderId = 'ORDER-RETRY-THEN-FILLED';
+    const { orderStatusQuery } = createQueryContext({
+      orderDetail: async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new Error('network unavailable');
+        }
+
+        return createOrderSnapshot({
+          orderId,
+          status: OPEN_API_ORDER_STATUS_FILLED,
+          executedQuantity: 100,
+        });
+      },
+    });
+
+    const result = await orderStatusQuery.checkOrderState(orderId);
+
+    expect(attempts).toBe(2);
+    expect(result.kind).toBe('TERMINAL');
+    if (result.kind === 'TERMINAL') {
+      expect(result.closedReason).toBe('FILLED');
     }
   });
 
-  it('maps non-603001 orderDetail errors to QUERY_FAILED API_ERROR', async () => {
+  it('maps 603001 to QUERY_FAILED NOT_FOUND', async () => {
+    const { orderStatusQuery } = createQueryContext();
+    const result = await orderStatusQuery.checkOrderState('ORDER-NOT-EXIST');
+    expect(result).toEqual({
+      kind: 'QUERY_FAILED',
+      reason: 'NOT_FOUND',
+      errorCode: '603001',
+      message: expect.any(String),
+    });
+  });
+
+  it('rethrows ExternalApiRequestError from repeated orderDetail request failures', async () => {
+    let attempts = 0;
+    const { orderStatusQuery } = createQueryContext({
+      orderDetail: async () => {
+        attempts += 1;
+        throw new Error('network unavailable');
+      },
+    });
+
+    try {
+      await orderStatusQuery.checkOrderState('ORDER-API-FAILURE');
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toMatchObject({
+        name: 'ExternalApiRequestError',
+        operation: 'TradeContext.orderDetail',
+      });
+      expect(attempts).toBeGreaterThan(1);
+    }
+  });
+
+  it('rethrows non-603001 business errors without wrapping them', async () => {
     const { orderStatusQuery } = createQueryContext({
       orderDetail: async () => {
         throw new Error('openapi error: code=500001: unknown upstream error');
       },
     });
-    const result = await orderStatusQuery.checkOrderState('ORDER-API-ERROR');
-    expect(result.kind).toBe('QUERY_FAILED');
-    if (result.kind === 'QUERY_FAILED') {
-      expect(result.reason).toBe('API_ERROR');
-      expect(result.errorCode).toBe('500001');
+
+    try {
+      await orderStatusQuery.checkOrderState('ORDER-BUSINESS-ERROR');
+      expect.unreachable();
+    } catch (error) {
+      expect(error instanceof Error).toBe(true);
+      if (error instanceof Error) {
+        expect(error.name).not.toBe('ExternalApiRequestError');
+        expect(error.message).toContain('500001');
+      }
     }
   });
 

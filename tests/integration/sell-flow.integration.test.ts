@@ -21,6 +21,83 @@ import {
 } from '../helpers/testDoubles.js';
 
 describe('sell-flow integration', () => {
+  it('throws ExternalApiRequestError without retry when sell quantity resolution reads stock positions', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    tradeCtx.seedStockPositions(
+      createStockPositionsResponse({
+        symbol: 'BULL.HK',
+        quantity: 300,
+        availableQuantity: 300,
+      }),
+    );
+
+    tradeCtx.setFailureRule('stockPositions', {
+      failAtCalls: [1, 2, 3],
+      maxFailures: 3,
+      errorMessage: 'temporary positions error',
+    });
+
+    const orderExecutor = createOrderExecutor({
+      ctx: tradeCtx as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: () => {},
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
+        replaceOrderPrice: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
+        recoverOrderTrackingFromSnapshot: async () => {},
+        getPendingSellOrders: () => [],
+        clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
+      },
+      orderRecorder: createOrderRecorderDouble(),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble(),
+      isExecutionAllowed: () => true,
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'SELLCALL',
+      price: 1.01,
+      triggerTimeMs: Date.now(),
+      reason: 'sell-quantity-stock-positions-no-retry',
+    });
+    signal.quantity = 100;
+
+    let caught: unknown = null;
+    try {
+      await orderExecutor.executeSignals([signal]);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    if (!(caught instanceof Error)) {
+      throw new Error('expected Error');
+    }
+
+    expect(caught.name).toBe('ExternalApiRequestError');
+    expect(Reflect.get(caught, 'operation')).toBe('TradeContext.stockPositions.quantityResolver');
+    expect(Reflect.get(caught, 'attempts')).toBe(1);
+    expect(tradeCtx.getCalls('stockPositions')).toHaveLength(1);
+  });
+
   it('runs smart-close sell quantity resolution then submits sell order with capped quantity', async () => {
     const tradingConfig = createTradingConfig();
     const signalProcessor = createSignalProcessor({

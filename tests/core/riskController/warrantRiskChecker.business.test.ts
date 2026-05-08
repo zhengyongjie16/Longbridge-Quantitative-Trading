@@ -13,6 +13,8 @@ import {
   MIN_MONITOR_PRICE_THRESHOLD,
 } from '../../../src/constants/index.js';
 import { createWarrantRiskChecker } from '../../../src/core/riskController/warrantRiskChecker.js';
+import { createExternalApiRequestError } from '../../../src/utils/apiFailure/index.js';
+import type { MarketDataClient } from '../../../src/types/services.js';
 
 describe('warrantRiskChecker business boundaries', () => {
   it('accepts and rejects bull distance exactly at threshold boundaries', () => {
@@ -81,5 +83,53 @@ describe('warrantRiskChecker business boundaries', () => {
     const result = checker.checkRisk('PRECISION-BULL.HK', 'BUYCALL', 101.12749074212671);
 
     expect(result.allowed).toBe(true);
+  });
+
+  it('throws ExternalApiRequestError when warrant refresh api fails and keeps previous warrant fact', async () => {
+    const checker = createWarrantRiskChecker();
+    checker.setWarrantInfoFromCallPrice('BULL.HK', 20000, true, 'BULL.HK');
+    const marketDataClient = {
+      getQuoteContext: async () => ({
+        warrantQuote: async () => {
+          throw createExternalApiRequestError({
+            operation: 'QuoteContext.warrantQuote',
+            attempts: 1,
+            cause: new Error('api down'),
+          });
+        },
+        warrantList: async () => [],
+      }),
+    } as unknown as MarketDataClient;
+
+    let caught: unknown = null;
+    try {
+      await checker.refreshWarrantInfoForSymbol(marketDataClient, 'BULL.HK', true, 'BULL.HK');
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).name).toBe('ExternalApiRequestError');
+    expect((caught as Error & { operation?: string }).operation).toBe('QuoteContext.warrantQuote');
+
+    const riskResult = checker.checkRisk('BULL.HK', 'BUYCALL', 20000);
+    expect(riskResult.allowed).toBe(false);
+    expect(riskResult.reason).toContain('牛证距离回收价百分比');
+  });
+
+  it('returns status error on invalid call price input and keeps previous warrant fact', () => {
+    const checker = createWarrantRiskChecker();
+    checker.setWarrantInfoFromCallPrice('BULL.HK', 20000, true, 'BULL.HK');
+
+    const refreshResult = checker.setWarrantInfoFromCallPrice('BULL.HK', 0, true, 'BULL.HK');
+    const riskResult = checker.checkRisk('BULL.HK', 'BUYCALL', 20000);
+
+    expect(refreshResult).toEqual({
+      status: 'error',
+      isWarrant: false,
+      reason: '回收价无效（0），无法设置牛熊证信息',
+    });
+    expect(riskResult.allowed).toBe(false);
+    expect(riskResult.reason).toContain('牛证距离回收价百分比');
   });
 });

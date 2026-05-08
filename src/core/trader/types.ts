@@ -9,6 +9,7 @@ import type {
 } from 'longbridge';
 import type { Signal, SignalType, OrderTypeConfig } from '../../types/signal.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';
+import type { ExternalApiRetryConfig } from '../../utils/apiFailure/types.js';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../../types/config.js';
 import type { SymbolRegistry } from '../../types/seat.js';
 import type {
@@ -171,9 +172,31 @@ export type ErrorTypeIdentifier = {
  * 使用范围：仅 trader 模块内部实现与使用。
  */
 export interface AccountService {
-  getAccountSnapshot: () => Promise<AccountSnapshot | null>;
-  getStockPositions: (symbols?: ReadonlyArray<string> | null) => Promise<ReadonlyArray<Position>>;
+  getAccountSnapshot: (params?: {
+    readonly retryConfig?: ExternalApiRetryConfig;
+  }) => Promise<AccountSnapshot>;
+  getStockPositions: (params?: {
+    readonly symbols?: ReadonlyArray<string> | null;
+    readonly retryConfig?: ExternalApiRetryConfig;
+  }) => Promise<ReadonlyArray<Position>>;
 }
+
+/**
+ * 今日订单缓存原始条目。
+ * 类型用途：表达 orderCacheManager 从 todayOrders 信任边界接收并已校验的订单字段。
+ * 数据来源：Longbridge TradeContext.todayOrders 返回数组中的单条订单。
+ * 使用范围：仅 orderCacheManager 构造 PendingOrder 缓存前使用。
+ */
+export type TodayOrderForPendingCache = Readonly<{
+  orderId: string;
+  symbol: string;
+  side: OrderSide;
+  price: unknown;
+  quantity: unknown;
+  executedQuantity: unknown;
+  status: OrderStatus;
+  orderType: PendingOrder['orderType'];
+}>;
 
 /**
  * 订单缓存管理器接口。
@@ -389,7 +412,7 @@ export type PendingSellOrderSnapshot = {
  * 数据来源：由 decideSellMerge 根据 pendingOrders 与 newOrder 计算后返回的 action 字段。
  * 使用范围：仅在 trader 模块内部使用。
  */
-type SellMergeDecisionAction = 'SUBMIT' | 'REPLACE' | 'CANCEL_AND_SUBMIT' | 'SKIP';
+export type SellMergeDecisionAction = 'SUBMIT' | 'REPLACE' | 'CANCEL_AND_SUBMIT' | 'SKIP';
 
 /**
  * 卖单合并决策输入

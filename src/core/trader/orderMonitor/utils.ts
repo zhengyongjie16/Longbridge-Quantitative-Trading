@@ -307,12 +307,16 @@ export function isOrderClosedBusinessError(err: unknown): boolean {
 }
 
 /**
- * 判断是否为可重试撤单失败。
+ * 判断是否为可重试订单 mutation 请求失败。
  *
  * @param err 错误对象
  * @returns true 表示可重试
  */
-export function isRetryableCancelError(err: unknown): boolean {
+export function isRetryableOrderMutationError(err: unknown): boolean {
+  if (extractErrorCode(err) !== null) {
+    return false;
+  }
+
   const message = extractErrorMessage(err).toLowerCase();
   const retryableHints = [
     'network',

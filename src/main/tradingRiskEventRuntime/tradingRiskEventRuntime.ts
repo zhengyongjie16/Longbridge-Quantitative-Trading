@@ -9,6 +9,7 @@
  */
 import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProtection/utils.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { formatError } from '../../utils/error/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { isTradingRiskRouteCurrent, resolveTradingRiskRoute } from './routeValidation.js';
@@ -183,6 +184,9 @@ export function createTradingRiskEventRuntime(
   function launchRouteProcessing(routeKey: string): void {
     const processingPromise = processRouteQueue(routeKey).catch((error: unknown) => {
       logger.error('[TradingRiskEventRuntime] 风险事件处理失败', formatError(error));
+      if (!isExternalApiRequestError(error)) {
+        deps.onFatalError?.(error);
+      }
     });
 
     activeRoutePromises.add(processingPromise);

@@ -24,17 +24,6 @@ type QuoteContextWarrantQuote = Readonly<{
 }>;
 
 /**
- * withRetry 重试配置。
- * 类型用途：控制 API 调用的重试次数与间隔，作为 withRetry 的参数。
- * 使用范围：仅 quoteClient 模块内部使用。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- */
-export type RetryConfig = {
-  readonly retries: number;
-  readonly delayMs: number;
-};
-
-/**
  * Longbridge 静态信息结构。
  * 类型用途：提取标的名称与每手股数，供行情缓存组装使用。
  * 数据来源：Longbridge staticInfo API 返回值的结构映射。

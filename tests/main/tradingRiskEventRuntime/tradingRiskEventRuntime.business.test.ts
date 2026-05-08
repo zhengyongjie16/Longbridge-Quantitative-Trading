@@ -446,6 +446,33 @@ describe('tradingRiskEventRuntime runtime flow', () => {
     };
   }
 
+  it('exposes route processing errors to fatal handler', async () => {
+    const fatalErrors: unknown[] = [];
+    const { deps } = createRuntimeDeps({
+      unrealizedLossMonitor: createUnrealizedLossMonitorDouble({
+        monitorDirectionalUnrealizedLoss: async () => {
+          throw new TypeError('risk route broken');
+        },
+      }),
+    });
+    const runtime = createTradingRiskEventRuntime({
+      ...deps,
+      onFatalError: (error: unknown) => {
+        fatalErrors.push(error);
+      },
+    });
+
+    runtime.start();
+    emitQuoteUpdated('BULL.HK', 1.23);
+    await waitTick();
+    await waitTick();
+    await runtime.stopAndDrain();
+
+    expect(fatalErrors).toHaveLength(1);
+    expect(fatalErrors[0]).toBeInstanceOf(TypeError);
+    expect((fatalErrors[0] as Error).message).toContain('risk route broken');
+  });
+
   it('starts and stops quote push processing', async () => {
     const executedPrices: number[] = [];
     const { deps } = createRuntimeDeps({

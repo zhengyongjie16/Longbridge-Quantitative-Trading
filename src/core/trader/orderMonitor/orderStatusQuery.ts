@@ -7,6 +7,10 @@
  * - 区分终态、仍开放状态与查询失败原因
  */
 import { decimalToNumber } from '../../../utils/helpers/index.js';
+import {
+  isExternalApiRequestError,
+  wrapExternalApiRequest,
+} from '../../../utils/apiFailure/index.js';
 import type { OrderStateCheckResult } from '../../../types/trader.js';
 import type { OrderStatusQuery, OrderStatusQueryDeps } from './types.js';
 import { extractErrorCode, extractErrorMessage, resolveUpdatedAtMs } from './utils.js';
@@ -48,7 +52,11 @@ export function createOrderStatusQuery(deps: OrderStatusQueryDeps): OrderStatusQ
   async function checkOrderState(orderId: string): Promise<OrderStateCheckResult> {
     try {
       await rateLimiter.throttle();
-      const detail = await ctx.orderDetail(orderId);
+      const detail = await wrapExternalApiRequest({
+        operation: 'TradeContext.orderDetail',
+        request: () => ctx.orderDetail(orderId),
+        shouldRetry: (error) => extractErrorCode(error) === null,
+      });
       const status = detail.status;
       const executedPriceNumber = decimalToNumber(detail.executedPrice);
       const executedQuantityNumber = decimalToNumber(detail.executedQuantity);
@@ -77,10 +85,18 @@ export function createOrderStatusQuery(deps: OrderStatusQueryDeps): OrderStatusQ
         updatedAtMs,
       };
     } catch (error) {
+      if (isExternalApiRequestError(error)) {
+        throw error;
+      }
+
       const errorCode = extractErrorCode(error);
+      if (errorCode !== '603001') {
+        throw error;
+      }
+
       return {
         kind: 'QUERY_FAILED',
-        reason: errorCode === '603001' ? 'NOT_FOUND' : 'API_ERROR',
+        reason: 'NOT_FOUND',
         errorCode,
         message: extractErrorMessage(error),
       };

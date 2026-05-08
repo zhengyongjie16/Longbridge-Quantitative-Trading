@@ -30,6 +30,26 @@ function resolveNextSymbol(seatState: SeatState): string | null {
   return seatState.symbol;
 }
 
+function dispatchCurrentActivatingSeat(params: {
+  readonly deps: SeatActivationDispatcherDeps;
+  readonly monitorSymbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+}): void {
+  const nextState = params.deps.symbolRegistry.getSeatState(params.monitorSymbol, params.direction);
+  if (nextState.status !== 'ACTIVATING') {
+    return;
+  }
+
+  scheduleSeatRefresh({
+    deps: params.deps,
+    monitorSymbol: params.monitorSymbol,
+    direction: params.direction,
+    seatVersion: params.deps.symbolRegistry.getSeatVersion(params.monitorSymbol, params.direction),
+    previousSymbol: null,
+    nextState,
+  });
+}
+
 function scheduleSeatRefresh(params: {
   readonly deps: SeatActivationDispatcherDeps;
   readonly monitorSymbol: string;
@@ -132,6 +152,26 @@ export function createSeatActivationDispatcher(
     });
   }
 
+  function dispatchCurrentActivatingSeats(): void {
+    if (running) {
+      return;
+    }
+
+    for (const monitorConfig of deps.tradingConfig.monitors) {
+      dispatchCurrentActivatingSeat({
+        deps,
+        monitorSymbol: monitorConfig.monitorSymbol,
+        direction: 'LONG',
+      });
+
+      dispatchCurrentActivatingSeat({
+        deps,
+        monitorSymbol: monitorConfig.monitorSymbol,
+        direction: 'SHORT',
+      });
+    }
+  }
+
   function start(): void {
     if (running) {
       return;
@@ -152,5 +192,6 @@ export function createSeatActivationDispatcher(
   return {
     start,
     stop,
+    dispatchCurrentActivatingSeats,
   };
 }

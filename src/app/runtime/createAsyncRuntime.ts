@@ -35,6 +35,32 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     periodicSwitchWakeupRuntime,
     quoteSubscriptionRuntime,
   } = postGateRuntime;
+  let fatalError: Error | null = null;
+  const fatalRejectors = new Set<(error: Error) => void>();
+  const toError = (error: unknown): Error =>
+    error instanceof Error ? error : new Error(String(error));
+  const handleFatalError = (error: unknown): void => {
+    if (fatalError !== null) {
+      return;
+    }
+
+    fatalError = toError(error);
+    for (const reject of fatalRejectors) {
+      reject(fatalError);
+    }
+
+    fatalRejectors.clear();
+  };
+
+  const drainFatalError = (): Promise<never> => {
+    if (fatalError !== null) {
+      return Promise.reject(fatalError);
+    }
+
+    return new Promise<never>((_, reject) => {
+      fatalRejectors.add(reject);
+    });
+  };
   const canProcessOrdinaryTradeTask = (): boolean =>
     ordinarySignalGuard({
       lastState,
@@ -54,6 +80,7 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     tradingConfig,
     getCanProcessTask: () => lastState.isTradingEnabled,
     getCanTradeNow: canProcessOrdinaryTradeTask,
+    onFatalError: handleFatalError,
   });
   const buyProcessor = createBuyProcessor({
     taskQueue: buyTaskQueue,
@@ -65,6 +92,7 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     getLastState: () => lastState,
     getIsHalfDay: () => lastState.isHalfDay ?? false,
     getCanProcessTask: canProcessOrdinaryTradeTask,
+    onFatalError: handleFatalError,
   });
   const sellProcessor = createSellProcessor({
     taskQueue: sellTaskQueue,
@@ -75,11 +103,13 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     getLastState: () => lastState,
     postTradeConsistencyRuntime,
     getCanProcessTask: canProcessOrdinaryTradeTask,
+    onFatalError: handleFatalError,
   });
 
   return {
     monitorTaskProcessor,
     buyProcessor,
     sellProcessor,
+    drainFatalError,
   };
 }

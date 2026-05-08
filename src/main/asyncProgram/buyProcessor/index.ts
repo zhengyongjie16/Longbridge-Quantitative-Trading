@@ -21,6 +21,7 @@ import {
   logProcessorTaskFailure,
 } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
+import { isExternalApiRequestError } from '../../../utils/apiFailure/index.js';
 import { isBuyAction } from '../../../utils/helpers/index.js';
 import { isSeatActive } from '../../../utils/seat/guards.js';
 import {
@@ -56,6 +57,7 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
     getLastState,
     getIsHalfDay,
     getCanProcessTask,
+    onFatalError,
   } = deps;
 
   /**
@@ -220,6 +222,14 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
       });
       return;
     } catch (err) {
+      if (!isExternalApiRequestError(err)) {
+        throw err;
+      }
+
+      if (err.operation === 'TradeContext.submitOrder') {
+        throw err;
+      }
+
       logProcessorTaskFailure('BuyProcessor', symbolDisplay, signal.action, err);
       return;
     }
@@ -229,5 +239,6 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
     taskQueue,
     processTask,
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
+    ...(onFatalError ? { onFatalError } : {}),
   });
 }

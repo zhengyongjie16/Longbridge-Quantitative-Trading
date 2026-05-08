@@ -3,8 +3,9 @@
  *
  * 核心职责：执行一次权威时间语义评估，更新交易门禁、生命周期、末日保护，并返回下一次系统级时间唤醒计划。
  */
-import { DOOMSDAY, TIME } from '../../constants/index.js';
+import { DOOMSDAY, TIME, TRADING } from '../../constants/index.js';
 import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProtection/utils.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { logger } from '../../utils/logger/index.js';
 import {
   getHKDateKey,
@@ -67,6 +68,29 @@ function pushFutureCandidate(
   }
 
   candidates.push({ source, atMs });
+}
+
+/**
+ * 将外部 API 请求失败转换为下一次系统级时间重评估候选。
+ *
+ * @param candidates 候选集合
+ * @param currentMs 当前时间戳
+ * @returns 无返回值；副作用是追加 API_RETRY 候选
+ */
+function pushApiRetryCandidate(candidates: TimeWakeupCandidate[], currentMs: number): void {
+  pushFutureCandidate(candidates, 'API_RETRY', currentMs + TRADING.INTERVAL_MS, currentMs);
+}
+
+async function refreshDoomsdayApiFailureFacts(params: {
+  readonly trader: TimeWakeupEvaluationContext['trader'];
+  readonly lastState: TimeWakeupEvaluationContext['lastState'];
+  readonly quoteSubscriptionRuntime: TimeWakeupEvaluationContext['quoteSubscriptionRuntime'];
+}): Promise<void> {
+  await params.trader.fetchAllOrdersFromAPI(true);
+  const positions = await params.trader.getStockPositions();
+  params.lastState.cachedPositions = positions;
+  params.lastState.positionCache.update(positions);
+  await params.quoteSubscriptionRuntime.reconcilePositionHoldFromCurrentTruth();
 }
 
 function resolveDayBoundaryMs(date: Date, minuteOfDay: number): number | null {
@@ -232,7 +256,24 @@ export async function timeWakeupEvaluationProgram({
   let isTradingDayToday: boolean | null = cachedTradingDayInfo?.isTradingDay ?? true;
   let isHalfDayToday = cachedTradingDayInfo?.isHalfDay ?? false;
   if (!cachedTradingDayInfo) {
-    const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
+    let tradingDayInfo: Awaited<
+      ReturnType<TimeWakeupEvaluationContext['marketDataClient']['isTradingDay']>
+    >;
+    try {
+      tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
+    } catch (error) {
+      if (!isExternalApiRequestError(error)) {
+        throw error;
+      }
+
+      logger.warn(
+        '[TimeWakeupEvaluation] 交易日 API 请求失败，等待下一次系统级重评估',
+        error.message,
+      );
+      pushApiRetryCandidate(candidates, currentMs);
+      return createEvaluationResult(currentTime, candidates);
+    }
+
     isTradingDayToday = tradingDayInfo.isTradingDay;
     isHalfDayToday = tradingDayInfo.isHalfDay;
     lastState.cachedTradingDayInfo = {
@@ -277,6 +318,38 @@ export async function timeWakeupEvaluationProgram({
   }
 
   const canTradeNow = isTradingDayToday && isInContinuousHKSession(currentTime, isHalfDayToday);
+  let lifecycleResult: Awaited<
+    ReturnType<TimeWakeupEvaluationContext['dayLifecycleManager']['tick']>
+  >;
+  try {
+    lifecycleResult = await dayLifecycleManager.tick(currentTime, {
+      dayKey: currentDayKey,
+      canTradeNow,
+      isTradingDay: isTradingDayToday,
+    });
+  } catch (error) {
+    if (!isExternalApiRequestError(error)) {
+      throw error;
+    }
+
+    logger.warn(
+      '[TimeWakeupEvaluation] 生命周期 API 请求失败，等待下一次系统级重评估',
+      error.message,
+    );
+    pushApiRetryCandidate(candidates, currentMs);
+    return createEvaluationResult(currentTime, candidates);
+  }
+
+  pushFutureCandidate(candidates, 'LIFECYCLE_RETRY', lifecycleResult.nextRetryAtMs, currentMs);
+  if (lifecycleResult.pendingOpenRebuild) {
+    pushFutureCandidate(
+      candidates,
+      'LIFECYCLE_RETRY',
+      resolveNextTradingDayOpenMs(currentMs, lastState.tradingCalendarSnapshot),
+      currentMs,
+    );
+  }
+
   if (lastState.canTrade !== false && !isTradingDayToday) {
     logger.info('今天不是交易日，暂停实时监控。');
   }
@@ -327,21 +400,6 @@ export async function timeWakeupEvaluationProgram({
     lastState.openProtectionActive = false;
   }
 
-  const lifecycleResult = await dayLifecycleManager.tick(currentTime, {
-    dayKey: currentDayKey,
-    canTradeNow,
-    isTradingDay: isTradingDayToday,
-  });
-  pushFutureCandidate(candidates, 'LIFECYCLE_RETRY', lifecycleResult.nextRetryAtMs, currentMs);
-  if (lifecycleResult.pendingOpenRebuild) {
-    pushFutureCandidate(
-      candidates,
-      'LIFECYCLE_RETRY',
-      resolveNextTradingDayOpenMs(currentMs, lastState.tradingCalendarSnapshot),
-      currentMs,
-    );
-  }
-
   const nextCanTrade = lastState.canTrade;
   if (previousCanTrade !== nextCanTrade) {
     tradingGateEventRuntime.emitGateStateChanged({
@@ -375,32 +433,77 @@ export async function timeWakeupEvaluationProgram({
   const positions = lastState.cachedPositions;
 
   if (tradeActionEnabled && tradingConfig.global.doomsdayProtection) {
-    const cancelResult = await doomsdayProtection.cancelPendingBuyOrders({
-      currentTime,
-      isHalfDay: isHalfDayToday,
-      monitorConfigs: tradingConfig.monitors,
-      monitorContexts,
-      trader,
-    });
-    if (cancelResult.executed && cancelResult.cancelRequestAcceptedCount > 0) {
-      logger.info(
-        `[末日保护程序] 买入截止窗口已提交撤单请求，共 ${cancelResult.cancelRequestAcceptedCount} 个买入订单，终态以后续 WS 为准`,
-      );
-    }
+    try {
+      const cancelResult = await doomsdayProtection.cancelPendingBuyOrders({
+        currentTime,
+        isHalfDay: isHalfDayToday,
+        monitorConfigs: tradingConfig.monitors,
+        monitorContexts,
+        trader,
+      });
+      pushFutureCandidate(candidates, 'DOOMSDAY_RETRY', cancelResult.nextRetryAtMs, currentMs);
+      if (cancelResult.executed && cancelResult.cancelRequestAcceptedCount > 0) {
+        logger.info(
+          `[末日保护程序] 买入截止窗口已提交撤单请求，共 ${cancelResult.cancelRequestAcceptedCount} 个买入订单，终态以后续 WS 为准`,
+        );
+      }
 
-    const clearanceResult = await doomsdayProtection.executeClearance({
-      currentTime,
-      isHalfDay: isHalfDayToday,
-      positions,
-      monitorConfigs: tradingConfig.monitors,
-      monitorContexts,
-      trader,
-      marketDataClient,
-      lastState,
-      onPositionsCommitted: () => quoteSubscriptionRuntime.reconcilePositionHoldFromCurrentTruth(),
-    });
-    pushFutureCandidate(candidates, 'DOOMSDAY_RETRY', clearanceResult.nextRetryAtMs, currentMs);
-    if (clearanceResult.executed || clearanceResult.nextRetryAtMs !== null) {
+      const clearanceResult = await doomsdayProtection.executeClearance({
+        currentTime,
+        isHalfDay: isHalfDayToday,
+        positions,
+        monitorConfigs: tradingConfig.monitors,
+        monitorContexts,
+        trader,
+        marketDataClient,
+        lastState,
+        onPositionsCommitted: () =>
+          quoteSubscriptionRuntime.reconcilePositionHoldFromCurrentTruth(),
+      });
+      pushFutureCandidate(candidates, 'DOOMSDAY_RETRY', clearanceResult.nextRetryAtMs, currentMs);
+      if (
+        cancelResult.nextRetryAtMs !== null ||
+        clearanceResult.executed ||
+        clearanceResult.nextRetryAtMs !== null
+      ) {
+        return createEvaluationResult(currentTime, candidates);
+      }
+    } catch (error) {
+      if (!isExternalApiRequestError(error)) {
+        throw error;
+      }
+
+      if (error.operation === 'TradeContext.submitOrder') {
+        try {
+          await refreshDoomsdayApiFailureFacts({
+            trader,
+            lastState,
+            quoteSubscriptionRuntime,
+          });
+        } catch (refreshError) {
+          if (!isExternalApiRequestError(refreshError)) {
+            throw refreshError;
+          }
+
+          logger.warn(
+            '[TimeWakeupEvaluation] 末日清仓提交结果未知后的事实刷新失败，等待系统级重评估',
+            refreshError.message,
+          );
+        }
+
+        logger.warn(
+          '[TimeWakeupEvaluation] 末日清仓下单结果未知，已刷新事实，等待系统级重评估',
+          error.message,
+        );
+        pushApiRetryCandidate(candidates, currentMs);
+        return createEvaluationResult(currentTime, candidates);
+      }
+
+      logger.warn(
+        '[TimeWakeupEvaluation] 末日保护 API 请求失败，等待下一次系统级重评估',
+        error.message,
+      );
+      pushApiRetryCandidate(candidates, currentMs);
       return createEvaluationResult(currentTime, candidates);
     }
   }

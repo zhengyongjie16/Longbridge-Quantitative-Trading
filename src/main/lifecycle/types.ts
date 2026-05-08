@@ -8,6 +8,7 @@ import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { Quote } from '../../types/quote.js';
 import type { MarketDataClient, RawOrderFromAPI, Trader } from '../../types/services.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../../core/trader/protectiveLiquidationEpisodeTracker/types.js';
+import type { SeatActivationDispatcher } from '../seatActivationDispatcher/types.js';
 
 /**
  * 单次生命周期推进传入的运行时标志。
@@ -125,14 +126,13 @@ export type RebuildTradingDayStateParams = Readonly<{
 
 /**
  * loadTradingDayRuntimeSnapshot 的调用参数。
- * 类型用途：控制加载行为：是否要求交易日、订单拉取失败是否抛错、是否重置订阅、是否从成交记录恢复冷却等。
+ * 类型用途：控制加载行为：是否要求交易日、是否重置订阅、是否从成交记录恢复冷却等。
  * 数据来源：由启动流程或开盘重建逻辑根据场景组装传入。
  * 使用范围：仅 lifecycle 内部使用。
  */
 export type LoadTradingDayRuntimeSnapshotParams = Readonly<{
   now: Date;
   requireTradingDay: boolean;
-  failOnOrderFetchError: boolean;
   resetRuntimeSubscriptions: boolean;
   hydrateCooldownFromTradeLog: boolean;
   forceOrderRefresh: boolean;
@@ -165,6 +165,7 @@ export type LoadTradingDayRuntimeSnapshotDeps = Readonly<{
   protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
   tradeLogHydrator: TradeLogHydrator;
   warrantListCacheConfig: WarrantListCacheConfig;
+  seatActivationDispatcher: Pick<SeatActivationDispatcher, 'dispatchCurrentActivatingSeats'>;
 }>;
 
 /**

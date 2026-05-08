@@ -3,9 +3,10 @@
  *
  * 职责：
  * - 执行 startup snapshot load
- * - 在失败时切换到 pendingOpenRebuild 恢复分支
- * - 保留空快照并继续后续装配
+ * - 在外部 API 失败时切换到 pendingOpenRebuild 恢复分支
+ * - 成功时返回权威快照，API retry pending 时不携带空事实
  */
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import type { LoadStartupSnapshotParams, StartupSnapshotResult } from '../types.js';
 
 /**
@@ -30,25 +31,26 @@ export async function loadStartupSnapshot(
     const startupSnapshot = await loadTradingDayRuntimeSnapshot({
       now,
       requireTradingDay: false,
-      failOnOrderFetchError: true,
       resetRuntimeSubscriptions: false,
       hydrateCooldownFromTradeLog: true,
       forceOrderRefresh: false,
     });
 
     return {
+      kind: 'READY',
       allOrders: startupSnapshot.allOrders,
       quotesMap: startupSnapshot.quotesMap,
-      startupRebuildPending: false,
       now,
     };
   } catch (err) {
+    if (!isExternalApiRequestError(err)) {
+      throw err;
+    }
+
     applyStartupSnapshotFailureState(lastState, now);
-    logger.error('启动快照加载失败：已阻断交易并切换为开盘重建重试模式', formatError(err));
+    logger.error('启动快照 API 请求失败：已阻断交易并切换为开盘重建重试模式', formatError(err));
     return {
-      allOrders: [],
-      quotesMap: new Map(),
-      startupRebuildPending: true,
+      kind: 'API_RETRY_PENDING',
       now,
     };
   }

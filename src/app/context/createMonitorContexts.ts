@@ -45,7 +45,7 @@ function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorContext {
   const runtimeSnapshot = resolveMonitorContextRuntimeSnapshot(
     config.monitorSymbol,
     symbolRegistry,
-    quotesMap,
+    quotesMap ?? new Map<string, null>(),
   );
   const indicatorProfile = compileIndicatorUsageProfile({
     signalConfig: config.signalConfig,

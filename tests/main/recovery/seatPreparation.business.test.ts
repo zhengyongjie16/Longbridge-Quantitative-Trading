@@ -11,6 +11,8 @@ import {
   prepareSeatsForRuntime,
   resolveBoundSeatSymbol,
 } from '../../../src/main/recovery/seatPreparation.js';
+import { AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY } from '../../../src/constants/index.js';
+import { getHKDateKey } from '../../../src/utils/time/index.js';
 import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
 import { toMockDecimal } from '../../../mock/longbridge/decimal.js';
 import {
@@ -282,6 +284,167 @@ describe('recovery seat preparation business flow', () => {
     expect(shortSeat.searchFailCountToday).toBe(1);
 
     expect(prepared.seatSymbols).toEqual([]);
+  });
+
+  it('rethrows ExternalApiRequestError during startup recovery search and preserves prior failure state', async () => {
+    const monitor = createAutoSearchMonitor();
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitor.monitorSymbol,
+      longSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 2,
+        frozenTradingDayKey: '2026-02-15',
+      },
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    const quoteCtx = createQuoteContextMock();
+    quoteCtx.setFailureRule('warrantList', {
+      failAtCalls: [1, 2, 3],
+      errorMessage: 'network',
+    });
+
+    let error: unknown = null;
+    try {
+      await prepareSeatsForRuntime({
+        tradingConfig: createTradingConfig({ monitors: [monitor] }),
+        symbolRegistry,
+        positions: [],
+        orders: [],
+        marketDataClient: createMarketDataClientDouble({
+          getQuoteContext: async () => createQuoteContextDouble(quoteCtx),
+        }),
+        now: () => new Date('2026-02-16T01:35:00.000Z'),
+        logger: createLoggerStub(),
+        getTradingMinutesSinceOpen: () => 5,
+        resolveCanAutoSearchNow: () => true,
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toMatchObject({
+      name: 'ExternalApiRequestError',
+      operation: 'QuoteContext.warrantList',
+    });
+
+    const longSeat = symbolRegistry.getSeatState(monitor.monitorSymbol, 'LONG');
+    expect(longSeat.status).toBe('EMPTY');
+    expect(longSeat.searchFailCountToday).toBe(2);
+    expect(longSeat.frozenTradingDayKey).toBe('2026-02-15');
+  });
+
+  it('rethrows TypeError during startup recovery search and preserves prior failure state', async () => {
+    const monitor = createAutoSearchMonitor();
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitor.monitorSymbol,
+      longSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 1,
+        frozenTradingDayKey: '2026-02-14',
+      },
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+
+    let error: unknown = null;
+    try {
+      await prepareSeatsForRuntime({
+        tradingConfig: createTradingConfig({ monitors: [monitor] }),
+        symbolRegistry,
+        positions: [],
+        orders: [],
+        marketDataClient: createMarketDataClientDouble({
+          getQuoteContext: async () => ({
+            warrantQuote: async () => [],
+            warrantList: async () => {
+              throw new TypeError('warrant payload contract broken');
+            },
+          }),
+        }),
+        now: () => new Date('2026-02-16T01:35:00.000Z'),
+        logger: createLoggerStub(),
+        getTradingMinutesSinceOpen: () => 5,
+        resolveCanAutoSearchNow: () => true,
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(TypeError);
+    expect(error).toMatchObject({ message: 'warrant payload contract broken' });
+
+    const longSeat = symbolRegistry.getSeatState(monitor.monitorSymbol, 'LONG');
+    expect(longSeat.status).toBe('EMPTY');
+    expect(longSeat.searchFailCountToday).toBe(1);
+    expect(longSeat.frozenTradingDayKey).toBe('2026-02-14');
+  });
+
+  it('freezes seat when startup auto-search misses candidate at daily failure threshold', async () => {
+    const monitor = createAutoSearchMonitor();
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitor.monitorSymbol,
+      longSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY - 1,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    const currentTime = new Date('2026-02-16T01:35:00.000Z');
+    const prepared = await prepareSeatsForRuntime({
+      tradingConfig: createTradingConfig({ monitors: [monitor] }),
+      symbolRegistry,
+      positions: [],
+      orders: [],
+      marketDataClient: createMarketDataClientDouble({
+        getQuoteContext: async () => createQuoteContextDouble(createQuoteContextMock()),
+      }),
+      now: () => currentTime,
+      logger: createLoggerStub(),
+      getTradingMinutesSinceOpen: () => 5,
+      resolveCanAutoSearchNow: () => true,
+    });
+
+    const longSeat = symbolRegistry.getSeatState(monitor.monitorSymbol, 'LONG');
+    expect(prepared.seatSymbols).toEqual([]);
+    expect(longSeat.status).toBe('EMPTY');
+    expect(longSeat.searchFailCountToday).toBe(AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY);
+    expect(longSeat.frozenTradingDayKey).toBe(getHKDateKey(currentTime));
   });
 
   it('skips startup search during morning open protection window', async () => {

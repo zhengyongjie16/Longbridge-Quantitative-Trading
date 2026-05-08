@@ -19,6 +19,7 @@ export type CreateBusinessProcessorParams = Readonly<{
   readonly onProcessed?: MonitorTaskProcessorDeps['onProcessed'];
   readonly getCanProcessTask?: MonitorTaskProcessorDeps['getCanProcessTask'];
   readonly getCanTradeNow?: MonitorTaskProcessorDeps['getCanTradeNow'];
+  readonly onFatalError?: MonitorTaskProcessorDeps['onFatalError'];
   readonly periodicSwitchWakeupRuntime?: Pick<
     PeriodicSwitchWakeupRuntime,
     'markWaitingEmpty' | 'clearWaitingEmpty' | 'replanRouteAfterTask'

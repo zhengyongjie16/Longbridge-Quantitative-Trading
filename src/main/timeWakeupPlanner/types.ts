@@ -5,6 +5,7 @@
  * 使用范围：TimeWakeupPlanner 输入候选与输出计划。
  */
 type TimeWakeupCandidateSource =
+  | 'API_RETRY'
   | 'LIFECYCLE_RETRY'
   | 'DOOMSDAY_RETRY'
   | 'DOOMSDAY_WINDOW_ENTRY'

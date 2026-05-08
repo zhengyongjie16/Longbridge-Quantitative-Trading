@@ -8,6 +8,7 @@
  */
 import { Decimal, type TradeContext } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
+import { wrapExternalApiRequest } from '../../../utils/apiFailure/index.js';
 import { TRADING } from '../../../constants/index.js';
 import { decimalToNumber, isValidPositiveNumber } from '../../../utils/helpers/index.js';
 import { isDefined } from '../../utils.js';
@@ -20,6 +21,11 @@ import {
 } from '../../../utils/numeric/index.js';
 import { toDecimal } from '../utils.js';
 import type { RateLimiter } from '../../../types/services.js';
+
+const HIGH_FRESHNESS_API_RETRY_CONFIG = {
+  retries: 0,
+  delayMs: 0,
+} as const;
 
 /**
  * 解析买入数量来源并执行显式数量校验。
@@ -192,7 +198,11 @@ export function createQuantityResolver(deps: {
     }
 
     await rateLimiter.throttle();
-    const resp = await ctx.stockPositions([symbol]);
+    const resp = await wrapExternalApiRequest({
+      operation: 'TradeContext.stockPositions.quantityResolver',
+      request: () => ctx.stockPositions([symbol]),
+      retryConfig: HIGH_FRESHNESS_API_RETRY_CONFIG,
+    });
     const channels = resp.channels;
     let totalAvailable = 0;
     for (const ch of channels) {

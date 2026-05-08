@@ -111,6 +111,225 @@ describe('createOrderAPIManager', () => {
     expect(allOrders[0]?.updatedAt?.toISOString()).toBe('2026-02-25T03:05:00.000Z');
   });
 
+  it('fails fast when historyOrders returns non-array value', async () => {
+    const apiManager = createOrderAPIManager({
+      ctx: {
+        historyOrders: async () => ({ [Symbol.iterator]: function* () {} }),
+        todayOrders: async () => [],
+      } as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+    });
+
+    let caught: unknown = null;
+    try {
+      await apiManager.fetchAllOrdersFromAPI(true);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as Error).message).toContain('TradeContext.historyOrders 返回值不是数组');
+  });
+
+  it('fails fast when todayOrders returns non-array value', async () => {
+    const apiManager = createOrderAPIManager({
+      ctx: {
+        historyOrders: async () => [],
+        todayOrders: async () => ({ [Symbol.iterator]: function* () {} }),
+      } as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+    });
+
+    let caught: unknown = null;
+    try {
+      await apiManager.fetchAllOrdersFromAPI(true);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as Error).message).toContain('TradeContext.todayOrders 返回值不是数组');
+  });
+
+  it('fails fast when API order misses required fields', async () => {
+    const apiManager = createOrderAPIManager({
+      ctx: {
+        historyOrders: async () => [
+          {
+            orderId: undefined,
+            symbol: 'BULL.HK',
+            stockName: 'BULL',
+            side: OrderSide.Buy,
+            status: OrderStatus.Filled,
+            orderType: OrderType.ELO,
+            submittedAt: new Date('2026-02-25T03:00:00.000Z'),
+          },
+        ],
+        todayOrders: async () => [],
+      } as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+    });
+
+    let caught: unknown = null;
+    try {
+      await apiManager.fetchAllOrdersFromAPI(true);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as Error).message).toContain('TradeContext.historyOrders 订单数据结构无效');
+  });
+
+  it('fails fast when today API order misses required fields', async () => {
+    const apiManager = createOrderAPIManager({
+      ctx: {
+        historyOrders: async () => [],
+        todayOrders: async () => [
+          {
+            orderId: 'ORDER-TODAY-MISSING',
+            symbol: '',
+            stockName: 'BULL',
+            side: OrderSide.Buy,
+            status: OrderStatus.Filled,
+            orderType: OrderType.ELO,
+            price: new Decimal('1'),
+            quantity: new Decimal('100'),
+            executedPrice: new Decimal('1'),
+            executedQuantity: new Decimal('100'),
+            submittedAt: new Date('2026-02-25T03:00:00.000Z'),
+          },
+        ],
+      } as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+    });
+
+    let caught: unknown = null;
+    try {
+      await apiManager.fetchAllOrdersFromAPI(true);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as Error).message).toContain('TradeContext.todayOrders 订单数据结构无效');
+  });
+
+  it('fails fast when API order contains invalid enum facts', async () => {
+    const apiManager = createOrderAPIManager({
+      ctx: {
+        historyOrders: async () => [
+          {
+            orderId: 'ORDER-BAD-ENUM',
+            symbol: 'BULL.HK',
+            stockName: 'BULL',
+            side: 999,
+            status: OrderStatus.Filled,
+            orderType: OrderType.ELO,
+            price: new Decimal('1'),
+            quantity: new Decimal('100'),
+            executedPrice: new Decimal('1'),
+            executedQuantity: new Decimal('100'),
+            submittedAt: new Date('2026-02-25T03:00:00.000Z'),
+          },
+        ],
+        todayOrders: async () => [],
+      } as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+    });
+
+    let caught: unknown = null;
+    try {
+      await apiManager.fetchAllOrdersFromAPI(true);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as Error).message).toContain('TradeContext.historyOrders 订单数据结构无效');
+  });
+
+  it('fails fast when API order misses quantity fields', async () => {
+    const apiManager = createOrderAPIManager({
+      ctx: {
+        historyOrders: async () => [
+          {
+            orderId: 'ORDER-MISSING-QUANTITY',
+            symbol: 'BULL.HK',
+            stockName: 'BULL',
+            side: OrderSide.Buy,
+            status: OrderStatus.Filled,
+            orderType: OrderType.ELO,
+            price: new Decimal('1'),
+            executedPrice: new Decimal('1'),
+            submittedAt: new Date('2026-02-25T03:00:00.000Z'),
+          },
+        ],
+        todayOrders: async () => [],
+      } as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+    });
+
+    let caught: unknown = null;
+    try {
+      await apiManager.fetchAllOrdersFromAPI(true);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as Error).message).toContain('TradeContext.historyOrders 订单数据结构无效');
+  });
+
+  it('fails fast when API order has invalid updatedAt field', async () => {
+    const apiManager = createOrderAPIManager({
+      ctx: {
+        historyOrders: async () => [
+          {
+            orderId: 'ORDER-BAD-UPDATED',
+            symbol: 'BULL.HK',
+            stockName: 'BULL',
+            side: OrderSide.Buy,
+            status: OrderStatus.Filled,
+            orderType: OrderType.ELO,
+            price: new Decimal('1'),
+            quantity: new Decimal('100'),
+            executedPrice: new Decimal('1'),
+            executedQuantity: new Decimal('100'),
+            submittedAt: new Date('2026-02-25T03:00:00.000Z'),
+            updatedAt: 'not-a-date',
+          },
+        ],
+        todayOrders: async () => [],
+      } as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+    });
+
+    let caught: unknown = null;
+    try {
+      await apiManager.fetchAllOrdersFromAPI(true);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as Error).message).toContain('TradeContext.historyOrders 订单数据结构无效');
+  });
+
   it('maps sdk order remark into raw order snapshot', async () => {
     const tradeCtx = createTradeContextMock();
     tradeCtx.seedHistoryOrders([]);

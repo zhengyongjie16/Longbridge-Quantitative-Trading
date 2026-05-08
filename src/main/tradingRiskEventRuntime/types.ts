@@ -90,6 +90,7 @@ export type TradingRiskEventRuntimeDeps = Readonly<{
   readonly postTradeConsistencyRuntime: TradingRiskConsistencyPort;
   readonly doomsdayProtectionEnabled: boolean;
   readonly now: () => Date;
+  readonly onFatalError?: (error: unknown) => void;
 }>;
 
 /**

@@ -172,6 +172,7 @@ function defaultDeps(steps: string[]): CleanupContext {
       stop: () => {
         steps.push('seatActivationDispatcher');
       },
+      dispatchCurrentActivatingSeats: () => {},
     },
     autoSearchWakeupRuntime: {
       start: () => {
@@ -180,6 +181,7 @@ function defaultDeps(steps: string[]): CleanupContext {
       stopAndDrain: async () => {
         steps.push('autoSearchWakeupRuntime');
       },
+      drainFatalError: () => new Promise<never>(() => {}),
     },
     buyProcessor: {
       start: () => {},
@@ -219,6 +221,7 @@ function defaultDeps(steps: string[]): CleanupContext {
       }),
       waitForFresh: async () => {},
       onFreshReached: () => () => {},
+      drainFatalError: () => new Promise<never>(() => {}),
       abortWaiting: () => {
         steps.push('abortWaiting');
       },

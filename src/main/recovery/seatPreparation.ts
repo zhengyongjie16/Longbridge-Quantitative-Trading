@@ -28,6 +28,7 @@ import {
 import { getLatestTradedSymbol } from '../../core/orderRecorder/orderOwnershipParser.js';
 import { AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY } from '../../constants/index.js';
 import { getHKDateKey } from '../../utils/time/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 
 /**
  * 基于订单与持仓生成席位快照，用于恢复运行时席位标的。
@@ -173,6 +174,7 @@ export async function prepareSeatsForRuntime(
     direction: 'LONG' | 'SHORT',
     symbol: string | null,
   ): void {
+    const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
     symbolRegistry.updateSeatState(monitorSymbol, direction, {
       symbol,
       status: symbol ? 'ACTIVATING' : 'EMPTY',
@@ -180,8 +182,8 @@ export async function prepareSeatsForRuntime(
       lastSearchAt: null,
       lastSeatActivatedAt: null,
       callPrice: null,
-      searchFailCountToday: 0,
-      frozenTradingDayKey: null,
+      searchFailCountToday: symbol ? 0 : currentSeat.searchFailCountToday,
+      frozenTradingDayKey: symbol ? null : currentSeat.frozenTradingDayKey,
     });
   }
 
@@ -290,7 +292,7 @@ export async function prepareSeatsForRuntime(
     return best.symbol;
   }
 
-  function handleSearchException(
+  function resetSearchingSeatAfterException(
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
     currentTime: Date,
@@ -300,18 +302,6 @@ export async function prepareSeatsForRuntime(
       return;
     }
 
-    const hkDateKey = getHKDateKey(currentTime);
-    const { nextFailCount, frozenTradingDayKey, shouldFreeze } = resolveNextSearchFailureState({
-      currentSeat: stuckSeat,
-      hkDateKey,
-      maxSearchFailuresPerDay: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
-    });
-    if (shouldFreeze) {
-      logger.warn(
-        `[席位恢复] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
-      );
-    }
-
     symbolRegistry.updateSeatState(monitorSymbol, direction, {
       symbol: null,
       status: 'EMPTY',
@@ -319,8 +309,8 @@ export async function prepareSeatsForRuntime(
       lastSearchAt: currentTime.getTime(),
       lastSeatActivatedAt: stuckSeat.lastSeatActivatedAt ?? null,
       callPrice: null,
-      searchFailCountToday: nextFailCount,
-      frozenTradingDayKey,
+      searchFailCountToday: stuckSeat.searchFailCountToday,
+      frozenTradingDayKey: stuckSeat.frozenTradingDayKey,
     });
   }
 
@@ -368,10 +358,14 @@ export async function prepareSeatsForRuntime(
             );
           }
         } catch (err) {
-          handleSearchException(monitorConfig.monitorSymbol, direction, currentTime);
-          logger.error(
-            `[席位恢复] ${monitorConfig.monitorSymbol} ${direction} 寻标异常: ${String(err)}`,
-          );
+          resetSearchingSeatAfterException(monitorConfig.monitorSymbol, direction, currentTime);
+          if (isExternalApiRequestError(err)) {
+            logger.warn(
+              `[席位恢复] ${monitorConfig.monitorSymbol} ${direction} 寻标 API 请求失败，等待恢复链路重试: ${err.message}`,
+            );
+          }
+
+          throw err;
         }
       }
     }

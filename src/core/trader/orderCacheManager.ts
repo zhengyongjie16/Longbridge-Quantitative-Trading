@@ -9,13 +9,16 @@
  * - 按 symbols 组合作为缓存键
  * - 订单状态变化后自动失效
  */
-import type { OrderStatus, OrderSide } from 'longbridge';
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, isRecord } from '../../utils/helpers/index.js';
 import { PENDING_ORDER_STATUSES, API } from '../../constants/index.js';
+import { wrapExternalApiRequest } from '../../utils/apiFailure/index.js';
 import type { PendingOrder } from '../../types/services.js';
-import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
-import { formatError } from '../../utils/error/index.js';
+import type {
+  OrderCacheManager,
+  OrderCacheManagerDeps,
+  TodayOrderForPendingCache,
+} from './types.js';
 
 /**
  * 将订单原始数值字段安全转换为 number。
@@ -41,6 +44,27 @@ function toOrderNumber(value: unknown): number {
   }
 
   return Number.NaN;
+}
+
+function canConvertToFiniteOrderNumber(value: unknown): boolean {
+  return Number.isFinite(toOrderNumber(value));
+}
+
+function isValidTodayOrder(order: unknown): order is TodayOrderForPendingCache {
+  if (!isRecord(order)) {
+    return false;
+  }
+
+  return (
+    typeof order['orderId'] === 'string' &&
+    typeof order['symbol'] === 'string' &&
+    typeof order['side'] === 'number' &&
+    typeof order['status'] === 'number' &&
+    typeof order['orderType'] === 'number' &&
+    canConvertToFiniteOrderNumber(order['price']) &&
+    canConvertToFiniteOrderNumber(order['quantity']) &&
+    canConvertToFiniteOrderNumber(order['executedQuantity'])
+  );
 }
 
 /**
@@ -93,81 +117,59 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
       return [...pendingOrdersCache];
     }
 
-    try {
-      // 使用模块级常量 PENDING_ORDER_STATUSES 过滤未成交订单，避免每次调用创建新 Set
-      let allOrders: ReadonlyArray<{
-        orderId: string;
-        symbol: string;
-        side: OrderSide;
-        price: unknown;
-        quantity: unknown;
-        executedQuantity: unknown;
-        status: OrderStatus;
-        orderType: PendingOrder['orderType'];
-      }> = [];
-      function isValidTodayOrder(order: unknown): order is (typeof allOrders)[number] {
-        if (!isRecord(order)) {
-          return false;
-        }
-
-        return (
-          typeof order['orderId'] === 'string' &&
-          typeof order['symbol'] === 'string' &&
-          typeof order['side'] === 'string' &&
-          typeof order['status'] === 'string'
-        );
-      }
-
-      // 始终一次性获取所有今日订单，然后在客户端按标的过滤
-      // 这样无论查询多少个标的，都只需要 1 次 API 调用
-      // 避免了之前为每个标的单独调用导致的 API 限流问题
-      await rateLimiter.throttle();
-      const todayOrdersRaw = await ctx.todayOrders();
-      if (!Array.isArray(todayOrdersRaw)) {
-        logger.error('[订单缓存] todayOrders 返回结果不是数组，无法解析未成交订单');
-        return [];
-      }
-
-      // 信任边界：仅保留结构符合预期的订单
-      allOrders = todayOrdersRaw.filter(isValidTodayOrder);
-
-      // 如果指定了标的，还需要在客户端再次过滤（因为可能获取了所有订单）
-      const targetSymbols = symbols && symbols.length > 0 ? new Set(symbols) : null;
-      const result: PendingOrder[] = [];
-      for (const order of allOrders) {
-        // 先过滤状态
-        if (!PENDING_ORDER_STATUSES.has(order.status)) {
-          continue;
-        }
-
-        // 如果指定了标的，再过滤标的
-        if (targetSymbols && !targetSymbols.has(order.symbol)) {
-          continue;
-        }
-
-        result.push({
-          orderId: order.orderId,
-          symbol: order.symbol,
-          side: order.side,
-          submittedPrice: toOrderNumber(order.price),
-          quantity: toOrderNumber(order.quantity),
-          executedQuantity: toOrderNumber(order.executedQuantity),
-          status: order.status,
-          orderType: order.orderType,
-        });
-      }
-
-      pendingOrdersCache = result;
-      pendingOrdersCacheSymbols = symbolsKey;
-      pendingOrdersCacheTime = Date.now();
-      logger.debug(
-        `[订单缓存] 已刷新未成交订单缓存 (symbols=${symbolsKey})，共 ${result.length} 个订单`,
-      );
-      return [...result];
-    } catch (err) {
-      logger.error('获取未成交订单失败', formatError(err));
-      return [];
+    // 始终一次性获取所有今日订单，然后在客户端按标的过滤
+    // 这样无论查询多少个标的，都只需要 1 次 API 调用
+    // 避免了之前为每个标的单独调用导致的 API 限流问题
+    await rateLimiter.throttle();
+    const todayOrdersRaw = await wrapExternalApiRequest({
+      operation: 'TradeContext.todayOrders',
+      request: () => ctx.todayOrders(),
+    });
+    if (!Array.isArray(todayOrdersRaw)) {
+      throw new TypeError('[订单缓存] todayOrders 返回结果不是数组，无法解析未成交订单');
     }
+
+    for (const order of todayOrdersRaw) {
+      if (!isValidTodayOrder(order)) {
+        throw new TypeError('[订单缓存] todayOrders 订单数据结构无效，无法解析未成交订单');
+      }
+    }
+
+    const allOrders: ReadonlyArray<TodayOrderForPendingCache> = todayOrdersRaw;
+
+    // 如果指定了标的，还需要在客户端再次过滤（因为可能获取了所有订单）
+    const targetSymbols = symbols && symbols.length > 0 ? new Set(symbols) : null;
+    const result: PendingOrder[] = [];
+    for (const order of allOrders) {
+      // 先过滤状态
+      if (!PENDING_ORDER_STATUSES.has(order.status)) {
+        continue;
+      }
+
+      // 如果指定了标的，再过滤标的
+      if (targetSymbols && !targetSymbols.has(order.symbol)) {
+        continue;
+      }
+
+      result.push({
+        orderId: order.orderId,
+        symbol: order.symbol,
+        side: order.side,
+        submittedPrice: toOrderNumber(order.price),
+        quantity: toOrderNumber(order.quantity),
+        executedQuantity: toOrderNumber(order.executedQuantity),
+        status: order.status,
+        orderType: order.orderType,
+      });
+    }
+
+    pendingOrdersCache = result;
+    pendingOrdersCacheSymbols = symbolsKey;
+    pendingOrdersCacheTime = Date.now();
+    logger.debug(
+      `[订单缓存] 已刷新未成交订单缓存 (symbols=${symbolsKey})，共 ${result.length} 个订单`,
+    );
+    return [...result];
   };
 
   /** 清除缓存（订单提交/撤销/修改后调用） */

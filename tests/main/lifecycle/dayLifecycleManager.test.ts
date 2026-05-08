@@ -13,6 +13,13 @@ import type {
   LifecycleRuntimeFlags,
 } from '../../../src/main/lifecycle/types.js';
 import { createDayLifecycleManager } from '../../../src/main/lifecycle/dayLifecycleManager.js';
+import { createRebuildTradingDayState } from '../../../src/main/lifecycle/rebuildTradingDayState.js';
+import { createExternalApiRequestError } from '../../../src/utils/apiFailure/index.js';
+import {
+  createMonitorContextDouble,
+  createQuoteDouble,
+  createSymbolRegistryDouble,
+} from '../../helpers/testDoubles.js';
 
 function createMutableState(overrides?: Partial<LifecycleMutableState>): LifecycleMutableState {
   return {
@@ -145,7 +152,11 @@ describe('createDayLifecycleManager', () => {
         {
           midnightClear: () => {
             order.push('2');
-            throw new Error('midnight clear fail');
+            throw createExternalApiRequestError({
+              operation: 'test.midnightClear',
+              attempts: 1,
+              cause: new Error('midnight clear fail'),
+            });
           },
           openRebuild: () => {},
         },
@@ -175,7 +186,11 @@ describe('createDayLifecycleManager', () => {
       const domains: ReadonlyArray<CacheDomain> = [
         {
           midnightClear: () => {
-            throw new Error('fail');
+            throw createExternalApiRequestError({
+              operation: 'test.lifecycle',
+              attempts: 1,
+              cause: new Error('fail'),
+            });
           },
           openRebuild: () => {},
         },
@@ -242,7 +257,11 @@ describe('createDayLifecycleManager', () => {
           midnightClear: () => {
             midnightAttemptCount += 1;
             if (midnightAttemptCount === 1) {
-              throw new Error('fail before seat domain');
+              throw createExternalApiRequestError({
+                operation: 'test.beforeSeatDomain',
+                attempts: 1,
+                cause: new Error('fail before seat domain'),
+              });
             }
           },
           openRebuild: () => {},
@@ -402,7 +421,11 @@ describe('createDayLifecycleManager', () => {
           midnightClear: () => {},
           openRebuild: () => {
             order.push('B');
-            throw new Error('open rebuild fail');
+            throw createExternalApiRequestError({
+              operation: 'test.openRebuild',
+              attempts: 1,
+              cause: new Error('open rebuild fail'),
+            });
           },
         },
       ];
@@ -425,6 +448,86 @@ describe('createDayLifecycleManager', () => {
       expect(order).toEqual(['B', 'B']);
     });
 
+    it('开盘重建中的 warrant refresh ExternalApiRequestError 会进入 OPEN_REBUILD_FAILED 并安排重试', async () => {
+      const mutableState = createMutableState({
+        currentDayKey: '2025-02-15',
+        pendingOpenRebuild: true,
+        lifecycleState: 'MIDNIGHT_CLEANED',
+        isTradingEnabled: false,
+      });
+      let warrantRefreshCalls = 0;
+      const symbolRegistry = createSymbolRegistryDouble({
+        monitorSymbol: 'HSI.HK',
+      });
+      const monitorContext = createMonitorContextDouble({
+        symbolRegistry,
+        riskChecker: {
+          setWarrantInfoFromCallPrice: () => ({ status: 'ok', isWarrant: true }),
+          refreshWarrantInfoForSymbol: async () => {
+            warrantRefreshCalls += 1;
+            throw createExternalApiRequestError({
+              operation: 'QuoteContext.warrantQuote',
+              attempts: 1,
+              cause: new Error('warrant quote api down'),
+            });
+          },
+          refreshUnrealizedLossData: async () => {},
+        } as never,
+      });
+      const rebuildTradingDayState = createRebuildTradingDayState({
+        marketDataClient: {
+          getTradingDays: async () => ({
+            tradingDays: ['2025-02-15'],
+            halfTradingDays: [],
+          }),
+        } as never,
+        trader: {
+          recoverOrderTrackingFromSnapshot: async () => {},
+        } as never,
+        lastState: {
+          tradingCalendarSnapshot: new Map(),
+          cachedTradingDayInfo: null,
+        } as never,
+        symbolRegistry,
+        monitorContexts: new Map([['HSI.HK', monitorContext]]),
+        dailyLossTracker: {
+          getLossOffset: () => 0,
+        } as never,
+        displayAccountAndPositions: async () => {},
+      });
+      const domains: ReadonlyArray<CacheDomain> = [
+        {
+          midnightClear: () => {},
+          openRebuild: async () => {
+            await rebuildTradingDayState({
+              allOrders: [],
+              quotesMap: new Map([
+                ['HSI.HK', createQuoteDouble('HSI.HK', 20000)],
+                ['BULL.HK', createQuoteDouble('BULL.HK', 1)],
+              ]),
+            });
+          },
+        },
+      ];
+      const manager = createDayLifecycleManager({
+        mutableState,
+        cacheDomains: domains,
+        logger: createSilentLifecycleLogger(),
+        rebuildRetryDelayMs: 1000,
+      });
+
+      await manager.tick(new Date(), createRuntime());
+
+      expect(mutableState.lifecycleState).toBe('OPEN_REBUILD_FAILED');
+      expect(mutableState.isTradingEnabled).toBe(false);
+      expect(mutableState.pendingOpenRebuild).toBe(true);
+      expect(warrantRefreshCalls).toBe(1);
+
+      const later = new Date(Date.now() + 2000);
+      await manager.tick(later, createRuntime());
+      expect(warrantRefreshCalls).toBe(2);
+    });
+
     it('开盘重建重试时间未到时不再执行', async () => {
       const mutableState = createMutableState({
         currentDayKey: '2025-02-15',
@@ -436,7 +539,11 @@ describe('createDayLifecycleManager', () => {
         {
           midnightClear: () => {},
           openRebuild: () => {
-            throw new Error('fail');
+            throw createExternalApiRequestError({
+              operation: 'test.lifecycle',
+              attempts: 1,
+              cause: new Error('fail'),
+            });
           },
         },
       ];
@@ -452,6 +559,54 @@ describe('createDayLifecycleManager', () => {
 
       await manager.tick(new Date(Date.now() + 10_000), createRuntime());
       expect(mutableState.lifecycleState).toBe('OPEN_REBUILD_FAILED');
+    });
+
+    it('开盘重建遇到非 API 错误时直接抛出且不进入 OPEN_REBUILD_FAILED retry', async () => {
+      const mutableState = createMutableState({
+        currentDayKey: '2025-02-15',
+        pendingOpenRebuild: true,
+        lifecycleState: 'MIDNIGHT_CLEANED',
+        isTradingEnabled: false,
+      });
+      let openRebuildCalls = 0;
+      const domains: ReadonlyArray<CacheDomain> = [
+        {
+          midnightClear: () => {},
+          openRebuild: () => {
+            openRebuildCalls += 1;
+            throw new TypeError('open rebuild contract broken');
+          },
+        },
+      ];
+      const manager = createDayLifecycleManager({
+        mutableState,
+        cacheDomains: domains,
+        logger: createSilentLifecycleLogger(),
+        rebuildRetryDelayMs: 60_000,
+      });
+
+      let firstError: unknown = null;
+      try {
+        await manager.tick(new Date(), createRuntime());
+      } catch (error) {
+        firstError = error;
+      }
+
+      expect(firstError).toBeInstanceOf(TypeError);
+      expect((firstError as Error).message).toBe('open rebuild contract broken');
+      expect(mutableState.lifecycleState).not.toBe('OPEN_REBUILD_FAILED');
+      expect(mutableState.pendingOpenRebuild).toBe(true);
+
+      let secondError: unknown = null;
+      try {
+        await manager.tick(new Date(Date.now() + 10_000), createRuntime());
+      } catch (error) {
+        secondError = error;
+      }
+
+      expect(secondError).toBeInstanceOf(TypeError);
+      expect((secondError as Error).message).toBe('open rebuild contract broken');
+      expect(openRebuildCalls).toBe(2);
     });
 
     it('午夜清理成功进入新周期时清空上一轮开盘重建重试计划', async () => {
@@ -473,7 +628,11 @@ describe('createDayLifecycleManager', () => {
             openRebuildCallCount += 1;
             order.push('open');
             if (openRebuildCallCount === 1) {
-              throw new Error('open rebuild fail');
+              throw createExternalApiRequestError({
+                operation: 'test.openRebuild',
+                attempts: 1,
+                cause: new Error('open rebuild fail'),
+              });
             }
           },
         },
@@ -523,7 +682,11 @@ describe('createDayLifecycleManager', () => {
         cacheDomains: [
           {
             midnightClear: () => {
-              throw new Error('clear failed');
+              throw createExternalApiRequestError({
+                operation: 'test.clear',
+                attempts: 1,
+                cause: new Error('clear failed'),
+              });
             },
             openRebuild: () => {},
           },
@@ -558,7 +721,11 @@ describe('createDayLifecycleManager', () => {
           {
             midnightClear: () => {},
             openRebuild: () => {
-              throw new Error('rebuild failed');
+              throw createExternalApiRequestError({
+                operation: 'test.rebuild',
+                attempts: 1,
+                cause: new Error('rebuild failed'),
+              });
             },
           },
         ],

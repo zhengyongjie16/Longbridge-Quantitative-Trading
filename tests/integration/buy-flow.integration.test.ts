@@ -536,8 +536,18 @@ describe('buy-flow integration', () => {
     });
 
     await withMockedNow(fixedNow, async () => {
-      const failedResult = await orderExecutor.executeSignals([failedSignal]);
-      expect(failedResult.submittedCount).toBe(0);
+      let submitError: unknown = null;
+      try {
+        await orderExecutor.executeSignals([failedSignal]);
+      } catch (error) {
+        submitError = error;
+      }
+
+      expect(submitError).toBeInstanceOf(Error);
+      expect(submitError).toMatchObject({
+        name: 'ExternalApiRequestError',
+        operation: 'TradeContext.submitOrder',
+      });
       expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
       expect(tradeCtx.getCalls('submitOrder')[0]?.error?.message).toBe('submit failed once');
     });
@@ -722,8 +732,18 @@ describe('buy-flow integration', () => {
         }),
       );
       expect(checkedSignals).toHaveLength(1);
-      const executeResult = await failedOrderExecutor.executeSignals(checkedSignals);
-      expect(executeResult.submittedCount).toBe(0);
+      let submitError: unknown = null;
+      try {
+        await failedOrderExecutor.executeSignals(checkedSignals);
+      } catch (error) {
+        submitError = error;
+      }
+
+      expect(submitError).toBeInstanceOf(Error);
+      expect(submitError).toMatchObject({
+        name: 'ExternalApiRequestError',
+        operation: 'TradeContext.submitOrder',
+      });
       expect(failedTradeCtx.getCalls('submitOrder')).toHaveLength(1);
       expect(failedTradeCtx.getCalls('submitOrder')[0]?.error?.message).toBe(
         'submit failed in end-to-end path',

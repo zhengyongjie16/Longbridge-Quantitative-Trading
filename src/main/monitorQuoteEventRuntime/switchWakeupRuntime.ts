@@ -8,6 +8,7 @@
  * - 以 monitorSymbol + direction + seatVersion 作为 route key，确保旧 seatVersion 注册自然失效
  */
 import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProtection/utils.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { formatError } from '../../utils/error/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type { SwitchDriveResult } from '../../types/monitorContextPorts.js';
@@ -495,6 +496,10 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
         `[SwitchWakeupRuntime] pending switch 推进失败 source=${source}`,
         formatError(error),
       );
+
+      if (!isExternalApiRequestError(error)) {
+        deps.onFatalError?.(error);
+      }
     });
     activeRoutePromises.add(processingPromise);
     void processingPromise.finally(() => {
@@ -581,6 +586,9 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
           nextState.inFlight = true;
           const processingPromise = processRouteQueue(routeKey).catch((error: unknown) => {
             logger.error('[SwitchWakeupRuntime] pending switch 重入推进失败', formatError(error));
+            if (!isExternalApiRequestError(error)) {
+              deps.onFatalError?.(error);
+            }
           });
           activeRoutePromises.add(processingPromise);
           void processingPromise.finally(() => {

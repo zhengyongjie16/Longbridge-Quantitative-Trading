@@ -28,6 +28,7 @@ import type {
   RawOrderFromAPI,
 } from '../../types/services.js';
 import type { MonitorConfig } from '../../types/config.js';
+import type { ExternalApiRetryConfig } from '../../utils/apiFailure/types.js';
 import type { TraderDeps } from './types.js';
 
 // 导入子模块工厂函数
@@ -120,14 +121,17 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
 
       // ==================== 账户相关方法 ====================
 
-      getAccountSnapshot(): Promise<AccountSnapshot | null> {
-        return accountService.getAccountSnapshot();
+      getAccountSnapshot(params?: {
+        readonly retryConfig?: ExternalApiRetryConfig;
+      }): Promise<AccountSnapshot> {
+        return accountService.getAccountSnapshot(params);
       },
 
-      getStockPositions(
-        symbols: ReadonlyArray<string> | null = null,
-      ): Promise<ReadonlyArray<Position>> {
-        return accountService.getStockPositions(symbols);
+      getStockPositions(params?: {
+        readonly symbols?: ReadonlyArray<string> | null;
+        readonly retryConfig?: ExternalApiRetryConfig;
+      }): Promise<ReadonlyArray<Position>> {
+        return accountService.getStockPositions(params);
       },
 
       // ==================== 订单缓存相关方法 ====================

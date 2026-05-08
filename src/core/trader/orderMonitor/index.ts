@@ -8,6 +8,7 @@
  */
 import { OrderSide, OrderStatus, TopicType, type PushOrderChanged } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
+import { wrapExternalApiRequest } from '../../../utils/apiFailure/index.js';
 import { toDecimal } from '../utils.js';
 import { PENDING_ORDER_STATUSES } from '../../../constants/index.js';
 import type { OrderMonitor, OrderMonitorDeps, PendingSellOrderSnapshot } from '../types.js';
@@ -244,7 +245,11 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
       eventFlow.handleOrderChanged(event);
     });
-    await ctx.subscribe([TopicType.Private]);
+
+    await wrapExternalApiRequest({
+      operation: 'TradeContext.subscribe.private',
+      request: () => ctx.subscribe([TopicType.Private]),
+    });
     initialized = true;
     logger.info('[订单监控] WebSocket 订阅初始化成功');
   }

@@ -109,7 +109,7 @@ export function registerTaskAddedCallback(
 export function createBaseProcessor<TType extends string>(
   config: BaseProcessorConfig<TType>,
 ): Processor {
-  const { loggerPrefix, taskQueue, processTask, getCanProcessTask } = config;
+  const { loggerPrefix, taskQueue, processTask, getCanProcessTask, onFatalError } = config;
   let running = false;
   let immediateHandle: ReturnType<typeof setImmediate> | null = null;
   let inFlightPromise: Promise<void> | null = null;
@@ -156,6 +156,7 @@ export function createBaseProcessor<TType extends string>(
         inFlightPromise = processQueue()
           .catch((err: unknown) => {
             logger.error(`[${loggerPrefix}] 处理队列时发生错误`, formatError(err));
+            onFatalError?.(err);
           })
           .finally(() => {
             inFlightPromise = null;

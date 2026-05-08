@@ -127,6 +127,7 @@ function createPostTradeConsistencyRuntimeDouble(): PostTradeConsistencyRuntime 
     }),
     waitForFresh: async () => {},
     onFreshReached: () => () => {},
+    drainFatalError: () => new Promise<never>(() => {}),
     abortWaiting: () => {
       factoryCalls.push('postTradeConsistencyRuntime.abortWaiting');
     },
@@ -244,7 +245,11 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
           signalCount: 0,
           nextRetryAtMs: null,
         }),
-        cancelPendingBuyOrders: async () => ({ executed: false, cancelRequestAcceptedCount: 0 }),
+        cancelPendingBuyOrders: async () => ({
+          executed: false,
+          cancelRequestAcceptedCount: 0,
+          nextRetryAtMs: null,
+        }),
       },
       signalProcessor: createSignalProcessorDouble(),
       indicatorCache: {
@@ -276,11 +281,13 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
         clearAll: () => 0,
         onTaskAdded: () => () => {},
       },
+      drainFatalError: () => new Promise<never>(() => {}),
     },
     asyncRuntime: {
       monitorTaskProcessor: createMonitorTaskProcessorDouble(),
       buyProcessor: createNamedProcessor('buyProcessor'),
       sellProcessor: createNamedProcessor('sellProcessor'),
+      drainFatalError: () => new Promise<never>(() => {}),
     },
     rebuildTradingDayState: async () => {},
   };

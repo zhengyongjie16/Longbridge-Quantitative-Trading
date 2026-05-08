@@ -9,6 +9,7 @@ import { describe, expect, it } from 'bun:test';
 import { createSellTaskQueue } from '../../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createSellProcessor } from '../../../../src/main/asyncProgram/sellProcessor/index.js';
 import { createPostTradeConsistencyRuntime } from '../../../../src/app/runtime/createPostTradeConsistencyRuntime.js';
+import { createExternalApiRequestError } from '../../../../src/utils/apiFailure/index.js';
 
 import type { Signal } from '../../../../src/types/signal.js';
 
@@ -758,6 +759,118 @@ describe('sellProcessor business flow', () => {
     await Bun.sleep(20);
 
     expect(executeCalls).toBe(0);
+  });
+
+  it('sends submitOrder API failure to fatal channel', async () => {
+    const queue = createSellTaskQueue();
+    const submitError = createExternalApiRequestError({
+      operation: 'TradeContext.submitOrder',
+      attempts: 1,
+      cause: new Error('submit timeout'),
+    });
+    const fatalErrors: unknown[] = [];
+    const signalProcessor = {
+      applyRiskChecks: async () => [],
+      processSellSignals: ({ signals }: { signals: Signal[] }) => signals,
+      resetRiskCheckCooldown: () => {},
+    };
+
+    const processor = createSellProcessor({
+      taskQueue: queue,
+      getMonitorContext: () => createMonitorContext(),
+      signalProcessor,
+      trader: createTraderDouble({
+        executeSignals: async () => {
+          throw submitError;
+        },
+      }),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () =>
+          new Map([
+            ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+            ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+          ]),
+      }),
+      getLastState: () => createLastState(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+        onFreshReached: () => () => {},
+      },
+      getCanProcessTask: () => true,
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        const signal = createSignalDouble('SELLCALL', 'BULL.HK');
+        signal.seatVersion = 2;
+        queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
+      },
+      waitCondition: () => fatalErrors.length === 1,
+    });
+
+    expect(fatalErrors).toEqual([submitError]);
+    expect(queue.isEmpty()).toBeTrue();
+  });
+
+  it('consumes non-submit external API failures without fatal channel escalation', async () => {
+    const queue = createSellTaskQueue();
+    const quoteError = createExternalApiRequestError({
+      operation: 'QuoteContext.realtimeQuote',
+      attempts: 1,
+      cause: new Error('quote timeout'),
+    });
+    const fatalErrors: unknown[] = [];
+    let executeCalls = 0;
+    const signalProcessor = {
+      applyRiskChecks: async () => [],
+      processSellSignals: ({ signals }: { signals: Signal[] }) => signals,
+      resetRiskCheckCooldown: () => {},
+    };
+
+    const processor = createSellProcessor({
+      taskQueue: queue,
+      getMonitorContext: () => createMonitorContext(),
+      signalProcessor,
+      trader: createTraderDouble({
+        executeSignals: async () => {
+          executeCalls += 1;
+          throw quoteError;
+        },
+      }),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () =>
+          new Map([
+            ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+            ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+          ]),
+      }),
+      getLastState: () => createLastStateWithPositions(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+        onFreshReached: () => () => {},
+      },
+      getCanProcessTask: () => true,
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        const signal = createSignalDouble('SELLCALL', 'BULL.HK');
+        signal.seatVersion = 2;
+        queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
+      },
+      waitCondition: () => executeCalls === 1,
+    });
+
+    expect(fatalErrors).toEqual([]);
+    expect(queue.isEmpty()).toBeTrue();
   });
 
   it('base gate blocks sell task before freshness wait and sell quantity resolution', async () => {

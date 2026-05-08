@@ -8,6 +8,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import { createRunApp } from '../../src/app/runApp.js';
+import { createExternalApiRequestError } from '../../src/utils/apiFailure/index.js';
 import type {
   AppEnvironmentParams,
   AsyncRuntime,
@@ -46,7 +47,11 @@ import {
   createTradingGateEventRuntimeDouble,
 } from '../helpers/testDoubles.js';
 
-type RunAppScenario = 'startupRebuildPending' | 'initialRebuildFails' | 'initialRebuildSucceeds';
+type RunAppScenario =
+  | 'startupRebuildPending'
+  | 'initialRebuildApiFails'
+  | 'initialRebuildFails'
+  | 'initialRebuildSucceeds';
 
 let currentScenario: RunAppScenario = 'startupRebuildPending';
 let startupFailureApplyCount = 0;
@@ -196,7 +201,11 @@ function createMockPreGateRuntime(): PreGateRuntime {
   };
 }
 
-function createMockPostGateRuntime(lastState: LastState): MutableMonitorContextsPostGateRuntime {
+function createMockPostGateRuntime(
+  lastState: LastState,
+  autoSearchFatalPromise: Promise<never> = new Promise<never>(() => {}),
+  postTradeFatalPromise: Promise<never> = new Promise<never>(() => {}),
+): MutableMonitorContextsPostGateRuntime {
   const signalProcessor: SignalProcessor = {
     processSellSignals: ({ signals }: ProcessSellSignalsParams): Signal[] => signals,
     applyRiskChecks: async (signals: Signal[], _context: RiskCheckContext): Promise<Signal[]> =>
@@ -241,6 +250,7 @@ function createMockPostGateRuntime(lastState: LastState): MutableMonitorContexts
       start: () => {
         recordSteadyRuntimeStart('autoSearchWakeupRuntime.start');
       },
+      drainFatalError: () => autoSearchFatalPromise,
     }),
     periodicSwitchWakeupRuntime: createPeriodicSwitchWakeupRuntimeDouble({
       start: () => {
@@ -272,6 +282,7 @@ function createMockPostGateRuntime(lastState: LastState): MutableMonitorContexts
       completeRebuildBaseline: () => {
         recordSteadyRuntimeStart('postTradeConsistencyRuntime.completeRebuildBaseline');
       },
+      drainFatalError: () => postTradeFatalPromise,
       stopAndDrain: async () => {},
       midnightClear: () => {},
     },
@@ -288,6 +299,7 @@ function createMockPostGateRuntime(lastState: LastState): MutableMonitorContexts
     buyTaskQueue: createTradeTaskQueueDouble(),
     sellTaskQueue: createTradeTaskQueueDouble(),
     monitorTaskQueue: createMonitorTaskQueueDouble(),
+    drainFatalError: () => new Promise<never>(() => {}),
   };
 }
 
@@ -296,6 +308,7 @@ function createMockAsyncRuntime(): AsyncRuntime {
     monitorTaskProcessor: createMonitorTaskProcessorRecorder('monitorTaskProcessor.start'),
     buyProcessor: createProcessorRecorder('buyProcessor.start'),
     sellProcessor: createProcessorRecorder('sellProcessor.start'),
+    drainFatalError: () => new Promise<never>(() => {}),
   };
 }
 
@@ -325,22 +338,40 @@ function createRunAppHarness(
   readonly runApp: RunAppFunction;
   readonly triggerShutdown: () => void;
   readonly triggerTimeWakeupFatal: (error: Error) => void;
+  readonly triggerAutoSearchFatal: (error: Error) => void;
+  readonly triggerPostTradeFatal: (error: Error) => void;
 } {
   const lastState = createMinimalLastState();
   const shutdownController = createShutdownController();
   let rejectTimeWakeupFatal: ((error: Error) => void) | null = null;
+  let rejectAutoSearchFatal: ((error: Error) => void) | null = null;
+  let rejectPostTradeFatal: ((error: Error) => void) | null = null;
   const timeWakeupFatalPromise = new Promise<never>((_, reject) => {
     rejectTimeWakeupFatal = reject;
   });
+  const autoSearchFatalPromise = new Promise<never>((_, reject) => {
+    rejectAutoSearchFatal = reject;
+  });
+  const postTradeFatalPromise = new Promise<never>((_, reject) => {
+    rejectPostTradeFatal = reject;
+  });
   const deps = {
     createPreGateRuntime: async () => createMockPreGateRuntime(),
-    createPostGateRuntime: async () => createMockPostGateRuntime(lastState),
-    loadStartupSnapshot: async () => ({
-      allOrders: [],
-      quotesMap: new Map(),
-      startupRebuildPending: currentScenario === 'startupRebuildPending',
-      now: new Date('2026-04-29T09:30:00.000+08:00'),
-    }),
+    createPostGateRuntime: async () =>
+      createMockPostGateRuntime(lastState, autoSearchFatalPromise, postTradeFatalPromise),
+    loadStartupSnapshot: async () => {
+      const now = new Date('2026-04-29T09:30:00.000+08:00');
+      if (currentScenario === 'startupRebuildPending') {
+        return { kind: 'API_RETRY_PENDING', now };
+      }
+
+      return {
+        kind: 'READY',
+        allOrders: [],
+        quotesMap: new Map(),
+        now,
+      };
+    },
     collectRuntimeValidationSymbols: () => ({
       requiredSymbols: new Set<string>(),
       runtimeValidationInputs: [],
@@ -348,8 +379,16 @@ function createRunAppHarness(
     createMonitorContexts: () => {},
     createRebuildTradingDayState: () => async () => {
       rebuildCallCount += 1;
+      if (currentScenario === 'initialRebuildApiFails') {
+        throw createExternalApiRequestError({
+          operation: 'test.initialRebuild',
+          attempts: 1,
+          cause: new Error('initial rebuild api unavailable'),
+        });
+      }
+
       if (currentScenario === 'initialRebuildFails') {
-        throw new Error('initial rebuild failed');
+        throw new TypeError('initial rebuild contract broken');
       }
     },
     displayAccountAndPositions: noopAsync,
@@ -414,6 +453,12 @@ function createRunAppHarness(
     triggerTimeWakeupFatal: (error) => {
       rejectTimeWakeupFatal?.(error);
     },
+    triggerAutoSearchFatal: (error) => {
+      rejectAutoSearchFatal?.(error);
+    },
+    triggerPostTradeFatal: (error) => {
+      rejectPostTradeFatal?.(error);
+    },
   };
 }
 
@@ -477,8 +522,8 @@ describe('runApp business flow', () => {
     expect(steadyRuntimeStarts).toEqual([]);
   });
 
-  it('starts only time wakeup runtime when initial rebuild fails after snapshot success', async () => {
-    currentScenario = 'initialRebuildFails';
+  it('starts only time wakeup runtime when initial rebuild API request fails after snapshot success', async () => {
+    currentScenario = 'initialRebuildApiFails';
     const harness = createRunAppHarness();
 
     await runAppAndTriggerShutdown(harness.runApp, harness.triggerShutdown);
@@ -486,6 +531,22 @@ describe('runApp business flow', () => {
     expect(rebuildCallCount).toBe(1);
     expect(startupFailureApplyCount).toBe(1);
     expect(timeWakeupStartCount).toBe(1);
+    expect(cleanupExecuteCount).toBe(1);
+    expect(steadyRuntimeStarts).toEqual([]);
+  });
+
+  it('fails fast when initial rebuild throws a non API error after snapshot success', async () => {
+    currentScenario = 'initialRebuildFails';
+    const harness = createRunAppHarness();
+
+    await expectPromiseRejectsWithMessage(
+      harness.runApp({ env: {} }),
+      /initial rebuild contract broken/,
+    );
+
+    expect(rebuildCallCount).toBe(1);
+    expect(startupFailureApplyCount).toBe(0);
+    expect(timeWakeupStartCount).toBe(0);
     expect(cleanupExecuteCount).toBe(1);
     expect(steadyRuntimeStarts).toEqual([]);
   });
@@ -499,6 +560,32 @@ describe('runApp business flow', () => {
     harness.triggerTimeWakeupFatal(new Error('time wakeup fatal'));
 
     await expectPromiseRejectsWithMessage(runPromise, /time wakeup fatal/);
+    expect(cleanupExecuteCount).toBe(1);
+  });
+
+  it('auto search fatal triggers cleanup and propagates the error', async () => {
+    currentScenario = 'initialRebuildSucceeds';
+    const harness = createRunAppHarness();
+    const runPromise = harness.runApp({ env: {} });
+
+    await flushMicrotasks(20);
+    harness.triggerAutoSearchFatal(new Error('auto search fatal'));
+
+    await expectPromiseRejectsWithMessage(runPromise, /auto search fatal/);
+    expect(cleanupExecuteCount).toBe(1);
+  });
+
+  it('post-trade consistency fatal triggers cleanup and propagates the error', async () => {
+    currentScenario = 'initialRebuildSucceeds';
+    const harness = createRunAppHarness();
+    const runPromise = harness.runApp({ env: {} });
+
+    await flushMicrotasks(20);
+    harness.triggerPostTradeFatal(new Error('post trade fatal'));
+    await flushMicrotasks(5);
+    harness.triggerShutdown();
+
+    await expectPromiseRejectsWithMessage(runPromise, /post trade fatal/);
     expect(cleanupExecuteCount).toBe(1);
   });
 
