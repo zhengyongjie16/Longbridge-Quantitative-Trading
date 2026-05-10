@@ -2125,18 +2125,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
             return new Map(createQuotes({ 'OLD_BULL.HK': 1 }));
           }
 
-          return new Map([
-            [
-              'NEW_BULL.HK',
-              {
-                symbol: 'NEW_BULL.HK',
-                name: 'NEW_BULL.HK',
-                price: 1,
-                prevClose: 1,
-                timestamp: Date.now(),
-              },
-            ],
-          ]);
+          return new Map([['NEW_BULL.HK', null]]);
         },
       }),
     });

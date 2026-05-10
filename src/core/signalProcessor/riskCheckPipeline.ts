@@ -125,7 +125,7 @@ export const createRiskCheckPipeline = ({
       if (lastTime && currentTimeMs - lastTime < cooldownMs) {
         const remainingSeconds = Math.ceil((lastTime + cooldownMs - currentTimeMs) / 1000);
         const reason = `风险检查冷却期内，剩余 ${remainingSeconds} 秒`;
-        sig.reason = reason;
+        logger.warn(`[风险检查冷却] ${sigSymbol} ${sig.action}: ${reason}`);
       } else {
         signalsAfterCooldown.push(sig);
       }
@@ -183,7 +183,6 @@ export const createRiskCheckPipeline = ({
         if (!tradeCheck.canTrade) {
           const waitSeconds = tradeCheck.waitSeconds ?? 0;
           const reason = `交易频率限制：${directionDesc} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${waitSeconds} 秒后才能再次买入`;
-          sig.reason = reason;
           logger.warn(`[交易频率限制] ${reason}：${signalLabel}`);
           continue;
         }
@@ -197,7 +196,6 @@ export const createRiskCheckPipeline = ({
         if (remainingMs > 0) {
           const remainingSeconds = Math.ceil(remainingMs / 1000);
           const reason = `清仓冷却期内，剩余 ${remainingSeconds} 秒，拒绝买入`;
-          sig.reason = reason;
           logger.warn(`[清仓冷却] ${signalLabel} ${reason}`);
           continue;
         }
@@ -208,10 +206,7 @@ export const createRiskCheckPipeline = ({
           const latestBuyPriceStr = latestBuyPrice.toFixed(3);
           if (currentPrice >= latestBuyPrice) {
             const reason = `买入价格限制：当前价格 ${currentPriceStr} 高于或等于最新买入订单价格 ${latestBuyPriceStr}`;
-            sig.reason = reason;
-            logger.warn(
-              `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 高于或等于最新买入订单价格 ${latestBuyPriceStr}，拒绝买入：${signalLabel}`,
-            );
+            logger.warn(`[买入价格限制] ${directionDesc} ${reason}，拒绝买入：${signalLabel}`);
             continue;
           }
 
@@ -226,7 +221,6 @@ export const createRiskCheckPipeline = ({
         ) {
           const closeTimeRange = getDoomsdayBuyCutoffWindowRangeLabel(isHalfDay);
           const reason = `末日保护程序：买入截止窗口内拒绝买入（当前时间在${closeTimeRange}范围内）`;
-          sig.reason = reason;
           logger.warn(`[末日保护程序] ${reason}：${signalLabel}`);
           continue;
         }
@@ -252,22 +246,14 @@ export const createRiskCheckPipeline = ({
           }
         } else {
           const reason = warrantRiskResult.reason ?? '牛熊证风险检查未通过';
-          sig.reason = reason;
           logger.warn(`[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${signalLabel} - ${reason}`);
           continue;
         }
 
-        let realtimeAccount: Awaited<ReturnType<typeof trader.getAccountSnapshot>>;
-        let realtimePositions: Awaited<ReturnType<typeof trader.getStockPositions>>;
-        try {
-          [realtimeAccount, realtimePositions] = await Promise.all([
-            trader.getAccountSnapshot({ retryConfig: HIGH_FRESHNESS_API_RETRY_CONFIG }),
-            trader.getStockPositions({ retryConfig: HIGH_FRESHNESS_API_RETRY_CONFIG }),
-          ]);
-        } catch (err) {
-          lastRiskCheckTime.delete(cooldownKey);
-          throw err;
-        }
+        const [realtimeAccount, realtimePositions] = await Promise.all([
+          trader.getAccountSnapshot({ retryConfig: HIGH_FRESHNESS_API_RETRY_CONFIG }),
+          trader.getStockPositions({ retryConfig: HIGH_FRESHNESS_API_RETRY_CONFIG }),
+        ]);
 
         const orderNotional = context.config.targetNotional;
         const buyRiskResult = riskChecker.checkBeforeOrder({
@@ -280,7 +266,6 @@ export const createRiskCheckPipeline = ({
           finalSignals.push(sig);
         } else {
           const reason = buyRiskResult.reason ?? '基础风险检查未通过';
-          sig.reason = reason;
           logger.warn(`[风险拦截] 信号被风险控制拦截：${signalLabel} - ${reason}`);
         }
 
@@ -299,7 +284,6 @@ export const createRiskCheckPipeline = ({
         finalSignals.push(sig);
       } else {
         const reason = sellRiskResult.reason ?? '基础风险检查未通过';
-        sig.reason = reason;
         logger.warn(`[风险拦截] 信号被风险控制拦截：${signalLabel} - ${reason}`);
       }
     }

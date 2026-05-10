@@ -9,6 +9,7 @@ import { createBuyProcessor } from '../../main/asyncProgram/buyProcessor/index.j
 import { createMonitorTaskProcessor } from '../../main/asyncProgram/monitorTaskProcessor/index.js';
 import { createSellProcessor } from '../../main/asyncProgram/sellProcessor/index.js';
 import { ordinarySignalGuard } from '../../main/ordinarySignalGuard/index.js';
+import { toError } from '../../utils/error/index.js';
 import type { AsyncRuntime, AsyncRuntimeFactoryDeps } from '../types.js';
 
 /**
@@ -37,8 +38,6 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
   } = postGateRuntime;
   let fatalError: Error | null = null;
   const fatalRejectors = new Set<(error: Error) => void>();
-  const toError = (error: unknown): Error =>
-    error instanceof Error ? error : new Error(String(error));
   const handleFatalError = (error: unknown): void => {
     if (fatalError !== null) {
       return;

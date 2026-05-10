@@ -412,7 +412,7 @@ export type PendingSellOrderSnapshot = {
  * 数据来源：由 decideSellMerge 根据 pendingOrders 与 newOrder 计算后返回的 action 字段。
  * 使用范围：仅在 trader 模块内部使用。
  */
-export type SellMergeDecisionAction = 'SUBMIT' | 'REPLACE' | 'CANCEL_AND_SUBMIT' | 'SKIP';
+type SellMergeDecisionAction = 'SUBMIT' | 'REPLACE' | 'CANCEL_AND_SUBMIT' | 'SKIP';
 
 /**
  * 卖单合并决策输入
@@ -550,7 +550,7 @@ export type OrderMonitorDeps = {
  * 数据来源：由主程序/启动层注入，单一状态源，执行层统一判定。
  * 使用范围：Trader、OrderMonitor、OrderExecutor 依赖注入使用。
  */
-type IsExecutionAllowed = () => boolean;
+export type IsExecutionAllowed = () => boolean;
 
 /**
  * 订单执行器依赖。

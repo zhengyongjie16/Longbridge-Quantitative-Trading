@@ -559,7 +559,7 @@ export type RunAppDeps = Readonly<{
   createRebuildTradingDayState: (
     deps: RebuildTradingDayStateDeps,
   ) => (params: RebuildTradingDayStateParams) => Promise<void>;
-  displayAccountAndPositions: (params: DisplayAccountAndPositionsParams) => Promise<void>;
+  displayAccountAndPositions: (params: DisplayAccountAndPositionsParams) => void;
   registerDelayedSignalHandlers: (params: RegisterDelayedSignalHandlersParams) => void;
   createBusinessEventProgram: (params: BusinessEventProgramDeps) => BusinessEventProgram;
   createAsyncRuntime: (params: AsyncRuntimeFactoryDeps) => AsyncRuntime;

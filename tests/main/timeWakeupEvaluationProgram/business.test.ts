@@ -4,6 +4,7 @@
  * 覆盖单次时间唤醒评估的门禁状态、生命周期顺序与系统级唤醒候选输出。
  */
 import { describe, expect, it } from 'bun:test';
+import { TRADING } from '../../../src/constants/index.js';
 import { timeWakeupEvaluationProgram } from '../../../src/main/timeWakeupEvaluationProgram/index.js';
 import { createExternalApiRequestError } from '../../../src/utils/apiFailure/index.js';
 import type { TimeWakeupEvaluationContext } from '../../../src/main/timeWakeupEvaluationProgram/types.js';
@@ -631,12 +632,13 @@ describe('timeWakeupEvaluationProgram', () => {
   });
 
   it('末日清仓 submitOrder 结果未知后刷新事实并拒绝系统级重复提交', async () => {
+    const currentTime = new Date('2026-04-29T15:56:00.000+08:00');
     const refreshedPositions = [
       createPositionDouble({ symbol: 'BULL.HK', quantity: 0, availableQuantity: 0 }),
     ];
     const calls: string[] = [];
     const context = createTimeWakeupEvaluationHarness({
-      now: new Date('2026-04-29T15:56:00.000+08:00'),
+      now: currentTime,
       executeClearanceError: createExternalApiRequestError({
         operation: 'TradeContext.submitOrder',
         attempts: 1,
@@ -661,18 +663,12 @@ describe('timeWakeupEvaluationProgram', () => {
     ];
     context.lastState.positionCache.update(context.lastState.cachedPositions);
 
-    let caught: unknown = null;
-    try {
-      await timeWakeupEvaluationProgram(context);
-    } catch (error) {
-      caught = error;
-    }
+    const result = await timeWakeupEvaluationProgram(context);
 
-    expect(caught).toMatchObject({
-      name: 'ExternalApiRequestError',
-      operation: 'TradeContext.submitOrder',
+    expect(result.plan.candidates).toContainEqual({
+      source: 'API_RETRY',
+      atMs: currentTime.getTime() + TRADING.INTERVAL_MS,
     });
-
     expect(calls).toEqual(['fetchAllOrders:true', 'getStockPositions', 'reconcilePositionHold']);
     expect(context.lastState.cachedPositions).toEqual(refreshedPositions);
     expect(context.lastState.positionCache.get('BULL.HK')).toEqual(refreshedPositions[0] ?? null);

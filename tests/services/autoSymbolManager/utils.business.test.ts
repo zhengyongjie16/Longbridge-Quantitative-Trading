@@ -408,8 +408,8 @@ describe('autoSymbolManager utils business flow', () => {
       },
       longVersion: 2,
     });
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     const result = validateSignalSeat({
       monitorSymbol: 'HSI.HK',
@@ -437,8 +437,8 @@ describe('autoSymbolManager utils business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 1;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 1 };
 
     const result = validateSignalSeat({
       monitorSymbol: 'HSI.HK',
@@ -467,8 +467,8 @@ describe('autoSymbolManager utils business flow', () => {
       },
       shortVersion: 5,
     });
-    const signal = createSignalDouble('BUYPUT', 'BEAR_OLD.HK');
-    signal.seatVersion = 4;
+    let signal = createSignalDouble('BUYPUT', 'BEAR_OLD.HK');
+    signal = { ...signal, seatVersion: 4 };
 
     const versionMismatch = validateSignalSeat({
       monitorSymbol: 'HSI.HK',
@@ -482,7 +482,7 @@ describe('autoSymbolManager utils business flow', () => {
       expect(describeSignalSeatValidationFailure(versionMismatch)).toBe('席位版本不匹配');
     }
 
-    signal.seatVersion = 5;
+    signal = { ...signal, seatVersion: 5 };
     const symbolMismatch = validateSignalSeat({
       monitorSymbol: 'HSI.HK',
       signal,
@@ -510,8 +510,8 @@ describe('autoSymbolManager utils business flow', () => {
       },
       longVersion: 2,
     });
-    const signal = createSignalDouble('HOLD', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('HOLD', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     const result = validateSignalSeat({
       monitorSymbol: 'HSI.HK',

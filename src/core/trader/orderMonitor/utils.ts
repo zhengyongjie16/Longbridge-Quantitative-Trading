@@ -7,6 +7,8 @@ import {
   ORDER_CLOSED_ERROR_CODE_SET,
   ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS,
   ORDER_PRICE_DIFF_THRESHOLD,
+  ORDER_API_RETRYABLE_MESSAGE_HINTS,
+  ORDER_API_TRANSIENT_STATUS_CODE_SET,
   PENDING_ORDER_STATUSES,
   REPLACE_TEMP_BLOCKED_BY_STATUS_ERROR_CODE_SET,
   REPLACE_UNSUPPORTED_BY_TYPE_ERROR_CODE_SET,
@@ -307,29 +309,113 @@ export function isOrderClosedBusinessError(err: unknown): boolean {
 }
 
 /**
+ * 从对象字段中提取 HTTP 状态码。
+ *
+ * @param value 任意对象值
+ * @returns 三位状态码，提取失败返回 null
+ */
+function extractStatusCodeFromRecord(value: Record<string, unknown>): string | null {
+  const statusKeys = ['status', 'statusCode', 'httpStatus'] as const;
+  for (const key of statusKeys) {
+    const rawValue = value[key];
+    if (typeof rawValue === 'string' && /^\d{3}$/.test(rawValue.trim())) {
+      return rawValue.trim();
+    }
+
+    if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+      const normalized = String(Math.trunc(rawValue));
+      if (/^\d{3}$/.test(normalized)) {
+        return normalized;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 从错误消息中提取显式 HTTP 状态码。
+ *
+ * @param message 错误消息文本
+ * @returns 三位状态码，提取失败返回 null
+ */
+function extractStatusCodeFromMessage(message: string): string | null {
+  const patterns = [/\bstatus(?:code)?[=:]\s*(\d{3})\b/i, /\bhttp\s+(\d{3})\b/i] as const;
+  for (const pattern of patterns) {
+    const match = pattern.exec(message);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 从错误对象中提取订单 API 状态码。
+ *
+ * @param err 错误对象
+ * @param depth 递归深度（内部使用）
+ * @returns 三位状态码，提取失败返回 null
+ */
+function extractOrderApiStatusCode(err: unknown, depth: number = 0): string | null {
+  if (depth > 2 || !isRecord(err)) {
+    return null;
+  }
+
+  const directStatusCode = extractStatusCodeFromRecord(err);
+  if (directStatusCode !== null) {
+    return directStatusCode;
+  }
+
+  const nestedKeys = ['cause', 'error'];
+  for (const key of nestedKeys) {
+    const nested = err[key];
+    if (isRecord(nested)) {
+      const nestedStatusCode = extractOrderApiStatusCode(nested, depth + 1);
+      if (nestedStatusCode !== null) {
+        return nestedStatusCode;
+      }
+    }
+  }
+
+  const message = err['message'];
+  if (typeof message !== 'string') {
+    return null;
+  }
+
+  return extractStatusCodeFromMessage(message);
+}
+
+/**
+ * 判断是否为可重试订单 API 请求失败。
+ *
+ * @param err 错误对象
+ * @returns true 表示可重试
+ */
+export function isRetryableOrderApiError(err: unknown): boolean {
+  const statusCode = extractOrderApiStatusCode(err);
+  if (statusCode !== null && ORDER_API_TRANSIENT_STATUS_CODE_SET.has(statusCode)) {
+    return true;
+  }
+
+  const errorCode = extractErrorCode(err);
+  if (errorCode !== null) {
+    return ORDER_API_TRANSIENT_STATUS_CODE_SET.has(errorCode);
+  }
+
+  const message = extractErrorMessage(err).toLowerCase();
+  return ORDER_API_RETRYABLE_MESSAGE_HINTS.some((hint) => message.includes(hint));
+}
+
+/**
  * 判断是否为可重试订单 mutation 请求失败。
  *
  * @param err 错误对象
  * @returns true 表示可重试
  */
 export function isRetryableOrderMutationError(err: unknown): boolean {
-  if (extractErrorCode(err) !== null) {
-    return false;
-  }
-
-  const message = extractErrorMessage(err).toLowerCase();
-  const retryableHints = [
-    'network',
-    'timeout',
-    'timed out',
-    'temporarily unavailable',
-    'connection',
-    'econnreset',
-    'etimedout',
-    '429',
-    'rate limit',
-  ];
-  return retryableHints.some((hint) => message.includes(hint));
+  return isRetryableOrderApiError(err);
 }
 
 /**

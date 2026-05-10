@@ -88,19 +88,19 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
   /**
    * 校验信号合法性。
    * 依次检查信号字段完整性、action 合法性、席位就绪状态与标的匹配；
-   * 任一校验失败则直接丢弃该信号并返回 false。通过后写入席位版本。
+   * 任一校验失败则返回 null。通过后返回携带席位版本的新信号对象。
    */
-  function prepareSignal(signal: Signal): boolean {
+  function prepareSignal(signal: Signal): Signal | null {
     if (!signal.symbol) {
       logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
-      return false;
+      return null;
     }
 
     if (!VALID_SIGNAL_ACTIONS.has(signal.action)) {
       logger.warn(
         `[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)}`,
       );
-      return false;
+      return null;
     }
 
     const seatInfoForSignal = resolveSeatForSignal(signal);
@@ -108,51 +108,52 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
       const seatState = isLongSignal ? longSeatState : shortSeatState;
       logger.debug(`[跳过信号] ${describeSeatUnavailable(seatState)}: ${formatSignalLog(signal)}`);
-      return false;
+      return null;
     }
 
     if (signal.symbol !== seatInfoForSignal.seatSymbol) {
       logger.debug(`[跳过信号] 席位已切换: ${formatSignalLog(signal)}`);
-      return false;
+      return null;
     }
 
-    signal.seatVersion = seatInfoForSignal.seatVersion;
-    return true;
+    return { ...signal, seatVersion: seatInfoForSignal.seatVersion };
   }
 
   for (const signal of immediateSignals) {
-    if (!prepareSignal(signal)) {
+    const prepared = prepareSignal(signal);
+    if (!prepared) {
       continue;
     }
 
-    logger.debug(`[立即信号] ${formatSignalLog(signal)}`);
-    const isSellSignal = isSellAction(signal.action);
+    logger.debug(`[立即信号] ${formatSignalLog(prepared)}`);
+    const isSellSignal = isSellAction(prepared.action);
     if (isSellSignal) {
       sellTaskQueue.push({
         type: 'IMMEDIATE_SELL',
-        data: signal,
+        data: prepared,
         monitorSymbol,
       });
     } else {
       buyTaskQueue.push({
         type: 'IMMEDIATE_BUY',
-        data: signal,
+        data: prepared,
         monitorSymbol,
       });
     }
   }
 
   for (const signal of delayedSignals) {
-    if (!prepareSignal(signal)) {
+    const prepared = prepareSignal(signal);
+    if (!prepared) {
       continue;
     }
 
-    logger.debug(`[延迟验证信号] ${formatSignalLog(signal)}`);
-    const verificationIndicators = isBuyAction(signal.action)
+    logger.debug(`[延迟验证信号] ${formatSignalLog(prepared)}`);
+    const verificationIndicators = isBuyAction(prepared.action)
       ? indicatorProfile.verificationIndicatorsBySide.buy
       : indicatorProfile.verificationIndicatorsBySide.sell;
     delayedSignalVerifier.addSignal({
-      signal,
+      signal: prepared,
       monitorSymbol,
       verificationIndicators,
     });

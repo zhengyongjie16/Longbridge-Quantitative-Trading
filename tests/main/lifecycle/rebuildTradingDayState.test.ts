@@ -173,7 +173,7 @@ function createRebuildDeps(
     dailyLossTracker: {
       getLossOffset: () => 0,
     } as unknown as RebuildTradingDayStateDeps['dailyLossTracker'],
-    displayAccountAndPositions: async () => {},
+    displayAccountAndPositions: () => {},
     ...overrides,
   };
 }
@@ -197,7 +197,7 @@ describe('createRebuildTradingDayState', () => {
           recoverCalled = true;
         },
       } as unknown as Trader,
-      displayAccountAndPositions: async () => {
+      displayAccountAndPositions: () => {
         displayCalled = true;
       },
       monitorContexts,
@@ -406,7 +406,7 @@ describe('createRebuildTradingDayState', () => {
 
   it('displayAccountAndPositions 抛错时同样抛出带前缀的错误', async () => {
     const deps = createRebuildDeps({
-      displayAccountAndPositions: async () => {
+      displayAccountAndPositions: () => {
         throw new Error('display fail');
       },
     });

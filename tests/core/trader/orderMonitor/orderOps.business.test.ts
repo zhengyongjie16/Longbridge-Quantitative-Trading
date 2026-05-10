@@ -205,6 +205,43 @@ describe('orderMonitor orderOps', () => {
     }
   });
 
+  it('cancelOrder retries coded transient rate-limit errors', async () => {
+    const runtime = createRuntimeStore();
+    const tradeCtx = createTradeContextMock();
+    let cancelCallCount = 0;
+    tradeCtx.cancelOrder = async () => {
+      cancelCallCount += 1;
+      throw new Error('openapi error: code=429: rate limit exceeded');
+    };
+    const orderOps = createOrderOps({
+      runtime,
+      ctx: createTradeContextDouble(tradeCtx),
+      rateLimiter: createRateLimiter(),
+      cacheManager: createCacheManager(),
+      orderHoldRegistry: createOrderHoldRegistry(),
+      orderStatusQuery: {
+        checkOrderState: async () => ({
+          kind: 'QUERY_FAILED' as const,
+          reason: 'NOT_FOUND' as const,
+          errorCode: '603001',
+          message: 'not used in this test',
+        }),
+      },
+      triggerRoute: () => {},
+    });
+
+    try {
+      await orderOps.cancelOrder('ORDER-CANCEL-CODED-TRANSIENT');
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toMatchObject({
+        name: 'ExternalApiRequestError',
+        operation: 'TradeContext.cancelOrder',
+      });
+      expect(cancelCallCount).toBeGreaterThan(1);
+    }
+  });
+
   it('cancelOrder does not retry known business error codes even when message contains retry hints', async () => {
     const runtime = createRuntimeStore();
     const tradeCtx = createTradeContextMock();
@@ -283,6 +320,56 @@ describe('orderMonitor orderOps', () => {
       kind: 'SKIPPED',
       reason: 'UNSUPPORTED_BY_TYPE',
     });
+  });
+
+  it('replaceOrderPrice retries coded transient service errors', async () => {
+    const runtime = createRuntimeStore();
+    const tradeCtx = createTradeContextMock();
+    let replaceCallCount = 0;
+    tradeCtx.replaceOrder = async () => {
+      replaceCallCount += 1;
+      throw new Error('openapi error: code=503: service unavailable');
+    };
+    const orderOps = createOrderOps({
+      runtime,
+      ctx: createTradeContextDouble(tradeCtx),
+      rateLimiter: createRateLimiter(),
+      cacheManager: createCacheManager(),
+      orderHoldRegistry: createOrderHoldRegistry(),
+      orderStatusQuery: {
+        checkOrderState: async () => ({
+          kind: 'QUERY_FAILED' as const,
+          reason: 'NOT_FOUND' as const,
+          errorCode: '603001',
+          message: 'not used in this test',
+        }),
+      },
+      triggerRoute: () => {},
+    });
+    orderOps.trackOrder({
+      orderId: 'ORDER-REPLACE-CODED-TRANSIENT',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 1.01,
+      initialSubmittedPrice: 1.01,
+      quantity: 100,
+      initialStatus: OrderStatus.New,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    try {
+      await orderOps.replaceOrderPrice('ORDER-REPLACE-CODED-TRANSIENT', 1.23);
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toMatchObject({
+        name: 'ExternalApiRequestError',
+        operation: 'TradeContext.replaceOrder',
+      });
+      expect(replaceCallCount).toBeGreaterThan(1);
+    }
   });
 
   it('replaceOrderPrice retries repeated request failures and rethrows ExternalApiRequestError', async () => {

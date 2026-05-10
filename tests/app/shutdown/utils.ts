@@ -91,17 +91,10 @@ function defaultDeps(steps: string[]): CleanupContext {
   return {
     timeWakeupRuntime: {
       start: async () => {},
-      requestEvaluate: () => {},
       stopAndDrain: async () => {
         steps.push('timeWakeupRuntime');
       },
       drainFatalError: () => new Promise<never>(() => {}),
-      getStateSnapshot: () => ({
-        running: false,
-        inFlight: false,
-        dirty: false,
-        hasTimer: false,
-      }),
     },
     tradingRiskEventRuntime: {
       start: () => {},

@@ -157,7 +157,7 @@ describe('riskCheckPipeline business flow', () => {
     );
 
     expect(result).toHaveLength(0);
-    expect(signal.reason).toContain('风险检查冷却期内');
+    expect(signal.reason).toBeUndefined();
     expect(canTradeNowCount).toBe(0);
     expect(getRemainingMsCount).toBe(0);
     expect(latestBuyOrderPriceCount).toBe(0);
@@ -404,11 +404,11 @@ describe('riskCheckPipeline business flow', () => {
     expect(caught).toBeInstanceOf(Error);
     expect((caught as Error).message).toBe('unexpected parser failure');
     expect(signal.reason).toBeUndefined();
-    expect(lastRiskCheckTime.has('BULL.HK_BUY')).toBe(false);
+    expect(lastRiskCheckTime.has('BULL.HK_BUY')).toBe(true);
     expect(baseRiskCheckCount).toBe(0);
   });
 
-  it('throws TypeError from realtime account fetch and releases cooldown without entering base risk check', async () => {
+  it('throws TypeError from realtime account fetch and keeps cooldown occupied without entering base risk check', async () => {
     let baseRiskCheckCount = 0;
     const signal = createSignalDouble('BUYCALL', 'BULL.HK');
     const trader = createTraderDouble({
@@ -452,7 +452,7 @@ describe('riskCheckPipeline business flow', () => {
       'TradeContext.accountBalance returned no primary account',
     );
     expect(signal.reason).toBeUndefined();
-    expect(lastRiskCheckTime.has('BULL.HK_BUY')).toBe(false);
+    expect(lastRiskCheckTime.has('BULL.HK_BUY')).toBe(true);
     expect(baseRiskCheckCount).toBe(0);
   });
 
@@ -490,7 +490,7 @@ describe('riskCheckPipeline business flow', () => {
     );
 
     expect(result).toHaveLength(0);
-    expect(signal.reason).toContain('base risk blocked');
+    expect(signal.reason).toBeUndefined();
 
     const buyTradeCheck = await withMockedNow(48_000, async () =>
       buyThrottle.canTradeNow('BUYCALL', monitorConfig),
@@ -562,7 +562,7 @@ describe('riskCheckPipeline business flow', () => {
     );
 
     expect(result).toHaveLength(0);
-    expect(signal.reason).toContain('交易频率限制');
+    expect(signal.reason).toBeUndefined();
     expect(getRemainingMsCount).toBe(0);
     expect(latestBuyOrderPriceCount).toBe(0);
     expect(buyCutoffCheckCount).toBe(0);
@@ -638,7 +638,7 @@ describe('riskCheckPipeline business flow', () => {
     );
 
     expect(result).toHaveLength(0);
-    expect(signal.reason).toContain('清仓冷却期内');
+    expect(signal.reason).toBeUndefined();
     expect(latestBuyOrderPriceCount).toBe(0);
     expect(buyCutoffCheckCount).toBe(0);
     expect(warrantRiskCheckCount).toBe(0);
@@ -701,7 +701,7 @@ describe('riskCheckPipeline business flow', () => {
     );
 
     expect(result).toHaveLength(0);
-    expect(signal.reason).toContain('买入价格限制');
+    expect(signal.reason).toBeUndefined();
     expect(buyCutoffCheckCount).toBe(0);
     expect(warrantRiskCheckCount).toBe(0);
     expect(baseRiskCheckCount).toBe(0);
@@ -757,7 +757,7 @@ describe('riskCheckPipeline business flow', () => {
     );
 
     expect(result).toHaveLength(0);
-    expect(signal.reason).toContain('末日保护程序');
+    expect(signal.reason).toBeUndefined();
     expect(warrantRiskCheckCount).toBe(0);
     expect(baseRiskCheckCount).toBe(0);
     expect(accountCallCount).toBe(0);
@@ -808,13 +808,13 @@ describe('riskCheckPipeline business flow', () => {
     );
 
     expect(result).toHaveLength(0);
-    expect(signal.reason).toContain('warrant blocked');
+    expect(signal.reason).toBeUndefined();
     expect(baseRiskCheckCount).toBe(0);
     expect(accountCallCount).toBe(0);
     expect(positionCallCount).toBe(0);
   });
 
-  it('uses no-retry realtime account and position reads and rethrows ExternalApiRequestError after one call each', async () => {
+  it('uses no-retry realtime account and position reads and rethrows ExternalApiRequestError after one call each while keeping cooldown occupied', async () => {
     const steps: string[] = [];
     let baseRiskCheckCount = 0;
     let accountCallCount = 0;
@@ -899,7 +899,7 @@ describe('riskCheckPipeline business flow', () => {
     expect(accountCallCount).toBe(1);
     expect(positionCallCount).toBe(1);
     expect(buySignal.reason).toBeUndefined();
-    expect(lastRiskCheckTime.has('BULL.HK_BUY')).toBe(false);
+    expect(lastRiskCheckTime.has('BULL.HK_BUY')).toBe(true);
     expect(baseRiskCheckCount).toBe(0);
 
     const tradeFrequencyIndex = steps.indexOf('canTradeNow');
@@ -919,7 +919,7 @@ describe('riskCheckPipeline business flow', () => {
     expect(positionsFetchIndex).toBeGreaterThan(warrantRiskIndex);
   });
 
-  it('throws ExternalApiRequestError on positions fetch failure after light checks and does not occupy cooldown', async () => {
+  it('throws ExternalApiRequestError on positions fetch failure after light checks and keeps cooldown occupied', async () => {
     const steps: string[] = [];
     let baseRiskCheckCount = 0;
     let accountCallCount = 0;
@@ -1005,7 +1005,7 @@ describe('riskCheckPipeline business flow', () => {
     expect(accountCallCount).toBe(1);
     expect(positionCallCount).toBe(1);
     expect(signal.reason).toBeUndefined();
-    expect(lastRiskCheckTime.has('BULL.HK_BUY')).toBe(false);
+    expect(lastRiskCheckTime.has('BULL.HK_BUY')).toBe(true);
     expect(baseRiskCheckCount).toBe(0);
 
     const warrantRiskIndex = steps.indexOf('checkWarrantRisk');
@@ -1101,7 +1101,7 @@ describe('riskCheckPipeline business flow', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]).toBe(sellSignal);
-    expect(buySignal.reason).toContain('buy should be blocked by base risk');
+    expect(buySignal.reason).toBeUndefined();
     expect(lastRiskCheckTime.has('BULL.HK_BUY')).toBe(true);
     expect(steps).toContain('checkBeforeOrder:SELLCALL');
     expect(steps).toContain('checkBeforeOrder:BUYCALL');

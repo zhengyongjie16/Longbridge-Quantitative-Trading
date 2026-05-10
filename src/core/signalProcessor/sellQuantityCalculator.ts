@@ -109,14 +109,14 @@ function calculateSellQuantity(params: {
 }
 
 /**
- * 处理卖出信号，计算实际卖出数量并写回信号对象
+ * 处理卖出信号，计算实际卖出数量并返回新信号数组
  *
  * 遍历信号列表，对每个卖出信号（SELLCALL/SELLPUT）根据智能平仓配置计算数量。
  * 末日保护信号无条件清仓，不受智能平仓影响。
  * 委托价以执行时行情为准，覆盖信号生成时的快照价，确保提交时价格准确。
  *
  * @param params 卖出信号处理参数（行情、持仓、配置与时间快照）
- * @returns 处理后的信号列表（与入参为同一引用）
+ * @returns 处理后的新信号数组（不修改入参）
  */
 export const processSellSignals = (
   params: ProcessSellSignalsParams,
@@ -134,10 +134,10 @@ export const processSellSignals = (
     isHalfDay,
     tradingCalendarSnapshot,
   } = params;
-  for (const sig of signals) {
+  return signals.map((sig) => {
     // 只处理卖出信号（SELLCALL 和 SELLPUT），跳过买入信号
     if (!isSellAction(sig.action)) {
-      continue;
+      return sig;
     }
 
     // 根据信号类型确定对应的持仓和行情
@@ -178,67 +178,59 @@ export const processSellSignals = (
     if (isDoomsdaySignal) {
       // 末日保护程序：无条件清仓，使用全部可用数量
       if (position && position.availableQuantity > 0) {
-        sig.quantity = position.availableQuantity;
-
-        // 委托价必须以执行时行情为准，覆盖流水线可能写入的旧价
-        if (quote?.price !== undefined) {
-          sig.price = quote.price;
-        }
-
-        if (quote?.lotSize !== undefined) {
-          sig.lotSize = quote.lotSize;
-        }
-
-        logger.debug(
-          `[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`,
-        );
+        const quantity = position.availableQuantity;
+        logger.debug(`[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${quantity}`);
+        return {
+          ...sig,
+          quantity,
+          ...(quote?.price !== undefined && { price: quote.price }),
+          ...(quote?.lotSize !== undefined && { lotSize: quote.lotSize }),
+        };
       } else {
         logger.warn(`[卖出信号处理] ${signalName}(末日保护): 持仓对象无效，无法清仓`);
-        sig.action = 'HOLD';
-        sig.reason = `${sig.reason}，但持仓对象无效`;
-      }
-    } else {
-      // 正常卖出信号：根据智能平仓配置进行数量计算
-      // 传入 sig.symbol 以精确筛选订单记录（多标的支持）
-      const result = calculateSellQuantity({
-        position,
-        quote,
-        orderRecorder,
-        direction,
-        originalReason: sig.reason ?? '',
-        smartCloseEnabled,
-        symbol: sig.symbol,
-        smartCloseTimeoutMinutes,
-        nowMs,
-        isHalfDay,
-        tradingCalendarSnapshot,
-      });
-      if (result.shouldHold) {
-        logger.info(`[卖出信号处理] ${signalName}被跳过: ${result.reason}`);
-        sig.action = 'HOLD';
-        sig.reason = result.reason;
-        sig.relatedBuyOrderIds = null;
-      } else {
-        logger.debug(
-          `[卖出信号处理] ${signalName}通过: 卖出数量=${result.quantity}, 原因=${result.reason}`,
-        );
-        sig.quantity = result.quantity;
-        sig.reason = result.reason;
-
-        // 设置关联的买入订单ID列表（用于防重追踪）
-        sig.relatedBuyOrderIds = result.relatedBuyOrderIds;
-
-        // 委托价必须以执行时行情为准，覆盖流水线可能写入的旧价
-        if (quote?.price !== undefined) {
-          sig.price = quote.price;
-        }
-
-        if (quote?.lotSize !== undefined) {
-          sig.lotSize = quote.lotSize;
-        }
+        return {
+          ...sig,
+          action: 'HOLD' as const,
+          reason: `${sig.reason}，但持仓对象无效`,
+        };
       }
     }
-  }
 
-  return signals;
+    // 正常卖出信号：根据智能平仓配置进行数量计算
+    // 传入 sig.symbol 以精确筛选订单记录（多标的支持）
+    const result = calculateSellQuantity({
+      position,
+      quote,
+      orderRecorder,
+      direction,
+      originalReason: sig.reason ?? '',
+      smartCloseEnabled,
+      symbol: sig.symbol,
+      smartCloseTimeoutMinutes,
+      nowMs,
+      isHalfDay,
+      tradingCalendarSnapshot,
+    });
+    if (result.shouldHold) {
+      logger.info(`[卖出信号处理] ${signalName}被跳过: ${result.reason}`);
+      return {
+        ...sig,
+        action: 'HOLD' as const,
+        reason: result.reason,
+        relatedBuyOrderIds: null,
+      };
+    }
+
+    logger.debug(
+      `[卖出信号处理] ${signalName}通过: 卖出数量=${result.quantity}, 原因=${result.reason}`,
+    );
+    return {
+      ...sig,
+      reason: result.reason,
+      relatedBuyOrderIds: result.relatedBuyOrderIds,
+      quantity: result.quantity,
+      ...(quote?.price !== undefined && { price: quote.price }),
+      ...(quote?.lotSize !== undefined && { lotSize: quote.lotSize }),
+    };
+  });
 };

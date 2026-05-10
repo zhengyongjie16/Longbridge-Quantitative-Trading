@@ -10,19 +10,6 @@ import type { Logger } from '../../utils/logger/types.js';
 type TimeWakeupTimerHandle = ReturnType<typeof setTimeout>;
 
 /**
- * TimeWakeupRuntime 状态快照。
- * 类型用途：描述系统级时间唤醒 runtime 的可观测运行状态。
- * 数据来源：TimeWakeupRuntime 内部 running/inFlight/dirty/timer 状态。
- * 使用范围：诊断与测试辅助。
- */
-export type TimeWakeupRuntimeStateSnapshot = Readonly<{
-  running: boolean;
-  inFlight: boolean;
-  dirty: boolean;
-  hasTimer: boolean;
-}>;
-
-/**
  * TimeWakeupRuntime 依赖。
  * 类型用途：创建系统级时间事件 owner 所需的单次评估器、timer、时间源与日志。
  * 数据来源：app 装配层。
@@ -44,8 +31,6 @@ export type TimeWakeupRuntimeDeps<TTimerHandle = TimeWakeupTimerHandle> = Readon
  */
 export interface TimeWakeupRuntime {
   readonly start: () => Promise<void>;
-  readonly requestEvaluate: () => void;
   readonly stopAndDrain: () => Promise<void>;
   readonly drainFatalError: () => Promise<never>;
-  readonly getStateSnapshot: () => TimeWakeupRuntimeStateSnapshot;
 }

@@ -10,11 +10,7 @@
 import { formatError } from '../../utils/error/index.js';
 import { scheduleBoundedOneShotAt } from '../../utils/timer/index.js';
 import type { BoundedOneShotTimerController } from '../../utils/timer/types.js';
-import type {
-  TimeWakeupRuntime,
-  TimeWakeupRuntimeDeps,
-  TimeWakeupRuntimeStateSnapshot,
-} from './types.js';
+import type { TimeWakeupRuntime, TimeWakeupRuntimeDeps } from './types.js';
 
 function normalizeFatalError(error: unknown): Error {
   return error instanceof Error ? error : new Error(formatError(error));
@@ -194,20 +190,9 @@ export function createTimeWakeupRuntime<TTimerHandle>(
     });
   }
 
-  function getStateSnapshot(): TimeWakeupRuntimeStateSnapshot {
-    return {
-      running,
-      inFlight,
-      dirty,
-      hasTimer: timer !== null,
-    };
-  }
-
   return {
     start,
-    requestEvaluate,
     stopAndDrain,
     drainFatalError,
-    getStateSnapshot,
   };
 }

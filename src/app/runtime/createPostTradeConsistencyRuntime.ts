@@ -16,7 +16,7 @@ import type {
   PostTradeConsistencyRefreshNeed,
   Trader,
 } from '../../types/services.js';
-import { formatError } from '../../utils/error/index.js';
+import { formatError, toError } from '../../utils/error/index.js';
 import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { createRefreshGate } from '../../utils/refreshGate/index.js';
@@ -65,10 +65,6 @@ function createEmptyRefreshNeed(): PostTradeConsistencyRefreshNeed {
  */
 function hasRefreshNeed(need: PostTradeConsistencyRefreshNeed): boolean {
   return need.refreshAccount || need.refreshPositions;
-}
-
-function toError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(formatError(error));
 }
 
 /**

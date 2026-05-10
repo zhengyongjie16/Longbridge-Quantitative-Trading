@@ -8,6 +8,7 @@
  */
 import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, TIME, TRADING } from '../../constants/index.js';
 import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
+import { toError } from '../../utils/error/index.js';
 import { scheduleBoundedOneShotAt } from '../../utils/timer/index.js';
 import type { SeatStateChangedEvent } from '../../types/seat.js';
 import type { BoundedOneShotTimerController } from '../../utils/timer/types.js';
@@ -95,10 +96,6 @@ export function createAutoSearchWakeupRuntime(
     timers.set(routeKey, timer);
   }
 
-  function toError(error: unknown): Error {
-    return error instanceof Error ? error : new Error(String(error));
-  }
-
   function handleFatalError(error: unknown): void {
     if (fatalError !== null) {
       return;
@@ -138,7 +135,18 @@ export function createAutoSearchWakeupRuntime(
       return;
     }
 
-    const promise = processSeat(monitorSymbol, direction, expectedSeatVersion);
+    const routeKey = buildRouteKey({
+      monitorSymbol,
+      direction,
+      seatVersion:
+        expectedSeatVersion ?? deps.symbolRegistry.getSeatVersion(monitorSymbol, direction),
+    });
+    if (activeRouteKeys.has(routeKey)) {
+      return;
+    }
+
+    activeRouteKeys.add(routeKey);
+    const promise = processSeat(monitorSymbol, direction, expectedSeatVersion, routeKey);
     registerActivePromise(promise);
   }
 
@@ -150,81 +158,83 @@ export function createAutoSearchWakeupRuntime(
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
     expectedSeatVersion: number | undefined,
+    activeRouteKey: AutoSearchRouteKey,
   ): Promise<void> {
-    if (!deps.lastState.isTradingEnabled || deps.lastState.canTrade !== true) {
-      return;
-    }
+    try {
+      if (!deps.lastState.isTradingEnabled || deps.lastState.canTrade !== true) {
+        return;
+      }
 
-    const monitorContext = deps.monitorContexts.get(monitorSymbol);
-    if (monitorContext === undefined) {
-      return;
-    }
+      const monitorContext = deps.monitorContexts.get(monitorSymbol);
+      if (monitorContext === undefined) {
+        return;
+      }
 
-    if (!monitorContext.config.autoSearchConfig.autoSearchEnabled) {
-      return;
-    }
+      if (!monitorContext.config.autoSearchConfig.autoSearchEnabled) {
+        return;
+      }
 
-    const seatState = deps.symbolRegistry.getSeatState(monitorSymbol, direction);
-    const seatVersion = deps.symbolRegistry.getSeatVersion(monitorSymbol, direction);
-    const routeKey = buildRouteKey({ monitorSymbol, direction, seatVersion });
-    if (expectedSeatVersion !== undefined && expectedSeatVersion !== seatVersion) {
-      return;
-    }
+      const seatState = deps.symbolRegistry.getSeatState(monitorSymbol, direction);
+      const seatVersion = deps.symbolRegistry.getSeatVersion(monitorSymbol, direction);
+      const routeKey = buildRouteKey({ monitorSymbol, direction, seatVersion });
+      if (expectedSeatVersion !== undefined && expectedSeatVersion !== seatVersion) {
+        return;
+      }
 
-    if (seatState.status !== 'EMPTY') {
-      clearRouteTimer(routeKey);
-      return;
-    }
+      if (seatState.status !== 'EMPTY') {
+        clearRouteTimer(routeKey);
+        return;
+      }
 
-    const now = deps.now();
-    const nowMs = now.getTime();
-    const lastSearchAt = seatState.lastSearchAt ?? 0;
-    const cooldownEndMs = lastSearchAt + AUTO_SYMBOL_SEARCH_COOLDOWN_MS;
-    if (nowMs < cooldownEndMs) {
-      scheduleRouteTimer({
-        monitorSymbol,
-        direction,
-        seatVersion,
-        atMs: cooldownEndMs,
-      });
-      return;
-    }
-
-    const openDelayMinutes = monitorContext.config.autoSearchConfig.autoSearchOpenDelayMinutes;
-    if (openDelayMinutes > 0 && isWithinMorningOpenWindow(now, openDelayMinutes)) {
-      const openDelayEndMs = resolveOpenDelayEndMs(now, openDelayMinutes);
-      if (openDelayEndMs !== null) {
+      const now = deps.now();
+      const nowMs = now.getTime();
+      const lastSearchAt = seatState.lastSearchAt ?? 0;
+      const cooldownEndMs = lastSearchAt + AUTO_SYMBOL_SEARCH_COOLDOWN_MS;
+      if (nowMs < cooldownEndMs) {
         scheduleRouteTimer({
           monitorSymbol,
           direction,
           seatVersion,
-          atMs: openDelayEndMs,
+          atMs: cooldownEndMs,
+        });
+        return;
+      }
+
+      const openDelayMinutes = monitorContext.config.autoSearchConfig.autoSearchOpenDelayMinutes;
+      if (openDelayMinutes > 0 && isWithinMorningOpenWindow(now, openDelayMinutes)) {
+        const openDelayEndMs = resolveOpenDelayEndMs(now, openDelayMinutes);
+        if (openDelayEndMs !== null) {
+          scheduleRouteTimer({
+            monitorSymbol,
+            direction,
+            seatVersion,
+            atMs: openDelayEndMs,
+          });
+        }
+
+        return;
+      }
+
+      try {
+        await monitorContext.autoSymbolManager.maybeSearchOnEvent({
+          direction,
+          currentTime: now,
+          canTradeNow: deps.lastState.canTrade,
+        });
+      } catch (error) {
+        if (!isExternalApiRequestError(error)) {
+          throw error;
+        }
+
+        scheduleRouteTimer({
+          monitorSymbol,
+          direction,
+          seatVersion,
+          atMs: nowMs + TRADING.INTERVAL_MS,
         });
       }
-
-      return;
-    }
-
-    activeRouteKeys.add(routeKey);
-    try {
-      await monitorContext.autoSymbolManager.maybeSearchOnEvent({
-        direction,
-        currentTime: now,
-        canTradeNow: deps.lastState.canTrade,
-      });
-    } catch (error) {
-      if (!isExternalApiRequestError(error)) {
-        throw error;
-      }
-
-      scheduleRouteTimer({
-        monitorSymbol,
-        direction,
-        seatVersion,
-        atMs: nowMs + TRADING.INTERVAL_MS,
-      });
     } finally {
-      activeRouteKeys.delete(routeKey);
+      activeRouteKeys.delete(activeRouteKey);
     }
   }
 

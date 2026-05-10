@@ -335,7 +335,7 @@ describe('buy-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const signal = createSignal({
+    let signal = createSignal({
       symbol: 'BULL.HK',
       action: 'BUYCALL',
       triggerTimeMs: Date.now(),
@@ -343,7 +343,7 @@ describe('buy-flow integration', () => {
       lotSize: 100,
       reason: 'integration-buy-explicit-quantity',
     });
-    signal.quantity = 200;
+    signal = { ...signal, quantity: 200 };
 
     const result = await orderExecutor.executeSignals([signal]);
 
@@ -398,7 +398,7 @@ describe('buy-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const signal = createSignal({
+    let signal = createSignal({
       symbol: 'BULL.HK',
       action: 'BUYCALL',
       triggerTimeMs: Date.now(),
@@ -406,7 +406,7 @@ describe('buy-flow integration', () => {
       lotSize: 100,
       reason: 'integration-buy-invalid-explicit-quantity',
     });
-    signal.quantity = 250;
+    signal = { ...signal, quantity: 250 };
 
     const result = await orderExecutor.executeSignals([signal]);
 
@@ -485,7 +485,7 @@ describe('buy-flow integration', () => {
     const tradeCtx = createTradeContextMock({ now: () => fixedNow });
     tradeCtx.setFailureRule('submitOrder', {
       failAtCalls: [1],
-      errorMessage: 'submit failed once',
+      errorMessage: 'service unavailable',
     });
 
     const orderExecutor = createOrderExecutor({
@@ -549,7 +549,7 @@ describe('buy-flow integration', () => {
         operation: 'TradeContext.submitOrder',
       });
       expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
-      expect(tradeCtx.getCalls('submitOrder')[0]?.error?.message).toBe('submit failed once');
+      expect(tradeCtx.getCalls('submitOrder')[0]?.error?.message).toBe('service unavailable');
     });
 
     const nextCheck = await withMockedNow(fixedNow, async () =>
@@ -661,7 +661,7 @@ describe('buy-flow integration', () => {
           }),
         );
         expect(blockedResult).toHaveLength(0);
-        expect(blockedSignal.reason).toContain('交易频率限制');
+        expect(blockedSignal.reason).toBe('should-be-frequency-blocked');
       },
     );
 
@@ -669,7 +669,7 @@ describe('buy-flow integration', () => {
     const failedTradeCtx = createTradeContextMock({ now: () => failedNow });
     failedTradeCtx.setFailureRule('submitOrder', {
       failAtCalls: [1],
-      errorMessage: 'submit failed in end-to-end path',
+      errorMessage: 'service unavailable',
     });
 
     const failedOrderExecutor = createOrderExecutor({
@@ -745,9 +745,7 @@ describe('buy-flow integration', () => {
         operation: 'TradeContext.submitOrder',
       });
       expect(failedTradeCtx.getCalls('submitOrder')).toHaveLength(1);
-      expect(failedTradeCtx.getCalls('submitOrder')[0]?.error?.message).toBe(
-        'submit failed in end-to-end path',
-      );
+      expect(failedTradeCtx.getCalls('submitOrder')[0]?.error?.message).toBe('service unavailable');
     });
 
     const secondAllowedSignal = createSignal({
@@ -771,7 +769,7 @@ describe('buy-flow integration', () => {
           }),
         );
         expect(allowedResult).toHaveLength(0);
-        expect(secondAllowedSignal.reason).toContain('交易频率限制');
+        expect(secondAllowedSignal.reason).toBe('should-pass-frequency-check-after-failed-submit');
       },
     );
   });

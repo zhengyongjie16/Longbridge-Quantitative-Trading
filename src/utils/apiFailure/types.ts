@@ -10,6 +10,14 @@ export type ExternalApiRetryConfig = Readonly<{
 }>;
 
 /**
+ * 外部 API 重试决策。
+ * 类型用途：表达单个错误在统一分类器下应进入有限重试还是立即抛出。
+ * 数据来源：isRetryableExternalApiError 对错误对象的分类结果。
+ * 使用范围：wrapExternalApiRequest 默认重试门禁。
+ */
+export type ExternalApiRetryDecision = 'RETRY' | 'FAIL_FAST';
+
+/**
  * 外部 API 请求失败错误。
  * 类型用途：表达真实外部 API 请求在有限尝试后仍失败。
  * 数据来源：createExternalApiRequestError 根据原始错误构造。

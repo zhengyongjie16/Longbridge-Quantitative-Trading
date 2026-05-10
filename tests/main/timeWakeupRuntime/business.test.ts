@@ -235,17 +235,6 @@ describe('TimeWakeupRuntime', () => {
     expect(harness.timers).toHaveLength(1);
   });
 
-  it('评估中 requestEvaluate 标记 dirty 并在当前评估后再运行一次', async () => {
-    const harness = createRuntimeHarness();
-
-    harness.runtime.start();
-    harness.runtime.requestEvaluate();
-    await Bun.sleep(0);
-    await Bun.sleep(0);
-
-    expect(harness.evaluations).toEqual([1_000, 1_000]);
-  });
-
   it('timer 触发后清除当前 timer 并重新评估', async () => {
     const harness = createRuntimeHarness();
     harness.runtime.start();
@@ -414,12 +403,6 @@ describe('TimeWakeupRuntime', () => {
     expect(evaluations).toEqual([1_000, 1_001]);
     expect(timers).toHaveLength(0);
     expect(errors).toHaveLength(0);
-    expect(runtime.getStateSnapshot()).toEqual({
-      running: true,
-      inFlight: false,
-      dirty: false,
-      hasTimer: false,
-    });
   });
 
   it('系统级开盘候选经 one-shot timer 触发后更新交易门禁并发布事件', async () => {

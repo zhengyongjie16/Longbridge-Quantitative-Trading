@@ -110,8 +110,8 @@ describe('sellProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,
@@ -143,6 +143,82 @@ describe('sellProcessor business flow', () => {
     expect(requestedSymbols.length).toBe(2);
     expect(requestedSymbols[0]).toBe('BULL.HK');
     expect(requestedSymbols[1]).toBe('BEAR.HK');
+  });
+
+  it('executes the processed sell signal returned by quantity resolution', async () => {
+    const queue = createSellTaskQueue();
+    const processedSignalUpdates = {
+      quantity: 300,
+      price: 1.23,
+      lotSize: 100,
+      relatedBuyOrderIds: ['buy-order-1'],
+      reason: '智能平仓卖出',
+    };
+    const signalProcessor = {
+      applyRiskChecks: async () => [],
+      processSellSignals: ({ signals }: { signals: Signal[] }) => {
+        const firstSignal = signals[0];
+        if (!firstSignal) {
+          throw new Error('sell signal should exist');
+        }
+
+        return [
+          {
+            ...firstSignal,
+            ...processedSignalUpdates,
+          },
+        ];
+      },
+      resetRiskCheckCooldown: () => {},
+    };
+
+    let executedSignal: Signal | null = null;
+    const trader = createTraderDouble({
+      executeSignals: async (signals) => {
+        executedSignal = signals[0] ?? null;
+        return { submittedCount: 1, submittedOrderIds: [] };
+      },
+    });
+
+    const processor = createSellProcessor({
+      taskQueue: queue,
+      getMonitorContext: () => createMonitorContext(),
+      signalProcessor: signalProcessor,
+      trader,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () =>
+          new Map([
+            ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+            ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+          ]),
+      }),
+      getLastState: () => createLastStateWithPositions(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+        onFreshReached: () => () => {},
+      },
+      getCanProcessTask: () => true,
+    });
+
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
+      },
+      waitCondition: () => executedSignal !== null,
+    });
+
+    const submittedSignal = requireSignal(executedSignal);
+    expect(submittedSignal.quantity).toBe(processedSignalUpdates.quantity);
+    expect(submittedSignal.price).toBe(processedSignalUpdates.price);
+    expect(submittedSignal.lotSize).toBe(processedSignalUpdates.lotSize);
+    expect(submittedSignal.relatedBuyOrderIds).toEqual(processedSignalUpdates.relatedBuyOrderIds);
+    expect(submittedSignal.reason).toBe(processedSignalUpdates.reason);
+    expect(signal.quantity).toBeUndefined();
+    expect(signal.relatedBuyOrderIds).toBeUndefined();
   });
 
   it('waits for postTradeConsistencyRuntime freshness before processing sell task', async () => {
@@ -221,8 +297,8 @@ describe('sellProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
@@ -279,8 +355,8 @@ describe('sellProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const staleSignal = createSignalDouble('SELLCALL', 'BULL.HK');
-    staleSignal.seatVersion = 1;
+    let staleSignal = createSignalDouble('SELLCALL', 'BULL.HK');
+    staleSignal = { ...staleSignal, seatVersion: 1 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: staleSignal });
@@ -335,8 +411,8 @@ describe('sellProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,
@@ -401,8 +477,8 @@ describe('sellProcessor business flow', () => {
       },
     });
 
-    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
@@ -421,6 +497,64 @@ describe('sellProcessor business flow', () => {
     await processor.stopAndDrain();
     expect(processSellCalls).toBe(1);
     expect(clearedRetryHandles).toBe(1);
+  });
+
+  it('drops sell execution when execution-time quote has invalid price instead of retrying', async () => {
+    const queue = createSellTaskQueue();
+    let processSellCalls = 0;
+    const signalProcessor = {
+      applyRiskChecks: async () => [],
+      processSellSignals: ({ signals }: { signals: Signal[] }) => {
+        processSellCalls += 1;
+        return signals;
+      },
+      resetRiskCheckCooldown: () => {},
+    };
+
+    let executeCalls = 0;
+    const scheduledRetries: Array<() => void> = [];
+    const processor = createSellProcessor({
+      taskQueue: queue,
+      getMonitorContext: () => createMonitorContext(),
+      signalProcessor,
+      trader: createTraderDouble({
+        executeSignals: async () => {
+          executeCalls += 1;
+          return { submittedCount: 1, submittedOrderIds: [] };
+        },
+      }),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () =>
+          new Map([
+            ['BULL.HK', createQuoteDouble('BULL.HK', 0, 100)],
+            ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+          ]),
+      }),
+      getLastState: () => createLastState(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+        onFreshReached: () => () => {},
+      },
+      getCanProcessTask: () => true,
+      scheduleRetry: (callback) => {
+        scheduledRetries.push(callback);
+        return setTimeout(() => {}, 0);
+      },
+      clearRetry: () => {},
+    });
+
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
+
+    processor.start();
+    queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
+    await Bun.sleep(40);
+    await processor.stopAndDrain();
+
+    expect(scheduledRetries).toHaveLength(0);
+    expect(processSellCalls).toBe(0);
+    expect(executeCalls).toBe(0);
+    expect(queue.isEmpty()).toBeTrue();
   });
 
   it('cancels pending sell retry during stopAndDrain and does not re-enqueue stale signal', async () => {
@@ -473,8 +607,8 @@ describe('sellProcessor business flow', () => {
       },
     });
 
-    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
@@ -545,8 +679,8 @@ describe('sellProcessor business flow', () => {
       },
     });
 
-    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
@@ -617,9 +751,9 @@ describe('sellProcessor business flow', () => {
     });
 
     const indicators1 = { K: 80 };
-    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-    signal.seatVersion = 2;
-    signal.indicators1 = indicators1;
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
+    signal = { ...signal, indicators1: indicators1 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
@@ -677,8 +811,8 @@ describe('sellProcessor business flow', () => {
       clearRetry: () => {},
     });
 
-    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
@@ -707,9 +841,8 @@ describe('sellProcessor business flow', () => {
       applyRiskChecks: async () => [],
       processSellSignals: ({ signals }: { signals: Signal[] }) => {
         processSellCalls += 1;
-        const first = signals[0];
-        if (first) {
-          first.action = 'HOLD';
+        if (signals[0]) {
+          signals[0] = { ...signals[0], action: 'HOLD' as const };
         }
 
         return signals;
@@ -745,8 +878,8 @@ describe('sellProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,
@@ -805,8 +938,8 @@ describe('sellProcessor business flow', () => {
     await runProcessorFlow({
       processor,
       pushTask: () => {
-        const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-        signal.seatVersion = 2;
+        let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+        signal = { ...signal, seatVersion: 2 };
         queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
       },
       waitCondition: () => fatalErrors.length === 1,
@@ -862,8 +995,8 @@ describe('sellProcessor business flow', () => {
     await runProcessorFlow({
       processor,
       pushTask: () => {
-        const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-        signal.seatVersion = 2;
+        let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+        signal = { ...signal, seatVersion: 2 };
         queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
       },
       waitCondition: () => executeCalls === 1,
@@ -913,8 +1046,8 @@ describe('sellProcessor business flow', () => {
       getCanProcessTask: () => false,
     });
 
-    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
@@ -974,8 +1107,8 @@ describe('sellProcessor business flow', () => {
       getCanProcessTask: dynamicGate,
     });
 
-    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,

@@ -17,7 +17,10 @@ import { OrderSide } from 'longbridge';
 import { logger } from '../../utils/logger/index.js';
 import { isSeatActive } from '../../utils/seat/guards.js';
 import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
-import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/quoteRetry/index.js';
+import {
+  resolveNextQuoteRetry,
+  resolveQuoteReadinessForRequirement,
+} from '../../utils/quoteRetry/index.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
@@ -306,23 +309,37 @@ export function createDoomsdayProtection(deps?: {
 
       for (const pos of processingPositions) {
         if (pos.symbol === longSymbol) {
-          const quoteReady = isQuoteReadyForRequirement({
+          const quoteReadiness = resolveQuoteReadinessForRequirement({
             quote: longQuote,
             requirement: 'PRICE',
           });
-          if (!quoteReady) {
-            unresolvedSymbols.add(pos.symbol);
+          if (quoteReadiness !== 'READY') {
+            if (quoteReadiness === 'MISSING') {
+              unresolvedSymbols.add(pos.symbol);
+            } else {
+              logger.warn(
+                `[末日保护程序] 清仓行情无效，跳过本轮清仓信号: symbol=${pos.symbol} readiness=${quoteReadiness}`,
+              );
+            }
+
             continue;
           }
         }
 
         if (pos.symbol === shortSymbol) {
-          const quoteReady = isQuoteReadyForRequirement({
+          const quoteReadiness = resolveQuoteReadinessForRequirement({
             quote: shortQuote,
             requirement: 'PRICE',
           });
-          if (!quoteReady) {
-            unresolvedSymbols.add(pos.symbol);
+          if (quoteReadiness !== 'READY') {
+            if (quoteReadiness === 'MISSING') {
+              unresolvedSymbols.add(pos.symbol);
+            } else {
+              logger.warn(
+                `[末日保护程序] 清仓行情无效，跳过本轮清仓信号: symbol=${pos.symbol} readiness=${quoteReadiness}`,
+              );
+            }
+
             continue;
           }
         }

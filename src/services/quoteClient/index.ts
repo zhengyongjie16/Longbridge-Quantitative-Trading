@@ -217,7 +217,7 @@ function buildQuoteFromRealtime(params: {
   }
 
   const lastDone = decimalToNumber(normalizeDecimalLikeInput(realtimeQuote['lastDone']));
-  if (!Number.isFinite(lastDone)) {
+  if (!isValidPositiveNumber(lastDone)) {
     return null;
   }
 

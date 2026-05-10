@@ -8,7 +8,6 @@ import {
 import type {
   DisplayIndicatorItem,
   ProfileIndicator,
-  SignalIndicator,
   VerificationIndicator,
 } from '../../../types/indicatorProfile.js';
 import type { IndicatorCollector } from './types.js';
@@ -71,22 +70,17 @@ export function parseProfileIndicator(indicatorName: string): ProfileIndicator |
 }
 
 /**
- * 判断指标是否属于信号条件支持集。默认行为：仅允许 RSI:n、PSY:n、MFI、K、D、J 进入信号生成链路。
+ * 判断指标是否属于信号条件支持集。默认行为：仅允许 MFI/K/D/J、RSI:n 与 PSY:n 进入信号生成链路。
  *
  * @param indicator 标准化后的画像指标
  * @returns 属于信号条件支持集时返回 true
  */
-export function isSupportedSignalIndicator(
-  indicator: ProfileIndicator,
-): indicator is SignalIndicator {
-  return (
-    indicator === 'MFI' ||
-    indicator === 'K' ||
-    indicator === 'D' ||
-    indicator === 'J' ||
-    indicator.startsWith('RSI:') ||
-    indicator.startsWith('PSY:')
-  );
+export function isSupportedSignalIndicator(indicator: ProfileIndicator): boolean {
+  if (indicator.startsWith('RSI:') || indicator.startsWith('PSY:')) {
+    return true;
+  }
+
+  return indicator === 'MFI' || indicator === 'K' || indicator === 'D' || indicator === 'J';
 }
 
 /**

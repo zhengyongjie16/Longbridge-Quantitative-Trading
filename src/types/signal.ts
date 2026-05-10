@@ -27,31 +27,31 @@ export type OrderTypeConfig = 'LO' | 'ELO' | 'MO';
  */
 export type Signal = {
   /** 交易标的代码 */
-  symbol: string;
+  readonly symbol: string;
 
   /** 交易标的名称 */
-  symbolName: string | null;
+  readonly symbolName: string | null;
 
   /** 信号动作类型 */
-  action: SignalType;
+  readonly action: SignalType;
 
   /** 信号触发原因 */
-  reason?: string | null;
+  readonly reason?: string | null;
 
   /** 订单类型覆盖（优先级高于全局配置） */
-  orderTypeOverride?: OrderTypeConfig | null;
+  readonly orderTypeOverride?: OrderTypeConfig | null;
 
   /** 是否为保护性清仓（触发买入冷却） */
-  isProtectiveLiquidation?: boolean | null;
+  readonly isProtectiveLiquidation?: boolean | null;
 
   /** 交易价格 */
-  price?: number | null;
+  readonly price?: number | null;
 
   /** 每手股数 */
-  lotSize?: number | null;
+  readonly lotSize?: number | null;
 
   /** 交易数量 */
-  quantity?: number | null;
+  readonly quantity?: number | null;
 
   /**
    * 信号触发时间
@@ -59,14 +59,14 @@ export type Signal = {
    * - 延迟信号：延迟验证的基准时间（T0）
    * - 末日保护信号：信号生成时间
    */
-  triggerTime?: Date | null;
+  readonly triggerTime?: Date | null;
 
   /** 信号对应的席位版本号（换标后用于丢弃旧信号） */
-  seatVersion?: number | null;
+  readonly seatVersion?: number | null;
 
   /** 延迟验证：T0 时刻的指标快照 */
-  indicators1?: Readonly<Record<string, number>> | null;
+  readonly indicators1?: Readonly<Record<string, number>> | null;
 
   /** 关联的买入订单ID列表（仅卖出订单使用，用于智能平仓防重） */
-  relatedBuyOrderIds?: readonly string[] | null;
+  readonly relatedBuyOrderIds?: readonly string[] | null;
 };

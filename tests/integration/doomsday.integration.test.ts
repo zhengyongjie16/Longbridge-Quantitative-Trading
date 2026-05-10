@@ -536,6 +536,63 @@ describe('doomsday integration', () => {
     expect(clearCalls).toBe(0);
   });
 
+  it('does not schedule close-5 retry when clearance quote has invalid price', async () => {
+    const doomsday = createDoomsdayProtection({
+      now: () => new Date('2026-02-16T07:56:00.000Z'),
+      quoteRetryIntervalMs: 2_000,
+      quoteRetryMaxAttempts: 2,
+    });
+    const monitorConfig = createMonitorConfigDouble();
+
+    let executedSignals = 0;
+    let clearCalls = 0;
+    const orderRecorder = createOrderRecorderDouble({
+      clearBuyOrders: () => {
+        clearCalls += 1;
+      },
+    });
+    const trader = createTraderDouble({
+      executeSignals: async (signals) => {
+        executedSignals += signals.length;
+        return { submittedCount: signals.length, submittedOrderIds: [] };
+      },
+    });
+
+    const lastState = createLastState();
+    lastState.cachedPositions = [
+      createPositionDouble({ symbol: 'BULL.HK', quantity: 500, availableQuantity: 500 }),
+    ];
+    lastState.positionCache.update(lastState.cachedPositions);
+
+    const marketDataClient = createMarketDataClientDouble({
+      getQuotes: async () =>
+        new Map([
+          ['BULL.HK', createQuoteDouble('BULL.HK', 0, 100)],
+          ['BEAR.HK', null],
+        ]),
+    });
+
+    const result = await doomsday.executeClearance({
+      currentTime: new Date('2026-02-16T07:56:00.000Z'),
+      isHalfDay: false,
+      positions: lastState.cachedPositions,
+      monitorConfigs: [monitorConfig],
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig, orderRecorder)],
+      ]),
+      trader,
+      marketDataClient,
+      lastState,
+    });
+
+    expect(result).toEqual({ executed: false, signalCount: 0, nextRetryAtMs: null });
+    expect(executedSignals).toBe(0);
+    expect(clearCalls).toBe(0);
+    expect(lastState.cachedAccount).not.toBeNull();
+    expect(lastState.cachedPositions).toHaveLength(1);
+    expect(lastState.positionCache.get('BULL.HK')).not.toBeNull();
+  });
+
   it('skips planned close-5 retry execution when lifecycle gate closes before retry call', async () => {
     let now = new Date('2026-02-16T07:56:00.000Z');
     const doomsday = createDoomsdayProtection({

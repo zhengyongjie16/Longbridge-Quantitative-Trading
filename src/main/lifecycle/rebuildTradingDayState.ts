@@ -286,7 +286,7 @@ export function createRebuildTradingDayState(
       activateRebuiltSeats(monitorContexts, symbolRegistry, now.getTime());
       syncAllMonitorContexts(monitorContexts, symbolRegistry, quotesMap);
       await trader.recoverOrderTrackingFromSnapshot(allOrders);
-      await displayAccountAndPositions({ lastState, quotesMap });
+      displayAccountAndPositions({ lastState, quotesMap });
       clearSeatActivationCarryover(symbolRegistry);
     } catch (err) {
       if (isExternalApiRequestError(err)) {

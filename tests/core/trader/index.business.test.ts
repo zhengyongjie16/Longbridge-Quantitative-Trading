@@ -156,7 +156,7 @@ describe('trader facade business flow', () => {
     tradeCtx.setFailureRule('accountBalance', {
       failAtCalls: [1],
       maxFailures: 1,
-      errorMessage: 'temporary account error',
+      errorMessage: 'service unavailable',
     });
     const createTrader = await loadCreateTraderWithStubbedTradeContext('trader-account-retry', {
       new(): object {
@@ -210,7 +210,7 @@ describe('trader facade business flow', () => {
     tradeCtx.setFailureRule('stockPositions', {
       failAtCalls: [1],
       maxFailures: 1,
-      errorMessage: 'temporary positions error',
+      errorMessage: 'service unavailable',
     });
     const createTrader = await loadCreateTraderWithStubbedTradeContext('trader-positions-retry', {
       new(): object {
@@ -301,7 +301,7 @@ describe('account service contract boundary', () => {
     tradeCtx.setFailureRule('accountBalance', {
       failAtCalls: [1],
       maxFailures: 1,
-      errorMessage: 'temporary account error',
+      errorMessage: 'service unavailable',
     });
 
     const accountService = createAccountService({
@@ -344,7 +344,7 @@ describe('account service contract boundary', () => {
     tradeCtx.setFailureRule('stockPositions', {
       failAtCalls: [1],
       maxFailures: 1,
-      errorMessage: 'temporary positions error',
+      errorMessage: 'service unavailable',
     });
 
     const accountService = createAccountService({

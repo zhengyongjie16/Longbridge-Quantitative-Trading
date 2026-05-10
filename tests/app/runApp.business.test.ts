@@ -125,7 +125,7 @@ function createStartStopRecorder(name: string): {
 
 function noop(): void {}
 
-async function noopAsync(): Promise<void> {}
+function noopAsync(): void {}
 
 function createTradeTaskQueueDouble<TType extends string>(): TaskQueue<TType> {
   return {
@@ -205,6 +205,7 @@ function createMockPostGateRuntime(
   lastState: LastState,
   autoSearchFatalPromise: Promise<never> = new Promise<never>(() => {}),
   postTradeFatalPromise: Promise<never> = new Promise<never>(() => {}),
+  postGateFatalPromise: Promise<never> = new Promise<never>(() => {}),
 ): MutableMonitorContextsPostGateRuntime {
   const signalProcessor: SignalProcessor = {
     processSellSignals: ({ signals }: ProcessSellSignalsParams): Signal[] => signals,
@@ -299,7 +300,7 @@ function createMockPostGateRuntime(
     buyTaskQueue: createTradeTaskQueueDouble(),
     sellTaskQueue: createTradeTaskQueueDouble(),
     monitorTaskQueue: createMonitorTaskQueueDouble(),
-    drainFatalError: () => new Promise<never>(() => {}),
+    drainFatalError: () => postGateFatalPromise,
   };
 }
 
@@ -340,12 +341,14 @@ function createRunAppHarness(
   readonly triggerTimeWakeupFatal: (error: Error) => void;
   readonly triggerAutoSearchFatal: (error: Error) => void;
   readonly triggerPostTradeFatal: (error: Error) => void;
+  readonly triggerPostGateFatal: (error: Error) => void;
 } {
   const lastState = createMinimalLastState();
   const shutdownController = createShutdownController();
   let rejectTimeWakeupFatal: ((error: Error) => void) | null = null;
   let rejectAutoSearchFatal: ((error: Error) => void) | null = null;
   let rejectPostTradeFatal: ((error: Error) => void) | null = null;
+  let rejectPostGateFatal: ((error: Error) => void) | null = null;
   const timeWakeupFatalPromise = new Promise<never>((_, reject) => {
     rejectTimeWakeupFatal = reject;
   });
@@ -355,10 +358,18 @@ function createRunAppHarness(
   const postTradeFatalPromise = new Promise<never>((_, reject) => {
     rejectPostTradeFatal = reject;
   });
+  const postGateFatalPromise = new Promise<never>((_, reject) => {
+    rejectPostGateFatal = reject;
+  });
   const deps = {
     createPreGateRuntime: async () => createMockPreGateRuntime(),
     createPostGateRuntime: async () =>
-      createMockPostGateRuntime(lastState, autoSearchFatalPromise, postTradeFatalPromise),
+      createMockPostGateRuntime(
+        lastState,
+        autoSearchFatalPromise,
+        postTradeFatalPromise,
+        postGateFatalPromise,
+      ),
     loadStartupSnapshot: async () => {
       const now = new Date('2026-04-29T09:30:00.000+08:00');
       if (currentScenario === 'startupRebuildPending') {
@@ -419,15 +430,8 @@ function createRunAppHarness(
         await Promise.resolve();
         runtimeStartSteps.push('timeWakeupRuntime.start.end');
       },
-      requestEvaluate: () => {},
       stopAndDrain: async () => {},
       drainFatalError: () => timeWakeupFatalPromise,
-      getStateSnapshot: () => ({
-        running: false,
-        inFlight: false,
-        dirty: false,
-        hasTimer: false,
-      }),
     }),
     waitForShutdownSignal: shutdownController.waitForShutdownSignal,
     logger: {
@@ -458,6 +462,9 @@ function createRunAppHarness(
     },
     triggerPostTradeFatal: (error) => {
       rejectPostTradeFatal?.(error);
+    },
+    triggerPostGateFatal: (error) => {
+      rejectPostGateFatal?.(error);
     },
   };
 }
@@ -572,6 +579,20 @@ describe('runApp business flow', () => {
     harness.triggerAutoSearchFatal(new Error('auto search fatal'));
 
     await expectPromiseRejectsWithMessage(runPromise, /auto search fatal/);
+    expect(cleanupExecuteCount).toBe(1);
+  });
+
+  it('post-gate runtime fatal triggers cleanup and propagates the error', async () => {
+    currentScenario = 'initialRebuildSucceeds';
+    const harness = createRunAppHarness();
+    const runPromise = harness.runApp({ env: {} });
+
+    await flushMicrotasks(20);
+    harness.triggerPostGateFatal(new Error('post gate fatal'));
+    await flushMicrotasks(5);
+    harness.triggerShutdown();
+
+    await expectPromiseRejectsWithMessage(runPromise, /post gate fatal/);
     expect(cleanupExecuteCount).toBe(1);
   });
 

@@ -153,12 +153,12 @@ function createPipelineHarness(params: {
 
 describe('signalPipeline business flow', () => {
   it('routes immediate/delayed signals to correct queues and binds seatVersion without quote enrichment', () => {
-    const immediateBuy = createSignalDouble('BUYCALL', 'BULL.HK');
-    immediateBuy.symbolName = null;
-    const immediateSell = createSignalDouble('SELLPUT', 'BEAR.HK');
-    immediateSell.symbolName = null;
-    const delayedBuy = createSignalDouble('BUYPUT', 'BEAR.HK');
-    delayedBuy.symbolName = null;
+    let immediateBuy = createSignalDouble('BUYCALL', 'BULL.HK');
+    immediateBuy = { ...immediateBuy, symbolName: null };
+    let immediateSell = createSignalDouble('SELLPUT', 'BEAR.HK');
+    immediateSell = { ...immediateSell, symbolName: null };
+    let delayedBuy = createSignalDouble('BUYPUT', 'BEAR.HK');
+    delayedBuy = { ...delayedBuy, symbolName: null };
 
     const harness = createPipelineHarness({
       immediateSignals: [immediateBuy, immediateSell],

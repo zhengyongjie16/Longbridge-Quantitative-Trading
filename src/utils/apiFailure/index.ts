@@ -1,10 +1,12 @@
 import { API } from '../../constants/index.js';
 import { formatError } from '../error/index.js';
+import { isRecord } from '../helpers/index.js';
 import type {
   ExternalApiAggregateRequestErrorParams,
   ExternalApiRequestError,
   ExternalApiRequestErrorParams,
   ExternalApiRetryConfig,
+  ExternalApiRetryDecision,
   WrapExternalApiRequestParams,
 } from './types.js';
 
@@ -12,6 +14,30 @@ const DEFAULT_EXTERNAL_API_RETRY_CONFIG: ExternalApiRetryConfig = {
   retries: API.DEFAULT_RETRY_COUNT,
   delayMs: API.DEFAULT_RETRY_DELAY_MS,
 };
+const TRANSIENT_STATUS_CODES = new Set(['408', '425', '429', '500', '502', '503', '504']);
+const NON_RETRYABLE_MESSAGE_HINTS = [
+  'invalid',
+  'validation',
+  'permission',
+  'unauthorized',
+  'forbidden',
+  'unsupported',
+  'not found',
+  'no data',
+  'business rejection',
+] as const;
+const RETRYABLE_MESSAGE_HINTS = [
+  'network',
+  'timeout',
+  'timed out',
+  'temporarily unavailable',
+  'service unavailable',
+  'service busy',
+  'connection',
+  'econnreset',
+  'etimedout',
+  'rate limit',
+] as const;
 const externalApiRequestErrors = new WeakSet<Error>();
 
 /**
@@ -118,6 +144,127 @@ export function isProgramError(error: unknown): boolean {
 }
 
 /**
+ * 从错误对象读取字符串或数字字段。
+ *
+ * @param error 待读取错误对象
+ * @param key 字段名
+ * @returns 可用于分类的字段文本
+ */
+function extractStringProperty(error: unknown, key: string): string | null {
+  if (!isRecord(error)) {
+    return null;
+  }
+
+  const value = error[key];
+  if (typeof value === 'string' && value.length > 0) {
+    return value;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return null;
+}
+
+/**
+ * 从结构化错误字段读取 HTTP 状态码。
+ *
+ * @param error 待分类错误对象
+ * @returns 三位状态码文本
+ */
+function extractNumericStatusText(error: unknown): string | null {
+  const statusKeys = ['status', 'statusCode', 'httpStatus'] as const;
+  for (const key of statusKeys) {
+    const value = extractStringProperty(error, key);
+    if (value !== null && /^\d{3}$/.test(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 从错误消息中读取 HTTP 状态码。
+ *
+ * @param message 错误消息文本
+ * @returns 三位状态码文本
+ */
+function extractStatusFromMessage(message: string): string | null {
+  const patterns = [/\bstatus(?:code)?[=:]\s*(\d{3})\b/i, /\bhttp\s+(\d{3})\b/i] as const;
+  for (const pattern of patterns) {
+    const match = pattern.exec(message);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 判断错误是否带有 Longbridge 业务错误码。
+ *
+ * @param error 待分类错误对象
+ * @param message 错误消息文本
+ * @returns true 表示结构化字段或消息包含六位业务 code
+ */
+function hasBusinessErrorCode(error: unknown, message: string): boolean {
+  const structuredCodeKeys = ['code', 'errorCode', 'errno'] as const;
+  for (const key of structuredCodeKeys) {
+    const structuredCode = extractStringProperty(error, key);
+    if (structuredCode !== null && /^\d{6}$/.test(structuredCode)) {
+      return true;
+    }
+  }
+
+  return /\b(?:code=)?\d{6}\b/i.test(message);
+}
+
+/**
+ * 解析外部 API 错误的默认重试决策。
+ *
+ * @param error 待分类错误对象
+ * @returns RETRY 表示允许有限重试，FAIL_FAST 表示立即抛出
+ */
+function resolveExternalApiRetryDecision(error: unknown): ExternalApiRetryDecision {
+  if (isProgramError(error)) {
+    return 'FAIL_FAST';
+  }
+
+  const message = formatError(error).toLowerCase();
+  if (NON_RETRYABLE_MESSAGE_HINTS.some((hint) => message.includes(hint))) {
+    return 'FAIL_FAST';
+  }
+
+  if (hasBusinessErrorCode(error, message)) {
+    return 'FAIL_FAST';
+  }
+
+  const statusText = extractNumericStatusText(error) ?? extractStatusFromMessage(message);
+  if (statusText !== null && TRANSIENT_STATUS_CODES.has(statusText)) {
+    return 'RETRY';
+  }
+
+  if (RETRYABLE_MESSAGE_HINTS.some((hint) => message.includes(hint))) {
+    return 'RETRY';
+  }
+
+  return 'FAIL_FAST';
+}
+
+/**
+ * 判断外部 API 错误是否属于可重试暂态错误。
+ *
+ * @param error 待分类错误对象
+ * @returns true 表示可进入有限重试
+ */
+export function isRetryableExternalApiError(error: unknown): boolean {
+  return resolveExternalApiRetryDecision(error) === 'RETRY';
+}
+
+/**
  * 执行真实外部 API 请求，并在有限重试后将失败分类为 ExternalApiRequestError。
  *
  * @param params 外部 API 请求包装参数，包含操作名、请求函数与可选 retry 配置
@@ -135,6 +282,10 @@ export async function wrapExternalApiRequest<T>(
       return await params.request();
     } catch (error) {
       if (isProgramError(error)) {
+        throw error;
+      }
+
+      if (!isRetryableExternalApiError(error)) {
         throw error;
       }
 

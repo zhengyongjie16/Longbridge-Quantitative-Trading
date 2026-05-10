@@ -78,8 +78,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,
@@ -143,8 +143,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,
@@ -200,8 +200,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,
@@ -256,8 +256,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const staleSignal = createSignalDouble('BUYCALL', 'BULL.HK');
-    staleSignal.seatVersion = 1;
+    let staleSignal = createSignalDouble('BUYCALL', 'BULL.HK');
+    staleSignal = { ...staleSignal, seatVersion: 1 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_BUY', monitorSymbol: 'HSI.HK', data: staleSignal });
@@ -317,8 +317,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,
@@ -376,8 +376,8 @@ describe('buyProcessor business flow', () => {
     await runProcessorFlow({
       processor,
       pushTask: () => {
-        const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-        signal.seatVersion = 2;
+        let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+        signal = { ...signal, seatVersion: 2 };
         queue.push({ type: 'IMMEDIATE_BUY', monitorSymbol: 'HSI.HK', data: signal });
       },
       waitCondition: () => fatalErrors.length === 1,
@@ -432,8 +432,8 @@ describe('buyProcessor business flow', () => {
     await runProcessorFlow({
       processor,
       pushTask: () => {
-        const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-        signal.seatVersion = 2;
+        let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+        signal = { ...signal, seatVersion: 2 };
         queue.push({ type: 'IMMEDIATE_BUY', monitorSymbol: 'HSI.HK', data: signal });
       },
       waitCondition: () => executeCalls === 1,
@@ -475,8 +475,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => false,
     });
 
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_BUY', monitorSymbol: 'HSI.HK', data: signal });

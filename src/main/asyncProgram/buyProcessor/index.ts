@@ -32,6 +32,7 @@ import type { Processor } from '../types.js';
 import type { BuyProcessorDeps } from './types.js';
 import type { Task, BuyTaskType } from '../tradeTaskQueue/types.js';
 import type { RiskCheckContext } from '../../../types/services.js';
+import type { Signal } from '../../../types/signal.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
 
 /**
@@ -197,12 +198,15 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         return;
       }
 
-      signal.price = finalExecutionQuote.price;
-      signal.lotSize = finalExecutionQuote.lotSize;
+      const signalWithQuote: Signal = {
+        ...signal,
+        price: finalExecutionQuote.price,
+        lotSize: finalExecutionQuote.lotSize,
+      };
 
       const executionSeatValidation = validateSignalSeat({
         monitorSymbol,
-        signal,
+        signal: signalWithQuote,
         symbolRegistry: ctx.symbolRegistry,
       });
       if (!executionSeatValidation.valid) {
@@ -215,7 +219,7 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
       await executeSignalsWithLifecycleGate({
         getCanProcessTask,
         trader,
-        signal,
+        signal: signalWithQuote,
         symbolDisplay,
         loggerPrefix: 'BuyProcessor',
         successMessage: '买入订单执行完成',

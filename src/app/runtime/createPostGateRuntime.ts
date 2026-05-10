@@ -50,6 +50,7 @@ import {
   toHongKongTimeIso,
 } from '../../utils/time/index.js';
 import { logger, retainLatestLogFiles } from '../../utils/logger/index.js';
+import { toError } from '../../utils/error/index.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
 import type { OrderStateChangedEvent } from '../../types/services.js';
 import type { MonitorTaskDataMap } from '../../main/asyncProgram/monitorTaskProcessor/types.js';
@@ -149,7 +150,7 @@ function resolveTradeRecordFromOrderStateChangedEvent(
 }
 
 /**
- * 处理订单状态事件并持久化 trade log。
+ * 处理订单状态事件并持久化 trade log；旧日志损坏或根节点结构错误时直接抛错。
  *
  * @param params 运行时环境与订单状态事件
  */
@@ -173,15 +174,12 @@ function persistTradeRecordFromOrderStateChangedEvent(params: {
 
   let records: unknown[] = [];
   if (fs.existsSync(logFile)) {
-    try {
-      const parsed: unknown = JSON.parse(fs.readFileSync(logFile, 'utf8'));
-      if (Array.isArray(parsed)) {
-        records = parsed;
-      }
-    } catch (error) {
-      logger.warn('[createPostGateRuntime] 解析 trade log 失败，重置为空数组', error);
-      records = [];
+    const parsed: unknown = JSON.parse(fs.readFileSync(logFile, 'utf8'));
+    if (!Array.isArray(parsed)) {
+      throw new TypeError('[createPostGateRuntime] trade log 根节点必须为数组');
     }
+
+    records = parsed;
   }
 
   records.push(tradeRecord);
@@ -284,12 +282,6 @@ export function createPostGateRuntimeFactory(
       isExecutionAllowed: () => lastState.isTradingEnabled,
     });
     traderRef = trader;
-    trader.onOrderStateChanged((event) => {
-      persistTradeRecordFromOrderStateChangedEvent({
-        env,
-        event,
-      });
-    });
     const tradeLogHydrator = createTradeLogHydrator({
       readFileSync: fs.readFileSync,
       existsSync: fs.existsSync,
@@ -333,8 +325,6 @@ export function createPostGateRuntimeFactory(
     quoteSubscriptionRuntimeRef = quoteSubscriptionRuntime;
     let fatalError: Error | null = null;
     const fatalRejectors = new Set<(error: Error) => void>();
-    const toError = (error: unknown): Error =>
-      error instanceof Error ? error : new Error(String(error));
 
     const handleFatalError = (error: unknown): void => {
       if (fatalError !== null) {
@@ -358,6 +348,18 @@ export function createPostGateRuntimeFactory(
         fatalRejectors.add(reject);
       });
     };
+
+    trader.onOrderStateChanged((event) => {
+      try {
+        persistTradeRecordFromOrderStateChangedEvent({
+          env,
+          event,
+        });
+      } catch (error) {
+        handleFatalError(error);
+        throw error;
+      }
+    });
 
     const tradingRiskEventRuntime = createTradingRiskEventRuntime({
       marketDataClient,

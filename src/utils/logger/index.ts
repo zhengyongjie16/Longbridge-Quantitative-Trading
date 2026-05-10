@@ -193,31 +193,6 @@ class DateRotatingStream extends Writable {
   }
 
   /**
-   * 异步关闭文件流，返回 Promise
-   */
-  public closeAsync(): Promise<void> {
-    if (this._fileStream) {
-      const stream = this._fileStream;
-      this._fileStream = null;
-
-      return new Promise((resolve) => {
-        stream.once('finish', () => {
-          resolve();
-        });
-
-        stream.once('error', () => {
-          resolve();
-        });
-
-        // 即使出错也继续
-        stream.end();
-      });
-    }
-
-    return Promise.resolve();
-  }
-
-  /**
    * 检查并切换日志文件（如果日期变化）
    * 使用 Promise 队列确保串行执行，避免并发问题
    * @returns Promise，确保旧流关闭完成后再继续

@@ -109,7 +109,7 @@ export type RebuildTradingDayStateDeps = Readonly<{
   displayAccountAndPositions: (params: {
     readonly lastState: LastState;
     readonly quotesMap: ReadonlyMap<string, Quote | null>;
-  }) => Promise<void>;
+  }) => void;
 }>;
 
 /**

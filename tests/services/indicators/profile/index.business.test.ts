@@ -19,7 +19,7 @@ describe('indicators/profile business flow', () => {
               { indicator: 'RSI:14', operator: '<', threshold: 30 },
               { indicator: 'RSI:6', operator: '<', threshold: 20 },
               { indicator: 'PSY:13', operator: '<', threshold: 25 },
-              { indicator: 'PSY:101', operator: '<', threshold: 25 },
+              { indicator: 'PSY:13', operator: '<', threshold: 25 },
             ],
             requiredCount: 1,
           },
@@ -32,7 +32,7 @@ describe('indicators/profile business flow', () => {
               { indicator: 'RSI:6', operator: '>', threshold: 70 },
               { indicator: 'RSI:20', operator: '>', threshold: 80 },
               { indicator: 'PSY:5', operator: '>', threshold: 70 },
-              { indicator: 'PSY:0', operator: '>', threshold: 70 },
+              { indicator: 'PSY:5', operator: '>', threshold: 70 },
             ],
             requiredCount: 1,
           },
@@ -55,8 +55,6 @@ describe('indicators/profile business flow', () => {
     expect(indicatorProfile.requiredPeriods.ema).toEqual([7, 21]);
     expect(indicatorProfile.requiredFamilies.kdj).toBeTrue();
     expect(indicatorProfile.requiredFamilies.macd).toBeTrue();
-    expect(indicatorProfile.actionSignalIndicators.BUYCALL).toEqual(['RSI:14', 'RSI:6', 'PSY:13']);
-    expect(indicatorProfile.actionSignalIndicators.SELLCALL).toEqual(['RSI:6', 'RSI:20', 'PSY:5']);
     expect(indicatorProfile.verificationIndicatorsBySide.buy).toEqual(['EMA:7', 'DIF']);
     expect(indicatorProfile.verificationIndicatorsBySide.sell).toEqual(['EMA:21', 'K']);
     expect(indicatorProfile.displayPlan).toEqual([
@@ -99,7 +97,6 @@ describe('indicators/profile business flow', () => {
       },
     });
 
-    expect(indicatorProfile.actionSignalIndicators.BUYCALL).toEqual(['K']);
     expect(indicatorProfile.verificationIndicatorsBySide.buy).toEqual(['ADX']);
     expect(indicatorProfile.requiredFamilies.adx).toBeTrue();
     expect(indicatorProfile.displayPlan).toContain('ADX');
@@ -125,5 +122,29 @@ describe('indicators/profile business flow', () => {
         },
       }),
     ).toThrow('[配置错误] 信号条件不支持指标: ADX');
+  });
+
+  it('fails fast when signal indicators contain malformed indicator names', () => {
+    expect(() =>
+      compileIndicatorUsageProfile({
+        signalConfig: {
+          buycall: {
+            conditionGroups: [
+              {
+                conditions: [{ indicator: 'RSI:0', operator: '<', threshold: 30 }],
+                requiredCount: 1,
+              },
+            ],
+          },
+          sellcall: null,
+          buyput: null,
+          sellput: null,
+        },
+        verificationConfig: {
+          buy: { delaySeconds: 0, indicators: [] },
+          sell: { delaySeconds: 0, indicators: [] },
+        },
+      }),
+    ).toThrow('[配置错误] 信号条件指标无效: RSI:0');
   });
 });

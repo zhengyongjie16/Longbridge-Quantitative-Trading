@@ -493,7 +493,7 @@ describe('createDayLifecycleManager', () => {
         dailyLossTracker: {
           getLossOffset: () => 0,
         } as never,
-        displayAccountAndPositions: async () => {},
+        displayAccountAndPositions: () => {},
       });
       const domains: ReadonlyArray<CacheDomain> = [
         {

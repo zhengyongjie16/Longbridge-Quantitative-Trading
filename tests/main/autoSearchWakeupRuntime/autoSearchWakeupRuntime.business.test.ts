@@ -7,6 +7,7 @@ import { describe, expect, it } from 'bun:test';
 import { TIME, TRADING } from '../../../src/constants/index.js';
 import { createAutoSearchWakeupRuntime } from '../../../src/main/autoSearchWakeupRuntime/index.js';
 import { createTradingGateEventRuntime } from '../../../src/main/tradingGateEventRuntime/index.js';
+import { createExternalApiRequestError } from '../../../src/utils/apiFailure/index.js';
 import { createSymbolRegistry } from '../../../src/services/autoSymbolManager/utils.js';
 import type { SearchOnEventParams } from '../../../src/services/autoSymbolManager/types.js';
 import {
@@ -136,6 +137,59 @@ describe('AutoSearchWakeupRuntime', () => {
     expect(calls.every((call) => call.canTradeNow)).toBe(true);
   });
 
+  it('同一路由 seed 搜索未完成时 gate-open 不重复启动搜索', async () => {
+    const monitorConfig = createAutoSearchEnabledMonitorConfig();
+    const symbolRegistry = createSymbolRegistry([monitorConfig]);
+    makeSeatEmpty(symbolRegistry, monitorConfig.monitorSymbol);
+    let resolveSearch = (): void => {
+      throw new Error('expected in-flight search resolver');
+    };
+    const inFlightSearch = new Promise<void>((resolve) => {
+      resolveSearch = resolve;
+    });
+    const calls: SearchOnEventParams[] = [];
+    const monitorContext = createMonitorContextDouble({
+      config: monitorConfig,
+      symbolRegistry,
+      autoSymbolManager: createAutoSymbolManagerDouble({
+        maybeSearchOnEvent: async (params) => {
+          calls.push(params);
+          await inFlightSearch;
+        },
+      }),
+    });
+    const lastState = {
+      canTrade: true,
+      isTradingEnabled: true,
+    };
+    const tradingGateEventRuntime = createTradingGateEventRuntime();
+    const runtime = createAutoSearchWakeupRuntime({
+      tradingConfig: createTradingConfig({ monitors: [monitorConfig] }),
+      symbolRegistry,
+      monitorContexts: new Map([[monitorConfig.monitorSymbol, monitorContext]]),
+      lastState,
+      tradingGateEventRuntime,
+      now: () => new Date('2026-04-10T02:00:00.000Z'),
+      scheduleTimer: (callback, delayMs) => setTimeout(callback, delayMs),
+      clearTimer: (handle) => {
+        clearTimeout(handle);
+      },
+    });
+
+    runtime.start();
+    await Bun.sleep(0);
+    tradingGateEventRuntime.emitGateStateChanged({
+      previousCanTrade: false,
+      nextCanTrade: true,
+      timestampMs: Date.parse('2026-04-10T02:00:00.000Z'),
+    });
+    await Bun.sleep(0);
+
+    expect(calls).toHaveLength(1);
+    resolveSearch();
+    await runtime.stopAndDrain();
+  });
+
   it('gate 从关闭变为打开时唤醒已经存在的 EMPTY seat', async () => {
     const monitorConfig = createAutoSearchEnabledMonitorConfig();
     const symbolRegistry = createSymbolRegistry([monitorConfig]);
@@ -243,10 +297,10 @@ describe('AutoSearchWakeupRuntime', () => {
         maybeSearchOnEvent: async (params) => {
           calls.push(params);
           if (calls.length === 1) {
-            throw Object.assign(new Error('api unavailable'), {
-              name: 'ExternalApiRequestError',
+            throw createExternalApiRequestError({
               operation: 'test.autoSearch',
               attempts: 1,
+              cause: new Error('api unavailable'),
             });
           }
         },
@@ -315,10 +369,10 @@ describe('AutoSearchWakeupRuntime', () => {
               status: 'EMPTY',
               lastSearchAt: null,
             });
-            throw Object.assign(new Error('api unavailable'), {
-              name: 'ExternalApiRequestError',
+            throw createExternalApiRequestError({
               operation: 'test.autoSearch',
               attempts: 1,
+              cause: new Error('api unavailable'),
             });
           }
         },

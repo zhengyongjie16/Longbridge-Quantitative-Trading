@@ -8,7 +8,11 @@
 import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { DecimalInput } from '../../utils/numeric/types.js';
-import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/quoteRetry/index.js';
+import {
+  resolveNextQuoteRetry,
+  resolveQuoteReadinessForRequirement,
+} from '../../utils/quoteRetry/index.js';
+import type { QuoteReadinessStatus } from '../../utils/quoteRetry/types.js';
 import { decimalGte, decimalLte } from '../../utils/numeric/index.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
@@ -76,11 +80,13 @@ function advanceQuoteRetryState(state: SwitchState, nowMs: number): void {
   state.quoteRetryExhausted = nextRetry.exhausted;
 }
 
-function isQuoteReadyForRebuy(
-  quote: Quote | null | undefined,
-): quote is Quote & { lotSize: number } {
+function resolveRebuyQuoteReadiness(quote: Quote | null | undefined): QuoteReadinessStatus {
+  return resolveQuoteReadinessForRequirement({ quote, requirement: 'PRICE_AND_LOT_SIZE' });
+}
+
+function isRebuyQuoteReady(quote: Quote | null | undefined): quote is Quote & { lotSize: number } {
   return (
-    isQuoteReadyForRequirement({ quote, requirement: 'PRICE_AND_LOT_SIZE' }) &&
+    resolveRebuyQuoteReadiness(quote) === 'READY' &&
     quote !== null &&
     quote !== undefined &&
     isValidPositiveNumber(quote.lotSize)
@@ -750,7 +756,15 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           return invalidResultAfterSellQuote;
         }
 
-        if (!isQuoteReadyForRequirement({ quote, requirement: 'PRICE' })) {
+        const sellQuoteReadiness = resolveQuoteReadinessForRequirement({
+          quote,
+          requirement: 'PRICE',
+        });
+        if (sellQuoteReadiness !== 'READY') {
+          if (sellQuoteReadiness !== 'MISSING') {
+            return failAndClear('INVALID_QUOTE:SELL_OUT');
+          }
+
           advanceQuoteRetryState(state, nowMs);
           if (state.quoteRetryExhausted) {
             return failAndClear('QUOTE_RETRY_EXHAUSTED:SELL_OUT');
@@ -864,7 +878,12 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         return invalidResultAfterWaitQuoteFetch;
       }
 
-      if (!isQuoteReadyForRebuy(quote)) {
+      const waitQuoteReadiness = resolveRebuyQuoteReadiness(quote);
+      if (waitQuoteReadiness !== 'READY') {
+        if (waitQuoteReadiness !== 'MISSING') {
+          return failAndClear('INVALID_QUOTE:WAIT_QUOTE');
+        }
+
         advanceQuoteRetryState(state, now().getTime());
         if (state.quoteRetryExhausted) {
           return failAndClear('QUOTE_RETRY_EXHAUSTED:WAIT_QUOTE');
@@ -889,7 +908,12 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         return invalidResultAfterRebuyQuoteFetch;
       }
 
-      if (!isQuoteReadyForRebuy(quote)) {
+      const rebuyQuoteReadiness = resolveRebuyQuoteReadiness(quote);
+      if (rebuyQuoteReadiness !== 'READY') {
+        if (rebuyQuoteReadiness !== 'MISSING') {
+          return failAndClear('INVALID_QUOTE:REBUY');
+        }
+
         if (!hasQuoteRetryElapsed(state, nowMs)) {
           state.stage = 'WAIT_QUOTE';
           return createQuoteRetryWait(nextSymbol);
@@ -902,6 +926,10 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
         state.stage = 'WAIT_QUOTE';
         return createQuoteRetryWait(nextSymbol);
+      }
+
+      if (!isRebuyQuoteReady(quote)) {
+        return failAndClear('INVALID_QUOTE:REBUY');
       }
 
       resetQuoteRetryState(state);

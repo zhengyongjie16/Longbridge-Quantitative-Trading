@@ -35,7 +35,7 @@ describe('sell-flow integration', () => {
     tradeCtx.setFailureRule('stockPositions', {
       failAtCalls: [1, 2, 3],
       maxFailures: 3,
-      errorMessage: 'temporary positions error',
+      errorMessage: 'service unavailable',
     });
 
     const orderExecutor = createOrderExecutor({
@@ -71,14 +71,14 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const signal = createSignal({
+    let signal = createSignal({
       symbol: 'BULL.HK',
       action: 'SELLCALL',
       price: 1.01,
       triggerTimeMs: Date.now(),
       reason: 'sell-quantity-stock-positions-no-retry',
     });
-    signal.quantity = 100;
+    signal = { ...signal, quantity: 100 };
 
     let caught: unknown = null;
     try {
@@ -579,15 +579,15 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const signal = createSignal({
+    let signal = createSignal({
       symbol: 'BULL.HK',
       action: 'SELLCALL',
       price: 1.02,
       triggerTimeMs: Date.now(),
       reason: 'replace-merge',
     });
-    signal.quantity = 50;
-    signal.relatedBuyOrderIds = ['BUY-NEW'];
+    signal = { ...signal, quantity: 50 };
+    signal = { ...signal, relatedBuyOrderIds: ['BUY-NEW'] };
 
     const result = await orderExecutor.executeSignals([signal]);
 
@@ -674,15 +674,15 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const signal = createSignal({
+    let signal = createSignal({
       symbol: 'BULL.HK',
       action: 'SELLCALL',
       price: 1.03,
       triggerTimeMs: Date.now(),
       reason: 'cancel-and-submit-wait-terminal',
     });
-    signal.quantity = 50;
-    signal.relatedBuyOrderIds = ['BUY-NEW'];
+    signal = { ...signal, quantity: 50 };
+    signal = { ...signal, relatedBuyOrderIds: ['BUY-NEW'] };
 
     const result = await orderExecutor.executeSignals([signal]);
 
@@ -771,15 +771,15 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const signal = createSignal({
+    let signal = createSignal({
       symbol: 'BULL.HK',
       action: 'SELLCALL',
       price: 1.03,
       triggerTimeMs: Date.now(),
       reason: 'cancel-and-submit-merge',
     });
-    signal.quantity = 50;
-    signal.relatedBuyOrderIds = ['BUY-NEW'];
+    signal = { ...signal, quantity: 50 };
+    signal = { ...signal, relatedBuyOrderIds: ['BUY-NEW'] };
 
     const result = await orderExecutor.executeSignals([signal]);
 

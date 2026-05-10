@@ -19,8 +19,8 @@ import {
 } from '../../../constants/index.js';
 import type { Quote } from '../../../types/quote.js';
 import {
-  isQuoteReadyForRequirement,
   resolveNextQuoteRetry,
+  resolveQuoteReadinessForRequirement,
 } from '../../../utils/quoteRetry/index.js';
 import { extractOrderId, toDecimal } from '../utils.js';
 import { wrapExternalApiRequest } from '../../../utils/apiFailure/index.js';
@@ -834,11 +834,18 @@ export function createRouteProcessor(deps: RouteProcessorDeps): RouteProcessor {
     }
 
     const latestQuote = params.latestQuote;
-    if (latestQuote === null) {
-      return;
-    }
+    const quoteReadiness = resolveQuoteReadinessForRequirement({
+      quote: latestQuote,
+      requirement: 'PRICE',
+    });
+    if (quoteReadiness !== 'READY') {
+      if (quoteReadiness !== 'MISSING') {
+        logger.warn(
+          `[订单监控] 跟价行情无效，跳过本轮改单: symbol=${params.symbol} readiness=${quoteReadiness}`,
+        );
+        return;
+      }
 
-    if (!isQuoteReadyForRequirement({ quote: latestQuote, requirement: 'PRICE' })) {
       const now = Date.now();
       for (const order of trackedOrders) {
         if (params.wakeupKind === 'QUOTE') {
@@ -859,14 +866,16 @@ export function createRouteProcessor(deps: RouteProcessorDeps): RouteProcessor {
       return;
     }
 
+    if (latestQuote === null) {
+      return;
+    }
+
     for (const order of trackedOrders) {
       if (!isTrackedOrderStillAttachedToRoute(deps.runtime, params.symbol, order)) {
         continue;
       }
 
-      if (isQuoteReadyForRequirement({ quote: latestQuote, requirement: 'PRICE' })) {
-        resetQuoteRetryState(order);
-      }
+      resetQuoteRetryState(order);
 
       const shouldReplace = shouldReplaceForWakeup(params, latestQuote, deps, order);
       if (!shouldReplace) {

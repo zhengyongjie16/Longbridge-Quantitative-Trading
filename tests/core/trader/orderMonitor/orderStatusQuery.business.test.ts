@@ -175,6 +175,30 @@ describe('orderStatusQuery business flow', () => {
     }
   });
 
+  it('retries coded transient orderDetail errors before mapping state', async () => {
+    let attempts = 0;
+    const orderId = 'ORDER-CODED-TRANSIENT-THEN-FILLED';
+    const { orderStatusQuery } = createQueryContext({
+      orderDetail: async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new Error('openapi error: code=503: service unavailable');
+        }
+
+        return createOrderSnapshot({
+          orderId,
+          status: OPEN_API_ORDER_STATUS_FILLED,
+          executedQuantity: 100,
+        });
+      },
+    });
+
+    const result = await orderStatusQuery.checkOrderState(orderId);
+
+    expect(attempts).toBe(2);
+    expect(result.kind).toBe('TERMINAL');
+  });
+
   it('maps 603001 to QUERY_FAILED NOT_FOUND', async () => {
     const { orderStatusQuery } = createQueryContext();
     const result = await orderStatusQuery.checkOrderState('ORDER-NOT-EXIST');

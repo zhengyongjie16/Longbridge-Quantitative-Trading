@@ -14,7 +14,7 @@ import { createTimeWakeupRuntime } from '../main/timeWakeupRuntime/index.js';
 import { applyStartupSnapshotFailureState } from '../main/lifecycle/startupFailureState.js';
 import { displayAccountAndPositions } from '../services/accountDisplay/index.js';
 import { logger } from '../utils/logger/index.js';
-import { formatError } from '../utils/error/index.js';
+import { formatError, toError } from '../utils/error/index.js';
 import { isExternalApiRequestError } from '../utils/apiFailure/index.js';
 import { createCleanup } from './shutdown/createCleanup.js';
 import { createLifecycleRuntime } from './lifecycle/createLifecycleRuntime.js';
@@ -290,8 +290,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
 
     const waitForInitialTimeWakeup = (): Promise<void> =>
       Promise.race([timeWakeupRuntime.start(), timeWakeupRuntime.drainFatalError()]);
-    const toError = (error: unknown): Error =>
-      error instanceof Error ? error : new Error(formatAppError(error));
 
     let waitError: Error | null = null;
     try {
@@ -324,6 +322,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
         waitForShutdown(),
         timeWakeupRuntime.drainFatalError(),
         asyncRuntime.drainFatalError(),
+        postGateRuntime.drainFatalError(),
         postGateRuntime.postTradeConsistencyRuntime.drainFatalError(),
         postGateRuntime.autoSearchWakeupRuntime.drainFatalError(),
       ]);

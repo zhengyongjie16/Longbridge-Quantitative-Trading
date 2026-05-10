@@ -175,6 +175,35 @@ describe('quoteClient business flow', () => {
     expect(quoteMock.getCalls('realtimeQuote')).toHaveLength(1);
   });
 
+  it('returns null for realtime quotes with non-positive lastDone', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 0, 1.2),
+      },
+    ]);
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+    const quotes = await client.getQuotes(['BULL.HK']);
+
+    expect(quotes.get('BULL.HK')).toBeNull();
+  });
+
   it('retries quote subscription after a transient API failure', async () => {
     quoteMock.seedStaticInfo([
       {
@@ -196,7 +225,7 @@ describe('quoteClient business flow', () => {
 
     quoteMock.setFailureRule('subscribe', {
       failAtCalls: [1],
-      errorMessage: 'subscribe unavailable',
+      errorMessage: 'service unavailable',
     });
     const client = await createMarketDataClient({
       config: createSdkConfigDouble(),
@@ -239,7 +268,7 @@ describe('quoteClient business flow', () => {
     await client.subscribeSymbols(['BULL.HK']);
     quoteMock.setFailureRule('unsubscribe', {
       failAtCalls: [1],
-      errorMessage: 'unsubscribe unavailable',
+      errorMessage: 'service unavailable',
     });
 
     let error: unknown = null;
@@ -598,7 +627,7 @@ describe('quoteClient business flow', () => {
     await client.subscribeSymbols(['BULL.HK']);
     quoteMock.setFailureRule('realtimeQuote', {
       failAtCalls: [1],
-      errorMessage: 'realtime unavailable',
+      errorMessage: 'service unavailable',
     });
 
     let error: unknown = null;
@@ -926,7 +955,7 @@ describe('quoteClient business flow', () => {
     quoteMock.setFailureRule('unsubscribe', {
       failAtCalls: [1, 2, 3],
       maxFailures: 3,
-      errorMessage: 'unsubscribe failed by rule',
+      errorMessage: 'service unavailable',
     });
 
     expect(client.resetRuntimeSubscriptionsAndCaches()).rejects.toThrow('外部 API 请求失败');
@@ -970,7 +999,7 @@ describe('quoteClient business flow', () => {
     quoteMock.setFailureRule('unsubscribe', {
       failAtCalls: [1, 2, 3],
       maxFailures: 3,
-      errorMessage: 'unsubscribe failed by rule',
+      errorMessage: 'service unavailable',
     });
 
     let caught: unknown = null;
@@ -1013,7 +1042,7 @@ describe('quoteClient business flow', () => {
     quoteMock.setFailureRule('unsubscribe', {
       failAtCalls: [1, 2, 3],
       maxFailures: 3,
-      errorMessage: 'unsubscribe failed by rule',
+      errorMessage: 'service unavailable',
     });
 
     let caught: unknown = null;
@@ -1046,7 +1075,7 @@ describe('quoteClient business flow', () => {
     quoteMock.setFailureRule('unsubscribeCandlesticks', {
       failAtCalls: [2, 3, 4],
       maxFailures: 3,
-      errorMessage: 'unsubscribe candlestick failed by rule',
+      errorMessage: 'service unavailable',
     });
 
     expect(client.resetRuntimeSubscriptionsAndCaches()).rejects.toThrow('外部 API 请求失败');

@@ -671,7 +671,7 @@ describe('autoSymbolFinder business flow', () => {
     const quoteCtx = createQuoteContextMock();
     quoteCtx.setFailureRule('warrantList', {
       failAtCalls: [1, 2, 3],
-      errorMessage: 'warrant list mock failed',
+      errorMessage: 'service unavailable',
     });
 
     const { logger } = createLoggerRecorder();

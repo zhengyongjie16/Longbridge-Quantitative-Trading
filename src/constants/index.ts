@@ -332,6 +332,31 @@ export const REPLACE_UNSUPPORTED_BY_TYPE_ERROR_CODE_SET = new Set(['602012']);
  */
 export const REPLACE_TEMP_BLOCKED_BY_STATUS_ERROR_CODE_SET = new Set(['602013']);
 
+/** 订单 API 暂态状态码：超时、限流和服务端临时不可用 */
+export const ORDER_API_TRANSIENT_STATUS_CODE_SET = new Set([
+  '408',
+  '425',
+  '429',
+  '500',
+  '502',
+  '503',
+  '504',
+]);
+
+/** 订单 API 暂态错误消息关键词 */
+export const ORDER_API_RETRYABLE_MESSAGE_HINTS = [
+  'network',
+  'timeout',
+  'timed out',
+  'temporarily unavailable',
+  'service unavailable',
+  'service busy',
+  'connection',
+  'econnreset',
+  'etimedout',
+  'rate limit',
+] as const;
+
 /** 百分比格式化小数位数 */
 export const DEFAULT_PERCENT_DECIMALS = 2;
 

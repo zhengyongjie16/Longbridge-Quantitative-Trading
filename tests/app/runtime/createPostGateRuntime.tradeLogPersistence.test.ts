@@ -141,6 +141,70 @@ describe('createPostGateRuntime trade log persistence', () => {
     });
   });
 
+  it('fails fast and preserves the existing trade log when daily trade log JSON is invalid', async () => {
+    const executedTimeMs = Date.parse('2026-03-13T09:40:00+08:00');
+    const logFile = buildTradeLogPath(TEST_LOG_ROOT_DIR, new Date(executedTimeMs));
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    fs.writeFileSync(logFile, '{invalid json', 'utf8');
+
+    const createPostGateRuntime = createPostGateRuntimeForTest();
+    const runtime = await createPostGateRuntime(createRuntimeParams());
+    const fatalErrorPromise = runtime.drainFatalError().catch((error: unknown) => error);
+    const listener = requireCapturedOrderStateChangedListener();
+    const event: OrderStateChangedEvent = {
+      orderId: 'BUY-BROKEN-LOG',
+      symbol: 'BULL.HK',
+      side: 'BUY',
+      source: 'WS',
+      status: 'FILLED',
+      monitorSymbol: 'HSI.HK',
+      isLongSymbol: true,
+      isProtectiveLiquidation: false,
+      executedPrice: 1.23,
+      executedQuantity: 100,
+      executedTimeMs,
+    };
+
+    expect(() => {
+      listener(event);
+    }).toThrow(SyntaxError);
+    const fatalError = await fatalErrorPromise;
+    expect(fatalError).toBeInstanceOf(SyntaxError);
+    expect(fs.readFileSync(logFile, 'utf8')).toBe('{invalid json');
+  });
+
+  it('fails fast and preserves the existing trade log when daily trade log root is not an array', async () => {
+    const executedTimeMs = Date.parse('2026-03-13T09:45:00+08:00');
+    const logFile = buildTradeLogPath(TEST_LOG_ROOT_DIR, new Date(executedTimeMs));
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    fs.writeFileSync(logFile, '{}', 'utf8');
+
+    const createPostGateRuntime = createPostGateRuntimeForTest();
+    const runtime = await createPostGateRuntime(createRuntimeParams());
+    const fatalErrorPromise = runtime.drainFatalError().catch((error: unknown) => error);
+    const listener = requireCapturedOrderStateChangedListener();
+    const event: OrderStateChangedEvent = {
+      orderId: 'BUY-NON-ARRAY-LOG',
+      symbol: 'BULL.HK',
+      side: 'BUY',
+      source: 'WS',
+      status: 'FILLED',
+      monitorSymbol: 'HSI.HK',
+      isLongSymbol: true,
+      isProtectiveLiquidation: false,
+      executedPrice: 1.23,
+      executedQuantity: 100,
+      executedTimeMs,
+    };
+
+    expect(() => {
+      listener(event);
+    }).toThrow(TypeError);
+    const fatalError = await fatalErrorPromise;
+    expect(fatalError).toBeInstanceOf(TypeError);
+    expect(fs.readFileSync(logFile, 'utf8')).toBe('{}');
+  });
+
   it('writes protective liquidation completion records compatible with tradeLogHydrator', async () => {
     const executedTimeMs = Date.parse('2026-03-13T10:00:00+08:00');
     const event: OrderStateChangedEvent = {

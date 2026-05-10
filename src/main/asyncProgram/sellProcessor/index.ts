@@ -30,8 +30,8 @@ import {
   logProcessorTaskFailure,
 } from '../utils.js';
 import {
-  isQuoteReadyForRequirement,
   resolveNextQuoteRetry,
+  resolveQuoteReadinessForRequirement,
 } from '../../../utils/quoteRetry/index.js';
 import { isExternalApiRequestError } from '../../../utils/apiFailure/index.js';
 import { logger } from '../../../utils/logger/index.js';
@@ -201,9 +201,20 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       const retryKey = buildSellRetryKey({ monitorSymbol, signal });
       const retryState = retryStates.get(retryKey);
       const targetQuote = signal.action === 'SELLCALL' ? longQuote : shortQuote;
-      const quoteReady = isQuoteReadyForRequirement({ quote: targetQuote, requirement: 'PRICE' });
-      if (!quoteReady) {
+      const quoteReadiness = resolveQuoteReadinessForRequirement({
+        quote: targetQuote,
+        requirement: 'PRICE',
+      });
+      if (quoteReadiness !== 'READY') {
         if (!lifecycleActive) {
+          return;
+        }
+
+        if (quoteReadiness !== 'MISSING') {
+          clearRetryState(retryKey);
+          logger.warn(
+            `[SellProcessor] 卖出行情无效，放弃当前执行: ${symbolDisplay} ${signal.action} readiness=${quoteReadiness}`,
+          );
           return;
         }
 
@@ -278,7 +289,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
 
       const executionSeatValidation = validateSignalSeat({
         monitorSymbol,
-        signal,
+        signal: firstSignal,
         symbolRegistry,
       });
       if (!executionSeatValidation.valid) {
@@ -291,7 +302,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       await executeSignalsWithLifecycleGate({
         getCanProcessTask,
         trader,
-        signal,
+        signal: firstSignal,
         symbolDisplay,
         loggerPrefix: 'SellProcessor',
         successMessage: '卖出订单执行完成',

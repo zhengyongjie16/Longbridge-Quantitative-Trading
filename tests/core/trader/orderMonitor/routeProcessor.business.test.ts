@@ -1262,13 +1262,64 @@ describe('orderMonitor routeProcessor', () => {
         symbol: 'BULL.HK',
         generation: 1,
         wakeupKind: 'QUOTE',
-        latestQuote: createQuoteDouble('BULL.HK', 0),
+        latestQuote: null,
       });
 
       expect(replaceOrderIds).toEqual([]);
       const order = runtime.trackedOrders.get('SELL-QUOTE-RETRY-STATE');
       expect(order?.quoteRetryAttempts).toBe(1);
       expect(order?.quoteRetryNextAt).toBe(nowMs + ORDER_QUOTE_RETRY.INTERVAL_MS);
+      expect(order?.quoteRetryExhausted).toBe(false);
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
+  it('QUOTE 唤醒遇到无效价格时不会推进 quote retry 状态', async () => {
+    const originalNow = Date.now;
+    const nowMs = Date.parse('2026-04-09T10:02:00.000Z');
+    Date.now = () => nowMs;
+
+    try {
+      const runtime = createRuntimeStore();
+      attachTrackedOrders(runtime, 'BULL.HK', [
+        createTrackedOrder({
+          orderId: 'SELL-INVALID-QUOTE-NO-RETRY',
+          symbol: 'BULL.HK',
+          side: OrderSide.Sell,
+          submittedAt: nowMs - 1_000,
+          submittedPrice: 1,
+          initialSubmittedPrice: 1,
+          lastPriceUpdateAt: 0,
+          quoteRetryAttempts: 0,
+          quoteRetryNextAt: null,
+          quoteRetryExhausted: false,
+        }),
+      ]);
+      const replaceOrderIds: string[] = [];
+      const { deps } = createDeps({
+        runtime,
+        config: createConfig({
+          buyTimeoutMs: 60_000,
+          sellTimeoutMs: 60_000,
+        }),
+        replaceOrderPrice: async (orderId) => {
+          replaceOrderIds.push(orderId);
+        },
+      });
+      const routeProcessor = createRouteProcessor(deps);
+
+      await routeProcessor.processRoute({
+        symbol: 'BULL.HK',
+        generation: 1,
+        wakeupKind: 'QUOTE',
+        latestQuote: createQuoteDouble('BULL.HK', 0),
+      });
+
+      expect(replaceOrderIds).toEqual([]);
+      const order = runtime.trackedOrders.get('SELL-INVALID-QUOTE-NO-RETRY');
+      expect(order?.quoteRetryAttempts).toBe(0);
+      expect(order?.quoteRetryNextAt).toBeNull();
       expect(order?.quoteRetryExhausted).toBe(false);
     } finally {
       Date.now = originalNow;
@@ -1313,7 +1364,7 @@ describe('orderMonitor routeProcessor', () => {
         symbol: 'BULL.HK',
         generation: 1,
         wakeupKind: 'TIMER',
-        latestQuote: createQuoteDouble('BULL.HK', 0),
+        latestQuote: null,
       });
 
       expect(replaceOrderIds).toEqual([]);
