@@ -6,7 +6,7 @@ import type { Quote } from '../../types/quote.js';
  * 数据来源：由调用方根据业务动作（如下单、监控）传入。
  * 使用范围：quoteRetry 工具模块及其调用方。
  */
-export type QuoteRetryRequirement = 'PRICE' | 'PRICE_AND_LOT_SIZE';
+type QuoteRetryRequirement = 'PRICE' | 'PRICE_AND_LOT_SIZE';
 
 /**
  * quote 就绪性分类。

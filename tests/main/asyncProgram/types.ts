@@ -25,15 +25,3 @@ export type CreateBusinessProcessorParams = Readonly<{
     'markWaitingEmpty' | 'clearWaitingEmpty' | 'replanRouteAfterTask'
   >;
 }>;
-
-/**
- * 长仓单向清仓上下文钩子参数。
- * 类型用途：描述测试中用于观察 clearBuyOrders / lossOffset / refreshUnrealizedLoss 调用的可选回调。
- * 数据来源：由 tests/main/asyncProgram/monitorTaskProcessor/business.test.ts 构造。
- * 使用范围：tests/main/asyncProgram 下相关业务测试。
- */
-export type CreateTriggeredLongOnlyLiquidationContextParams = Readonly<{
-  readonly onClearBuyOrders?: (isLongSymbol: boolean) => void;
-  readonly onGetLossOffset?: (isLongSymbol: boolean) => void;
-  readonly onRefreshUnrealizedLoss?: (isLongSymbol: boolean) => void;
-}>;

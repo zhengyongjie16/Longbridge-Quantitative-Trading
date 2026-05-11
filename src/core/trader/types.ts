@@ -550,7 +550,7 @@ export type OrderMonitorDeps = {
  * 数据来源：由主程序/启动层注入，单一状态源，执行层统一判定。
  * 使用范围：Trader、OrderMonitor、OrderExecutor 依赖注入使用。
  */
-export type IsExecutionAllowed = () => boolean;
+type IsExecutionAllowed = () => boolean;
 
 /**
  * 订单执行器依赖。

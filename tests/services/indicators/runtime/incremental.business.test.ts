@@ -16,7 +16,6 @@ import {
   buildSnapshotFromRuntime,
   updateRuntimeForCandlestickSnapshot,
 } from '../../../../src/services/indicators/runtime/index.js';
-import { buildIndicatorSnapshot } from '../../../../tools/dailyKlineMonitor/runtimeSnapshot.js';
 import { createIndicatorUsageProfileDouble } from '../../../helpers/testDoubles.js';
 
 function createCandle(params: {
@@ -79,6 +78,27 @@ function createCacheSnapshot(params: {
     lastBarConfirmed: params.lastBarConfirmed,
     initialized: true,
   };
+}
+
+function buildIndicatorSnapshot(
+  candles: ReadonlyArray<CandleData>,
+  profile: IndicatorUsageProfile,
+) {
+  const runtime = bootstrapIndicatorRuntime({
+    symbol: 'HSI.HK',
+    cacheSnapshot: createCacheSnapshot({
+      candles,
+      version: 1,
+      lastBarConfirmed: true,
+    }),
+    indicatorProfile: profile,
+  });
+
+  if (runtime === null) {
+    return null;
+  }
+
+  return buildSnapshotFromRuntime(runtime);
 }
 
 function expectRuntimeSnapshotEqualsFull(params: {

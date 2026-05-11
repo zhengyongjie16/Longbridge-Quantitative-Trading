@@ -4,7 +4,7 @@
  * 功能：
  * - 收盘前的风险控制
  * - 买入截止窗口内拒绝买入新订单并撤销未成交买入订单
- * - 清仓接管窗口内自动清仓所有持仓
+ * - 清仓接管窗口内对当前监控席位可归属且行情可执行的持仓发起自动清仓
  *
  * 时间规则：
  * - 窗口长度由 `src/constants/index.ts` 中的 `DOOMSDAY` 常量统一定义
@@ -187,7 +187,7 @@ function processPositionForClearance(
 
 /**
  * 创建末日保护程序（生命周期/风控：买入截止与自动清仓）
- * 买入截止窗口内拒绝买入并撤销未成交买入单，清仓接管窗口内自动清仓所有持仓。
+ * 买入截止窗口内拒绝买入并撤销未成交买入单，清仓接管窗口内对当前监控席位可归属且行情可执行的持仓发起自动清仓。
  * @returns DoomsdayProtection 接口实例（isBuyCutoffWindowActive、executeClearance、cancelPendingBuyOrders）
  */
 export function createDoomsdayProtection(deps?: {
@@ -474,10 +474,10 @@ export function createDoomsdayProtection(deps?: {
         return { executed: false, cancelRequestAcceptedCount: 0, nextRetryAtMs: null };
       }
 
-      // 检查当天是否已执行过撤单检查
-      // 逻辑：首次进入买入截止窗口时执行一次，之后不再重复
-      // 原因：末日保护期间已拒绝新买入，不会有新的买入订单产生
-      //       已撤销的订单会进入 WebSocket 监控，无需重复查询
+      // 检查当天是否已完成撤单检查
+      // 逻辑：处于买入截止窗口内时执行检查；仅在确认无需继续处理后才标记当天完成
+      // 原因：末日保护期间已拒绝新买入，但若仍有撤单未确认成功，后续仍需继续复查
+      //       已接受的撤单请求终态由 WebSocket 监控，无需额外轮询单笔订单状态
       const todayDateString = getHKDateKey(currentTime);
       if (cancelCheckExecutedDate === todayDateString) {
         // 当天已执行过，直接返回
@@ -506,10 +506,10 @@ export function createDoomsdayProtection(deps?: {
 
       const symbolsArray = [...allTradingSymbols];
 
-      // 首次进入买入截止窗口，查询未成交订单
-      // 注意：这是当天唯一一次查询，之后不再重复调用 Trade API
+      // 在买入截止窗口内查询未成交订单。
+      // 若仍有撤单未确认成功，后续会继续调用 Trade API 复查。
       const closeTimeRange = getDoomsdayBuyCutoffWindowRangeLabel(isHalfDay);
-      logger.info(`[末日保护程序] 首次进入买入截止窗口（${closeTimeRange}），检查未成交买入订单`);
+      logger.info(`[末日保护程序] 买入截止窗口（${closeTimeRange}）内检查未成交买入订单`);
       const pendingOrders = await trader.getPendingOrders(symbolsArray, true);
 
       // 过滤出买入订单

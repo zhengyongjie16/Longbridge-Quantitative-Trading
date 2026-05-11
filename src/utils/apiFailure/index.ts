@@ -260,7 +260,7 @@ function resolveExternalApiRetryDecision(error: unknown): ExternalApiRetryDecisi
  * @param error 待分类错误对象
  * @returns true 表示可进入有限重试
  */
-export function isRetryableExternalApiError(error: unknown): boolean {
+function isRetryableExternalApiError(error: unknown): boolean {
   return resolveExternalApiRetryDecision(error) === 'RETRY';
 }
 

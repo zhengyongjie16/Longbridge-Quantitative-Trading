@@ -30,7 +30,9 @@ const EXPECTED_WAIT_RESOLVED_RETRY_AT_MS = WAIT_RESOLVED_TIME_MS + ORDER_QUOTE_R
 function createExecutorHarness(
   params: {
     readonly executeSignalsSubmittedCount?: number;
+    readonly executeSignalsSubmittedCounts?: ReadonlyArray<number>;
     readonly shouldLiquidateLong?: boolean;
+    readonly shouldLiquidateShort?: boolean;
     readonly longSeatStatus?: 'EMPTY' | 'SEARCHING' | 'SWITCHING' | 'ACTIVATING' | 'ACTIVE';
     readonly bumpLongSeatVersionAfterSignalBuild?: boolean;
     readonly bumpLongSeatVersionAfterSubmission?: boolean;
@@ -43,13 +45,17 @@ function createExecutorHarness(
   const submittedActions: string[] = [];
   const submittedTriggerTimes: number[] = [];
   const liquidationMonitorPrices: number[] = [];
+  const clearedOrderSymbols: string[] = [];
+  const refreshedSymbols: string[] = [];
   let clearedOrders = 0;
   let refreshUnrealizedCalls = 0;
   let currentNowMs = EXECUTION_TIME_MS;
+  let executeSignalsCallIndex = 0;
 
   const orderRecorder = createOrderRecorderDouble({
-    clearBuyOrders: () => {
+    clearBuyOrders: (symbol) => {
       clearedOrders += 1;
+      clearedOrderSymbols.push(symbol);
     },
   });
 
@@ -115,7 +121,10 @@ function createExecutorHarness(
     riskChecker: createRiskCheckerDouble({
       checkWarrantDistanceLiquidation: (_symbol, isLongSymbol, monitorCurrentPrice) => {
         liquidationMonitorPrices.push(monitorCurrentPrice);
-        if (isLongSymbol ? (params.shouldLiquidateLong ?? true) : false) {
+        const shouldLiquidate = isLongSymbol
+          ? (params.shouldLiquidateLong ?? true)
+          : (params.shouldLiquidateShort ?? false);
+        if (shouldLiquidate) {
           return {
             shouldLiquidate: true,
             reason: '触发清仓阈值',
@@ -126,8 +135,9 @@ function createExecutorHarness(
           shouldLiquidate: false,
         };
       },
-      refreshUnrealizedLossData: async () => {
+      refreshUnrealizedLossData: async (_orderRecorder, symbol) => {
         refreshUnrealizedCalls += 1;
+        refreshedSymbols.push(symbol);
         return { r1: 100, n1: 100 };
       },
     }),
@@ -147,7 +157,10 @@ function createExecutorHarness(
       }
 
       return {
-        submittedCount: params.executeSignalsSubmittedCount ?? signals.length,
+        submittedCount:
+          params.executeSignalsSubmittedCounts?.[executeSignalsCallIndex++] ??
+          params.executeSignalsSubmittedCount ??
+          signals.length,
         submittedOrderIds: [],
       };
     },
@@ -180,15 +193,23 @@ function createExecutorHarness(
       positionCache: {
         update: () => {},
         get: (symbol) => {
-          if (symbol !== 'BULL.HK') {
-            return null;
+          if (symbol === 'BULL.HK') {
+            return createPositionDouble({
+              symbol: 'BULL.HK',
+              quantity: 200,
+              availableQuantity: 200,
+            });
           }
 
-          return createPositionDouble({
-            symbol: 'BULL.HK',
-            quantity: 200,
-            availableQuantity: 200,
-          });
+          if (symbol === 'BEAR.HK' && params.shouldLiquidateShort) {
+            return createPositionDouble({
+              symbol: 'BEAR.HK',
+              quantity: 300,
+              availableQuantity: 300,
+            });
+          }
+
+          return null;
         },
       },
     },
@@ -201,6 +222,8 @@ function createExecutorHarness(
     submittedActions,
     getSubmittedTriggerTimes: () => [...submittedTriggerTimes],
     getLiquidationMonitorPrices: () => [...liquidationMonitorPrices],
+    getClearedOrderSymbols: () => [...clearedOrderSymbols],
+    getRefreshedSymbols: () => [...refreshedSymbols],
     getClearedOrders: () => clearedOrders,
     getRefreshUnrealizedCalls: () => refreshUnrealizedCalls,
   };
@@ -324,6 +347,52 @@ describe('staticLiquidationExecutor', () => {
     expect(harness.getRefreshUnrealizedCalls()).toBe(0);
   });
 
+  it('keeps clearing the successfully submitted candidate when later candidate only partially submits', async () => {
+    const harness = createExecutorHarness({
+      executeSignalsSubmittedCounts: [1, 0],
+      shouldLiquidateShort: true,
+    });
+
+    const result = await harness.executor({
+      monitorContext: harness.monitorContext,
+      event: {
+        symbol: 'HSI.HK',
+        quote: createQuoteDouble('HSI.HK', 20_000, 100),
+      },
+      retryAttempts: 0,
+    });
+
+    expect(result).toEqual({ kind: 'COMPLETED' });
+    expect(harness.submittedActions).toEqual(['SELLCALL', 'SELLPUT']);
+    expect(harness.getClearedOrderSymbols()).toEqual(['BULL.HK']);
+    expect(harness.getRefreshedSymbols()).toEqual(['BULL.HK']);
+    expect(harness.getClearedOrders()).toBe(1);
+    expect(harness.getRefreshUnrealizedCalls()).toBe(1);
+  });
+
+  it('keeps evaluating later candidates when earlier candidate is not submitted', async () => {
+    const harness = createExecutorHarness({
+      executeSignalsSubmittedCounts: [0, 1],
+      shouldLiquidateShort: true,
+    });
+
+    const result = await harness.executor({
+      monitorContext: harness.monitorContext,
+      event: {
+        symbol: 'HSI.HK',
+        quote: createQuoteDouble('HSI.HK', 20_000, 100),
+      },
+      retryAttempts: 0,
+    });
+
+    expect(result).toEqual({ kind: 'COMPLETED' });
+    expect(harness.submittedActions).toEqual(['SELLCALL', 'SELLPUT']);
+    expect(harness.getClearedOrderSymbols()).toEqual(['BEAR.HK']);
+    expect(harness.getRefreshedSymbols()).toEqual(['BEAR.HK']);
+    expect(harness.getClearedOrders()).toBe(1);
+    expect(harness.getRefreshUnrealizedCalls()).toBe(1);
+  });
+
   it('does not clear caches when long seatVersion changes before submission settles', async () => {
     const harness = createExecutorHarness({
       bumpLongSeatVersionAfterSignalBuild: true,
@@ -343,12 +412,12 @@ describe('staticLiquidationExecutor', () => {
     expect(harness.getRefreshUnrealizedCalls()).toBe(0);
   });
 
-  it('skips cache mutation when long seatVersion changes after submission returns', async () => {
+  it('still clears local state when long seatVersion changes after submission returns', async () => {
     const harness = createExecutorHarness({
       bumpLongSeatVersionAfterSubmission: true,
     });
 
-    await harness.executor({
+    const result = await harness.executor({
       monitorContext: harness.monitorContext,
       event: {
         symbol: 'HSI.HK',
@@ -357,9 +426,12 @@ describe('staticLiquidationExecutor', () => {
       retryAttempts: 0,
     });
 
+    expect(result).toEqual({ kind: 'COMPLETED' });
     expect(harness.submittedActions).toEqual(['SELLCALL']);
-    expect(harness.getClearedOrders()).toBe(0);
-    expect(harness.getRefreshUnrealizedCalls()).toBe(0);
+    expect(harness.getClearedOrderSymbols()).toEqual(['BULL.HK']);
+    expect(harness.getRefreshedSymbols()).toEqual(['BULL.HK']);
+    expect(harness.getClearedOrders()).toBe(1);
+    expect(harness.getRefreshUnrealizedCalls()).toBe(1);
   });
 
   it('skips cache mutation when long seat is no longer active at execution time', async () => {

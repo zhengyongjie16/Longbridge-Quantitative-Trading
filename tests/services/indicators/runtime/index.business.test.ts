@@ -5,6 +5,7 @@
  * - 验证指标运行时计算相关场景意图、边界条件与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
+import { Period } from 'longbridge';
 
 import {
   calculateEMA,
@@ -12,10 +13,15 @@ import {
   calculateMFI,
   calculateRSI,
 } from '../../../../tools/dailyIndicatorAnalysis/indicatorCalculators.js';
-import { buildIndicatorSnapshot } from '../../../../tools/dailyKlineMonitor/runtimeSnapshot.js';
+import {
+  bootstrapIndicatorRuntime,
+  buildSnapshotFromRuntime,
+} from '../../../../src/services/indicators/runtime/index.js';
 import { toNumber } from '../../../../src/services/indicators/runtime/utils.js';
 import { toMockDecimal } from '../../../../mock/longbridge/decimal.js';
 import type { CandleData } from '../../../../src/types/data.js';
+import type { IndicatorUsageProfile } from '../../../../src/types/indicatorProfile.js';
+import type { CandlestickCacheSnapshot } from '../../../../src/types/services.js';
 import { createIndicatorUsageProfileDouble } from '../../../helpers/testDoubles.js';
 
 function createTrendCandles(
@@ -36,6 +42,32 @@ function createTrendCandles(
   }
 
   return candles;
+}
+
+function buildIndicatorSnapshot(
+  candles: ReadonlyArray<CandleData>,
+  indicatorProfile: IndicatorUsageProfile,
+) {
+  const cacheSnapshot: CandlestickCacheSnapshot = {
+    symbol: 'HSI.HK',
+    period: Period.Min_1,
+    version: 1,
+    candles,
+    lastBarTimestamp: null,
+    lastBarConfirmed: true,
+    initialized: true,
+  };
+  const runtime = bootstrapIndicatorRuntime({
+    symbol: 'HSI.HK',
+    cacheSnapshot,
+    indicatorProfile,
+  });
+
+  if (runtime === null) {
+    return null;
+  }
+
+  return buildSnapshotFromRuntime(runtime);
 }
 
 describe('indicators/runtime business flow', () => {

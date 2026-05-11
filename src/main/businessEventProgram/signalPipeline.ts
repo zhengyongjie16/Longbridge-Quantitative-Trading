@@ -3,7 +3,7 @@
  *
  * 功能：
  * - 接收策略生成的交易信号（立即信号和延迟验证信号）
- * - 进行席位状态校验（席位就绪、版本匹配、标的匹配）
+ * - 进行席位状态校验（席位就绪、标的匹配），并补写当前席位版本
  * - 根据信号类型分流到对应的任务队列
  *
  * 信号分流规则：
@@ -11,10 +11,10 @@
  * - 立即卖出信号 → sellTaskQueue (IMMEDIATE_SELL)
  * - 延迟验证信号 → delayedSignalVerifier
  *
- * 席位校验条件：
+ * 席位校验与补写条件：
  * 1. 席位状态必须为 ACTIVE
- * 2. 信号中的席位版本必须与当前席位版本匹配
- * 3. 信号标的必须与席位当前标的匹配
+ * 2. 信号标的必须与席位当前标的匹配
+ * 3. 通过校验后补写当前席位版本，供执行阶段校验
  */
 import { logger } from '../../utils/logger/index.js';
 import { isBuyAction } from '../../utils/helpers/index.js';
@@ -29,8 +29,8 @@ import { formatSymbolDisplay, isSellAction } from '../../utils/display/index.js'
 
 /**
  * 执行信号处理流水线。
- * 普通信号门禁关闭时直接返回，不生成 immediate/delayed 候选信号。
- * 门禁打开后调用策略生成信号，完成席位校验（状态、版本、标的匹配），
+ * 开盘保护激活或普通信号门禁关闭时直接返回，不生成 immediate/delayed 候选信号。
+ * 仅在前置门禁放行后调用策略生成信号，完成席位校验（状态、标的匹配）并补写当前席位版本，
  * 再按信号类型分流：立即信号入买卖队列，延迟信号交由 delayedSignalVerifier 管理。
  */
 export function runSignalPipeline(params: SignalPipelineParams): void {

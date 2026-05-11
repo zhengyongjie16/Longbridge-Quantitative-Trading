@@ -139,7 +139,6 @@ function createStaticLiquidationCandidate(params: {
     kind: 'CANDIDATE',
     candidate: {
       signal,
-      direction,
       quote: tradingQuote,
     },
   };
@@ -241,27 +240,9 @@ export function createStaticLiquidationExecutor(
       return { kind: 'NOOP' };
     }
 
-    const executableCandidates = candidates.filter((candidate) => {
-      const seatValidation = validateSignalSeat({
-        monitorSymbol,
-        signal: candidate.signal,
-        symbolRegistry: monitorContext.symbolRegistry,
-      });
-      return seatValidation.valid;
-    });
-    if (executableCandidates.length === 0) {
-      return { kind: 'NOOP' };
-    }
+    let hasSubmittedCandidate = false;
 
-    const executionResult = await trader.executeSignals(
-      executableCandidates.map((candidate) => candidate.signal),
-    );
-    if (executionResult.submittedCount !== executableCandidates.length) {
-      return { kind: 'NOOP' };
-    }
-
-    for (const candidate of executableCandidates) {
-      const isLongDirection = candidate.direction === 'LONG';
+    for (const candidate of candidates) {
       const seatValidation = validateSignalSeat({
         monitorSymbol,
         signal: candidate.signal,
@@ -271,6 +252,14 @@ export function createStaticLiquidationExecutor(
         continue;
       }
 
+      const executionResult = await trader.executeSignals([candidate.signal]);
+      if (executionResult.submittedCount !== 1) {
+        continue;
+      }
+
+      hasSubmittedCandidate = true;
+
+      const isLongDirection = candidate.signal.action === 'SELLCALL';
       monitorContext.orderRecorder.clearBuyOrders(
         candidate.signal.symbol,
         isLongDirection,
@@ -289,6 +278,6 @@ export function createStaticLiquidationExecutor(
       );
     }
 
-    return { kind: 'COMPLETED' };
+    return hasSubmittedCandidate ? { kind: 'COMPLETED' } : { kind: 'NOOP' };
   };
 }

@@ -329,7 +329,6 @@ export type CreateStaticLiquidationExecutorDeps = Readonly<{
  */
 export type StaticLiquidationCandidate = Readonly<{
   readonly signal: Signal;
-  readonly direction: 'LONG' | 'SHORT';
   readonly quote: QuoteUpdatedEvent['quote'];
 }>;
 

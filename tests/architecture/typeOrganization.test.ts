@@ -88,7 +88,6 @@ describe('type organization regressions', () => {
         forbiddenPatterns: [
           /\btype\s+MonitorTaskQueueForTest\b/,
           /\btype\s+CreateBusinessProcessorParams\b/,
-          /\btype\s+CreateTriggeredLongOnlyLiquidationContextParams\b/,
         ],
       },
       {
@@ -183,7 +182,6 @@ describe('type organization regressions', () => {
       'src/main/asyncProgram/monitorTaskProcessor/types.ts',
       'src/main/asyncProgram/sellProcessor/types.ts',
       'src/main/tradingRiskEventRuntime/types.ts',
-      'tests/integration/types.ts',
       'tests/main/asyncProgram/types.ts',
       'tests/main/lifecycle/types.ts',
       'tests/core/trader/types.ts',
@@ -242,12 +240,21 @@ describe('type organization regressions', () => {
     expectNoNamedExport(seatTypesSource, 'GateMode');
   });
 
+  it('keeps recently removed internal surfaces private and deleted test helper types absent', async () => {
+    const apiFailureSource = await readProjectFile('src/utils/apiFailure/index.ts');
+    const quoteRetryTypesSource = await readProjectFile('src/utils/quoteRetry/types.ts');
+    const traderTypesSource = await readProjectFile('src/core/trader/types.ts');
+    const asyncProgramTypesSource = await readProjectFile('tests/main/asyncProgram/types.ts');
+
+    expectNoNamedExport(apiFailureSource, 'isRetryableExternalApiError');
+    expectNoNamedExport(quoteRetryTypesSource, 'QuoteRetryRequirement');
+    expectNoNamedExport(traderTypesSource, 'IsExecutionAllowed');
+    expectNoNamedExport(asyncProgramTypesSource, 'CreateTriggeredLongOnlyLiquidationContextParams');
+  });
+
   it('keeps non-app modules free of confirmed dead public surface', async () => {
     const indicatorRuntimeUtilsSource = await readProjectFile(
       'src/services/indicators/runtime/utils.ts',
-    );
-    const dailyKlineRuntimeSnapshotSource = await readProjectFile(
-      'tools/dailyKlineMonitor/runtimeSnapshot.ts',
     );
     const monitorQuoteTypesSource = await readProjectFile(
       'src/main/monitorQuoteEventRuntime/types.ts',
@@ -266,7 +273,7 @@ describe('type organization regressions', () => {
     expect(indicatorRuntimeUtilsSource).not.toMatch(/export\s+function\s+logDebug\b/);
     expect(await exists('src/utils/objectPool/index.ts')).toBe(false);
     expect(await exists('src/utils/objectPool/types.ts')).toBe(false);
-    expect(dailyKlineRuntimeSnapshotSource).not.toMatch(/utils\/objectPool\/index\.js/);
+    expect(await exists('tools/dailyKlineMonitor/runtimeSnapshot.ts')).toBe(false);
     expect(monitorQuoteTypesSource).not.toMatch(/export\s+type\s+MonitorQuoteFreshnessStatus\b/);
     expect(monitorQuoteTypesSource).not.toMatch(/export\s+interface\s+SwitchWakeupFreshnessDeps\b/);
     expect(tradingRiskTypesSource).not.toMatch(/export\s+interface\s+TradingRiskConsistencyPort\b/);
