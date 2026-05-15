@@ -460,8 +460,11 @@ export function createPostTradeConsistencyRuntime(
       if (fatalInvariantDetected) {
         // fatal invariant 已在 catch 中升级为异常，这里只负责阻止重试与版本回滚。
       } else if (refreshOk) {
-        refreshGate.markFresh(targetVersion);
-        emitFreshReached('REFRESH');
+        const gateStatus = refreshGate.getStatus();
+        if (gateStatus.abortReason !== 'STOP_AND_DRAIN') {
+          refreshGate.markFresh(targetVersion);
+          emitFreshReached('REFRESH');
+        }
       } else {
         pendingNeed = mergeRefreshNeed(need, pendingNeed);
         pendingVersion = mergePendingVersion(pendingVersion, targetVersion);

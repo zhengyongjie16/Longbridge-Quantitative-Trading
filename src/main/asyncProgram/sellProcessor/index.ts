@@ -34,6 +34,7 @@ import {
   resolveQuoteReadinessForRequirement,
 } from '../../../utils/quoteRetry/index.js';
 import { isExternalApiRequestError } from '../../../utils/apiFailure/index.js';
+import { isRefreshGateAbortError } from '../../../utils/refreshGate/index.js';
 import { logger } from '../../../utils/logger/index.js';
 import { isSeatActive } from '../../../utils/seat/guards.js';
 import {
@@ -148,7 +149,15 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
     const { data: signal, monitorSymbol } = task;
     const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
     try {
-      await postTradeConsistencyRuntime.waitForFresh();
+      try {
+        await postTradeConsistencyRuntime.waitForFresh();
+      } catch (err) {
+        if (isRefreshGateAbortError(err, 'STOP_AND_DRAIN')) {
+          return;
+        }
+
+        throw err;
+      }
 
       // 获取监控上下文
       const ctx = getMonitorContext(monitorSymbol);

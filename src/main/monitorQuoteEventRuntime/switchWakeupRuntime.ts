@@ -10,7 +10,9 @@
 import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProtection/utils.js';
 import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { formatError } from '../../utils/error/index.js';
+import { isRefreshGateAbortError } from '../../utils/refreshGate/index.js';
 import { logger } from '../../utils/logger/index.js';
+import { areStringSetsEqual } from '../../utils/utils.js';
 import type { SwitchDriveResult } from '../../types/monitorContextPorts.js';
 import type {
   SwitchWakeupHandoffParams,
@@ -90,6 +92,7 @@ function createRouteState(route: SwitchWakeupRoute): SwitchWakeupRouteState {
     wakeups: [],
     retryTimerHandle: null,
     retainedQuoteSymbols: new Set<string>(),
+    retainNeedsRetry: false,
   };
 }
 
@@ -109,40 +112,6 @@ function collectSymbolQuoteWakeupSymbols(driveResult: SwitchDriveResult): Readon
       .filter((wakeup) => wakeup.kind === 'SYMBOL_QUOTE')
       .map((wakeup) => wakeup.symbol)
       .filter((symbol) => symbol.length > 0),
-  );
-}
-
-/**
- * 判断两个 symbol 集合是否相同。
- *
- * @param left 左侧集合
- * @param right 右侧集合
- * @returns 元素完全一致时返回 true
- */
-function areSymbolSetsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
-  if (left.size !== right.size) {
-    return false;
-  }
-
-  for (const symbol of left) {
-    if (!right.has(symbol)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-/**
- * 判断 waitForFresh 的失败是否属于 stopAndDrain 主动中断。
- *
- * @param error waitForFresh 抛出的错误
- * @returns 属于 STOP_AND_DRAIN 中断时返回 true
- */
-function isStopAndDrainAbortError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.message === '[postTradeConsistencyRuntime] freshness wait aborted: STOP_AND_DRAIN'
   );
 }
 
@@ -230,6 +199,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
       }
 
       routeState.retainedQuoteSymbols = new Set<string>();
+      routeState.retainNeedsRetry = false;
     }
 
     if (quoteSubscriptionRuntime === undefined) {
@@ -261,18 +231,23 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
       return;
     }
 
-    if (areSymbolSetsEqual(routeState.retainedQuoteSymbols, symbols)) {
-      return;
-    }
-
-    routeState.retainedQuoteSymbols = new Set(symbols);
-    const quoteSubscriptionRuntime = deps.quoteSubscriptionRuntime;
-    if (quoteSubscriptionRuntime === undefined) {
-      return;
-    }
-
     if (symbols.size === 0) {
       releaseSwitchWakeupRetain(routeKey);
+      return;
+    }
+
+    if (
+      !routeState.retainNeedsRetry &&
+      areStringSetsEqual(routeState.retainedQuoteSymbols, symbols)
+    ) {
+      return;
+    }
+
+    const requestedSymbols = new Set(symbols);
+    routeState.retainedQuoteSymbols = requestedSymbols;
+    routeState.retainNeedsRetry = false;
+    const quoteSubscriptionRuntime = deps.quoteSubscriptionRuntime;
+    if (quoteSubscriptionRuntime === undefined) {
       return;
     }
 
@@ -283,6 +258,10 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
         symbols: [...symbols],
       })
       .catch((error: unknown) => {
+        if (routeState.retainedQuoteSymbols === requestedSymbols) {
+          routeState.retainNeedsRetry = true;
+        }
+
         logger.error('[SwitchWakeupRuntime] 注册 quote retain 失败', formatError(error));
       });
   }
@@ -541,7 +520,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
         try {
           await deps.postTradeConsistencyRuntime.waitForFresh();
         } catch (error) {
-          if (isStopAndDrainAbortError(error)) {
+          if (isRefreshGateAbortError(error, 'STOP_AND_DRAIN')) {
             return;
           }
 

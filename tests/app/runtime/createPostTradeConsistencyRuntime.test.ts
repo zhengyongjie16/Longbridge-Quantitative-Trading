@@ -178,6 +178,58 @@ describe('createPostTradeConsistencyRuntime', () => {
     });
   });
 
+  it('awaits positions committed hook after writing latest positions', async () => {
+    const lastState = createLastState();
+    const committedSnapshots: Array<{
+      readonly cachedPositionCount: number;
+      readonly cacheQuantity: number | null;
+    }> = [];
+    const runtime = createPostTradeConsistencyRuntime({
+      getTrader: () =>
+        createTraderDouble({
+          getAccountSnapshot: async () => createAccountSnapshotDouble(88_000),
+          getStockPositions: async () => [
+            createPositionDouble({
+              symbol: 'BULL.HK',
+              quantity: 300,
+              availableQuantity: 300,
+            }),
+          ],
+        }),
+      lastState,
+      onPositionsCommitted: async () => {
+        await Bun.sleep(1);
+        committedSnapshots.push({
+          cachedPositionCount: lastState.cachedPositions.length,
+          cacheQuantity: lastState.positionCache.get('BULL.HK')?.quantity ?? null,
+        });
+      },
+    });
+
+    bindMinimalBusinessDeps(runtime);
+    runtime.recordSettlementRefreshNeed({
+      refreshAccount: true,
+      refreshPositions: true,
+    });
+
+    runtime.start();
+    await runtime.waitForFresh();
+    await runtime.stopAndDrain();
+
+    expect(committedSnapshots).toEqual([
+      {
+        cachedPositionCount: 1,
+        cacheQuantity: 300,
+      },
+    ]);
+
+    expect(runtime.getStatus()).toEqual({
+      started: false,
+      currentVersion: 1,
+      staleVersion: 1,
+    });
+  });
+
   it('retries to the latest stale version after an in-flight failure receives a newer settlement need', async () => {
     const lastState = createLastState();
     const firstAccountRefresh = createDeferred<ReturnType<typeof createAccountSnapshotDouble>>();
@@ -929,6 +981,105 @@ describe('createPostTradeConsistencyRuntime', () => {
       '[postTradeConsistencyRuntime] freshness wait aborted: STOP_AND_DRAIN',
     );
 
+    expect(runtime.getStatus()).toEqual({
+      started: false,
+      currentVersion: 0,
+      staleVersion: 1,
+    });
+  });
+
+  it('does not report fatal when shutdown aborts waiters during a successful in-flight refresh', async () => {
+    const lastState = createLastState();
+    const accountRefresh = createDeferred<ReturnType<typeof createAccountSnapshotDouble>>();
+    let accountRefreshCalls = 0;
+    const freshEvents: Array<{
+      readonly currentVersion: number;
+      readonly staleVersion: number;
+      readonly trigger: 'REFRESH' | 'REBUILD_BASELINE';
+    }> = [];
+
+    const runtime = createPostTradeConsistencyRuntime({
+      getTrader: () =>
+        createTraderDouble({
+          getAccountSnapshot: async () => {
+            accountRefreshCalls += 1;
+            return accountRefresh.promise;
+          },
+          getStockPositions: async () => [],
+        }),
+      lastState,
+    });
+
+    runtime.onFreshReached((event) => {
+      freshEvents.push(event);
+    });
+
+    bindMinimalBusinessDeps(runtime);
+    runtime.recordSettlementRefreshNeed({
+      refreshAccount: true,
+      refreshPositions: false,
+    });
+    runtime.start();
+
+    await waitForCondition(() => accountRefreshCalls === 1);
+    runtime.abortWaiting();
+    accountRefresh.resolve(createAccountSnapshotDouble(66_000));
+
+    await runtime.stopAndDrain();
+
+    expect(freshEvents).toEqual([]);
+    expect(lastState.cachedAccount?.buyPower).toBe(66_000);
+    expect(runtime.getStatus()).toEqual({
+      started: false,
+      currentVersion: 0,
+      staleVersion: 1,
+    });
+  });
+
+  it('continues consuming late settlement refresh after shutdown aborts waiters', async () => {
+    const lastState = createLastState();
+    const accountRefresh = createDeferred<ReturnType<typeof createAccountSnapshotDouble>>();
+    let accountRefreshCalls = 0;
+    const freshEvents: Array<{
+      readonly currentVersion: number;
+      readonly staleVersion: number;
+      readonly trigger: 'REFRESH' | 'REBUILD_BASELINE';
+    }> = [];
+
+    const runtime = createPostTradeConsistencyRuntime({
+      getTrader: () =>
+        createTraderDouble({
+          getAccountSnapshot: async () => {
+            accountRefreshCalls += 1;
+            return accountRefresh.promise;
+          },
+          getStockPositions: async () => [],
+        }),
+      lastState,
+    });
+
+    runtime.onFreshReached((event) => {
+      freshEvents.push(event);
+    });
+
+    bindMinimalBusinessDeps(runtime);
+    runtime.start();
+    runtime.abortWaiting();
+
+    expect(() => {
+      runtime.recordSettlementRefreshNeed({
+        refreshAccount: true,
+        refreshPositions: false,
+      });
+    }).not.toThrow();
+
+    await waitForCondition(() => accountRefreshCalls === 1);
+    accountRefresh.resolve(createAccountSnapshotDouble(55_000));
+
+    await runtime.stopAndDrain();
+
+    expect(freshEvents).toEqual([]);
+    expect(lastState.cachedAccount?.buyPower).toBe(55_000);
     expect(runtime.getStatus()).toEqual({
       started: false,
       currentVersion: 0,

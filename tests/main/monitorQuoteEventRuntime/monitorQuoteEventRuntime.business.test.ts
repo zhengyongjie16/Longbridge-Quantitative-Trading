@@ -33,6 +33,11 @@ type RuntimeHarness = Readonly<{
   emitQuoteUpdated: (event: QuoteUpdatedEvent) => void;
 }>;
 
+type RetainReleaseCall = Readonly<{
+  ownerKey: string;
+  reason: string;
+}>;
+
 function createDeferred<T>(): {
   readonly promise: Promise<T>;
   readonly resolve: (value: T) => void;
@@ -327,14 +332,23 @@ function createDefaultDistanceSwitchHarness(
   };
 }
 
-function createDefaultStaticWaitHarness(): RuntimeHarness &
+function createDefaultStaticWaitHarness(
+  params: {
+    readonly retainFailureCount?: number;
+  } = {},
+): RuntimeHarness &
   Readonly<{
     getQuoteRequestCount: () => number;
+    getRetainCalls: () => ReadonlyArray<ReadonlyArray<string>>;
+    getReleaseCalls: () => ReadonlyArray<RetainReleaseCall>;
     switchLongSeatToNextSymbol: () => void;
     switchMonitorRouteToDistanceMode: () => void;
   }> {
   let quoteUpdatedListener: ((event: QuoteUpdatedEvent) => void) | null = null;
   const quoteRequests: string[][] = [];
+  const retainCalls: string[][] = [];
+  const releaseCalls: RetainReleaseCall[] = [];
+  let remainingRetainFailures = params.retainFailureCount ?? 0;
   const symbolRegistry = createSymbolRegistryDouble({
     monitorSymbol: 'HSI.HK',
     longSeat: {
@@ -442,6 +456,20 @@ function createDefaultStaticWaitHarness(): RuntimeHarness &
     postTradeConsistencyRuntime: createFreshnessRuntimeDouble(),
     doomsdayProtectionEnabled: false,
     now: () => new Date('2026-04-08T10:00:00+08:00'),
+    quoteSubscriptionRuntime: {
+      retainSymbols: async ({ symbols }) => {
+        retainCalls.push([...symbols]);
+        if (remainingRetainFailures > 0) {
+          remainingRetainFailures -= 1;
+          throw new Error('retain failed');
+        }
+
+        return () => {};
+      },
+      releaseRetain: async ({ ownerKey, reason }) => {
+        releaseCalls.push({ ownerKey, reason });
+      },
+    },
   });
 
   return {
@@ -450,6 +478,8 @@ function createDefaultStaticWaitHarness(): RuntimeHarness &
       quoteUpdatedListener?.(event);
     },
     getQuoteRequestCount: () => quoteRequests.length,
+    getRetainCalls: () => retainCalls.map((symbols) => [...symbols]),
+    getReleaseCalls: () => releaseCalls.map((call) => ({ ...call })),
     switchLongSeatToNextSymbol(): void {
       symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
         symbol: 'NEXT_BULL.HK',
@@ -557,6 +587,57 @@ describe('monitorQuoteEventRuntime contract', () => {
     expect(harness.getQuoteRequestCount()).toBe(3);
 
     await harness.runtime.stopAndDrain();
+  });
+
+  it('does not re-retain unchanged static liquidation wakeup symbols', async () => {
+    const harness = createDefaultStaticWaitHarness();
+
+    harness.runtime.start();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+    expect(harness.getRetainCalls()).toEqual([['HSI.HK', 'BULL.HK', 'BEAR.HK']]);
+
+    harness.emitQuoteUpdated(createQuoteUpdatedEvent('BULL.HK', 1));
+
+    await waitTick();
+    expect(harness.getRetainCalls()).toEqual([['HSI.HK', 'BULL.HK', 'BEAR.HK']]);
+
+    await harness.runtime.stopAndDrain();
+  });
+
+  it('retries unchanged static liquidation retain after previous retain failure', async () => {
+    const harness = createDefaultStaticWaitHarness({ retainFailureCount: 1 });
+
+    harness.runtime.start();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+    expect(harness.getRetainCalls()).toEqual([['HSI.HK', 'BULL.HK', 'BEAR.HK']]);
+
+    harness.emitQuoteUpdated(createQuoteUpdatedEvent('BULL.HK', 1));
+
+    await waitTick();
+    expect(harness.getRetainCalls()).toEqual([
+      ['HSI.HK', 'BULL.HK', 'BEAR.HK'],
+      ['HSI.HK', 'BULL.HK', 'BEAR.HK'],
+    ]);
+
+    await harness.runtime.stopAndDrain();
+  });
+
+  it('releases static liquidation retain owner after failed retain when runtime stops', async () => {
+    const harness = createDefaultStaticWaitHarness({ retainFailureCount: 1 });
+
+    harness.runtime.start();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+    await harness.runtime.stopAndDrain();
+
+    expect(harness.getReleaseCalls()).toEqual([
+      { ownerKey: 'HSI.HK', reason: 'STATIC_LIQUIDATION_WAIT' },
+    ]);
   });
 
   it('switches static liquidation wakeup membership when WAIT symbols change', async () => {

@@ -30,6 +30,7 @@ import type {
 } from '../../../src/types/services.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { SymbolRegistry } from '../../../src/types/seat.js';
+import type { QuoteSubscriptionRuntime } from '../../../src/main/quoteSubscriptionRuntime/types.js';
 
 function createDeferred<voidValue = void>(): {
   readonly promise: Promise<voidValue>;
@@ -153,6 +154,10 @@ describe('switchWakeupRuntime', () => {
       readonly now?: () => Date;
       readonly timerHarness?: ReturnType<typeof createTimerHarness>;
       readonly autoSymbolManager?: AutoSymbolManagerPort;
+      readonly quoteSubscriptionRuntime?: Pick<
+        QuoteSubscriptionRuntime,
+        'retainSymbols' | 'releaseRetain'
+      >;
       readonly onFatalError?: (error: unknown) => void;
     } = {},
   ): Readonly<{
@@ -264,6 +269,9 @@ describe('switchWakeupRuntime', () => {
       clearTimer: (handle: ReturnType<typeof setTimeout>) => {
         timerHarness.clear(handle);
       },
+      ...(params.quoteSubscriptionRuntime
+        ? { quoteSubscriptionRuntime: params.quoteSubscriptionRuntime }
+        : {}),
       ...(params.onFatalError ? { onFatalError: params.onFatalError } : {}),
     };
     const runtime = createSwitchWakeupRuntime(runtimeDeps);
@@ -831,6 +839,98 @@ describe('switchWakeupRuntime', () => {
 
     expect(advanceCalls).toEqual([]);
     await runtime.stopAndDrain();
+  });
+
+  it('retries unchanged switch quote retain after previous retain failure', async () => {
+    const retainCalls: ReadonlyArray<string>[] = [];
+    let remainingRetainFailures = 1;
+    const runtimeHarness = createBaseHarness({
+      quoteSubscriptionRuntime: {
+        retainSymbols: async ({ symbols }) => {
+          retainCalls.push([...symbols]);
+          if (remainingRetainFailures > 0) {
+            remainingRetainFailures -= 1;
+            throw new Error('retain failed');
+          }
+
+          return () => {};
+        },
+        releaseRetain: async () => {},
+      },
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: { kind: 'NOOP' },
+        }),
+        advancePendingSwitch: async (params) => ({
+          advanced: true,
+          direction: params.direction,
+          stillPending: true,
+          driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+        }),
+        hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+    });
+
+    await waitTick();
+    expect(retainCalls).toEqual([['BULL.HK']]);
+
+    emitQuoteUpdated('BULL.HK', 1.1);
+    await waitTick();
+
+    expect(retainCalls).toEqual([['BULL.HK'], ['BULL.HK']]);
+    await runtimeHarness.runtime.stopAndDrain();
+  });
+
+  it('releases switch quote retain owner after failed retain when runtime stops', async () => {
+    const releaseCalls: Array<{ readonly ownerKey: string; readonly reason: string }> = [];
+    const runtimeHarness = createBaseHarness({
+      quoteSubscriptionRuntime: {
+        retainSymbols: async () => {
+          throw new Error('retain failed');
+        },
+        releaseRetain: async ({ ownerKey, reason }) => {
+          releaseCalls.push({ ownerKey, reason });
+        },
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+    });
+
+    await waitTick();
+    await runtimeHarness.runtime.stopAndDrain();
+
+    expect(releaseCalls).toEqual([{ ownerKey: 'HSI.HK:LONG:1', reason: 'SWITCH_WAKEUP' }]);
   });
 
   it('switches symbol quote wakeup membership when WAIT wakeups change', async () => {

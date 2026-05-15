@@ -105,6 +105,44 @@ describe('QuoteSubscriptionRuntime', () => {
     );
   });
 
+  it('启动后按 order hold 事件动态增删订阅', async () => {
+    const monitorConfig = createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' });
+    const symbolRegistry = createSymbolRegistry([monitorConfig]);
+    const lastState = createLastState();
+    const orderHoldEventSource = createOrderHoldEventSource([]);
+    const subscribed: string[][] = [];
+    const unsubscribed: string[][] = [];
+    const runtime = createQuoteSubscriptionRuntime({
+      tradingConfig: createTradingConfig({ monitors: [monitorConfig] }),
+      symbolRegistry,
+      marketDataClient: {
+        subscribeSymbols: async (symbols) => {
+          subscribed.push([...symbols]);
+        },
+        unsubscribeSymbols: async (symbols) => {
+          unsubscribed.push([...symbols]);
+        },
+      },
+      trader: orderHoldEventSource.trader,
+      lastState,
+    });
+
+    await runtime.reconcileFromCurrentTruth();
+    runtime.start();
+    orderHoldEventSource.add('ORDER.HK');
+    await runtime.waitForAdmission(['ORDER.HK']);
+
+    expect(subscribed).toEqual([['HSI.HK', 'BULL.HK', 'BEAR.HK'], ['ORDER.HK']]);
+    expect(lastState.allTradingSymbols.has('ORDER.HK')).toBe(true);
+
+    orderHoldEventSource.remove('ORDER.HK');
+    await runtime.waitForAdmission([]);
+
+    expect(unsubscribed).toEqual([['ORDER.HK']]);
+    expect(lastState.allTradingSymbols.has('ORDER.HK')).toBe(false);
+    await runtime.stopAndDrain();
+  });
+
   it('seat 事件只在 SEAT_BOUND 清空后退订对应交易标的', async () => {
     const monitorConfig = createMonitorConfigDouble({
       monitorSymbol: 'HSI.HK',

@@ -1,13 +1,34 @@
 import type { RefreshGate, RefreshGateAbortReason, RefreshGateStatus, Waiter } from '../types.js';
 
 /**
+ * 格式化 freshness 等待失败错误消息。
+ *
+ * @param reason 当前 freshness 等待被终止的原因
+ * @returns 带固定模块前缀的错误消息
+ */
+function formatAbortErrorMessage(reason: RefreshGateAbortReason): string {
+  return `[postTradeConsistencyRuntime] freshness wait aborted: ${reason}`;
+}
+
+/**
  * 根据终止原因构造 freshness 等待失败错误。
  *
  * @param reason 当前 freshness 等待被终止的原因
  * @returns 带固定模块前缀的错误对象
  */
 function createAbortError(reason: RefreshGateAbortReason): Error {
-  return new Error(`[postTradeConsistencyRuntime] freshness wait aborted: ${reason}`);
+  return new Error(formatAbortErrorMessage(reason));
+}
+
+/**
+ * 判断错误是否为指定原因触发的 freshness 等待中断。
+ *
+ * @param error 待判断错误
+ * @param reason 需要匹配的中断原因
+ * @returns 错误由指定 freshness 中断原因触发时返回 true
+ */
+export function isRefreshGateAbortError(error: unknown, reason: RefreshGateAbortReason): boolean {
+  return error instanceof Error && error.message === formatAbortErrorMessage(reason);
 }
 
 /**
@@ -52,10 +73,14 @@ export function createRefreshGate(): RefreshGate {
 
   /**
    * 标记当前状态为 stale，并返回本次 stale 版本号。
+   *
+   * STOP_AND_DRAIN 期间仍允许累计晚到 stale，避免停机窗口中的 settlement refresh
+   * 因 waiters 已中断而被错误升级为程序异常。
+   *
    * @returns 新的 staleVersion
    */
   function markStale(): number {
-    if (abortReason !== null) {
+    if (abortReason !== null && abortReason !== 'STOP_AND_DRAIN') {
       throw new Error(`[refreshGate] cannot mark stale while aborted: ${abortReason}`);
     }
 

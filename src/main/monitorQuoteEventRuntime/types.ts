@@ -144,6 +144,8 @@ export type MonitorQuoteRouteState = {
   latestMonitorContext: MonitorContext | null;
   latestEvent: QuoteUpdatedEvent | null;
   wakeupSymbols: ReadonlySet<string>;
+  retainedQuoteSymbols: ReadonlySet<string>;
+  retainNeedsRetry: boolean;
   mode: MonitorQuoteRouteMode;
   inFlight: boolean;
   dirty: boolean;
@@ -223,6 +225,9 @@ export type SwitchWakeupRouteState = {
 
   /** 当前 route 为 SYMBOL_QUOTE wakeup 显式保留的标的集合 */
   retainedQuoteSymbols: ReadonlySet<string>;
+
+  /** 当前 route 的相同 retain 集合是否仍需重试 */
+  retainNeedsRetry: boolean;
 };
 
 /**

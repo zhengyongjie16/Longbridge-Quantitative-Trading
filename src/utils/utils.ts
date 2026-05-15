@@ -95,6 +95,27 @@ export function shouldSkipRuntimeValidationSymbol(
 }
 
 /**
+ * 判断两个字符串集合是否包含完全相同的元素。
+ *
+ * @param left 左侧集合
+ * @param right 右侧集合
+ * @returns 两个集合元素完全一致时返回 true
+ */
+export function areStringSetsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  if (left.size !== right.size) {
+    return false;
+  }
+
+  for (const value of left) {
+    if (!right.has(value)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * 汇总队列清理结果中的移除总数。
  * 默认行为：按 removedDelayed、removedBuy、removedSell、removedMonitorTasks 相加。
  *

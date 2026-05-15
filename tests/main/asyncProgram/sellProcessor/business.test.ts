@@ -314,6 +314,64 @@ describe('sellProcessor business flow', () => {
     expect(processSellCalls).toBe(1);
   });
 
+  it('treats STOP_AND_DRAIN freshness abort as normal processor shutdown', async () => {
+    const queue = createSellTaskQueue();
+    const fatalErrors: unknown[] = [];
+    let waitForFreshCalls = 0;
+    let processSellCalls = 0;
+    let executeCalls = 0;
+    const processor = createSellProcessor({
+      taskQueue: queue,
+      getMonitorContext: () => createMonitorContext(),
+      signalProcessor: {
+        applyRiskChecks: async () => [],
+        processSellSignals: ({ signals }: { signals: Signal[] }) => {
+          processSellCalls += 1;
+          return signals;
+        },
+        resetRiskCheckCooldown: () => {},
+      },
+      trader: createTraderDouble({
+        executeSignals: async () => {
+          executeCalls += 1;
+          return { submittedCount: 1, submittedOrderIds: [] };
+        },
+      }),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () =>
+          new Map([
+            ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+            ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+          ]),
+      }),
+      getLastState: () => createLastState(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {
+          waitForFreshCalls += 1;
+          throw new Error('[postTradeConsistencyRuntime] freshness wait aborted: STOP_AND_DRAIN');
+        },
+        onFreshReached: () => () => {},
+      },
+      getCanProcessTask: () => true,
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+    });
+
+    let signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
+
+    processor.start();
+    queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
+    await waitUntil(() => waitForFreshCalls === 1);
+    await processor.stopAndDrain();
+
+    expect(fatalErrors).toEqual([]);
+    expect(processSellCalls).toBe(0);
+    expect(executeCalls).toBe(0);
+    expect(queue.isEmpty()).toBeTrue();
+  });
+
   it('skips stale-seat-version sell signal before sell quantity resolution', async () => {
     const queue = createSellTaskQueue();
 

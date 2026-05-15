@@ -16,7 +16,9 @@ import { createLiquidationCooldownTracker } from '../../../src/services/liquidat
 import { createTradeLogHydrator } from '../../../src/services/liquidationCooldown/tradeLogHydrator.js';
 import { buildTradeLogPath } from '../../../src/utils/trading/tradeLogPath.js';
 import {
+  createAccountSnapshotDouble,
   createMarketDataClientDouble,
+  createPositionDouble,
   createSdkConfigDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
@@ -34,7 +36,11 @@ function createTestEnv(): NodeJS.ProcessEnv {
   };
 }
 
-function createRuntimeParams(): CreatePostGateRuntimeParams {
+function createRuntimeParams(
+  params: {
+    readonly marketDataClient?: CreatePostGateRuntimeParams['preGateRuntime']['marketDataClient'];
+  } = {},
+): CreatePostGateRuntimeParams {
   const warrantListCache = createWarrantListCache();
   const monitorConfig = createMonitorConfig({ monitorSymbol: 'HSI.HK' });
   return {
@@ -50,7 +56,7 @@ function createRuntimeParams(): CreatePostGateRuntimeParams {
         ttlMs: 60_000,
         nowMs: () => 0,
       },
-      marketDataClient: createMarketDataClientDouble(),
+      marketDataClient: params.marketDataClient ?? createMarketDataClientDouble(),
       startupTradingDayInfo: {
         dateKey: '2026-03-13',
         info: {
@@ -66,6 +72,30 @@ function createPostGateRuntimeForTest() {
   return createPostGateRuntimeFactory({
     createTrader: async () =>
       createTraderDouble({
+        onOrderStateChanged: (listener) => {
+          capturedOrderStateChangedListener = listener;
+          return () => {
+            if (capturedOrderStateChangedListener === listener) {
+              capturedOrderStateChangedListener = null;
+            }
+          };
+        },
+      }),
+  });
+}
+
+function createPostGateRuntimeWithPositionRefreshForTest() {
+  return createPostGateRuntimeFactory({
+    createTrader: async () =>
+      createTraderDouble({
+        getAccountSnapshot: async () => createAccountSnapshotDouble(88_000),
+        getStockPositions: async () => [
+          createPositionDouble({
+            symbol: 'POS.HK',
+            quantity: 100,
+            availableQuantity: 100,
+          }),
+        ],
         onOrderStateChanged: (listener) => {
           capturedOrderStateChangedListener = listener;
           return () => {
@@ -98,6 +128,34 @@ describe('createPostGateRuntime trade log persistence', () => {
   beforeEach(() => {
     fs.rmSync(TEST_LOG_ROOT_DIR, { recursive: true, force: true });
     capturedOrderStateChangedListener = null;
+  });
+
+  it('wires positions committed hook to quote subscription runtime', async () => {
+    const subscribed: string[][] = [];
+    const marketDataClient = createMarketDataClientDouble({
+      subscribeSymbols: async (symbols) => {
+        subscribed.push([...symbols]);
+      },
+    });
+    const createPostGateRuntime = createPostGateRuntimeWithPositionRefreshForTest();
+    const runtime = await createPostGateRuntime(createRuntimeParams({ marketDataClient }));
+    runtime.postTradeConsistencyRuntime.bindBusinessDeps({
+      monitorContexts: runtime.monitorContexts,
+      dailyLossTracker: runtime.dailyLossTracker,
+      liquidationCooldownTracker: runtime.liquidationCooldownTracker,
+      protectiveLiquidationEpisodeTracker: runtime.protectiveLiquidationEpisodeTracker,
+    });
+
+    runtime.postTradeConsistencyRuntime.recordSettlementRefreshNeed({
+      refreshAccount: true,
+      refreshPositions: true,
+    });
+    runtime.postTradeConsistencyRuntime.start();
+    await runtime.postTradeConsistencyRuntime.waitForFresh();
+    await runtime.postTradeConsistencyRuntime.stopAndDrain();
+
+    expect(subscribed).toEqual([['POS.HK']]);
+    expect(runtime.lastState.allTradingSymbols).toEqual(new Set(['POS.HK']));
   });
 
   it('persists FILLED buy order state event into daily trade log', async () => {

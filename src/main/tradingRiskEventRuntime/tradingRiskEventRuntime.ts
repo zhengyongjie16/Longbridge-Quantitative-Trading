@@ -11,6 +11,7 @@ import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProt
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { formatError } from '../../utils/error/index.js';
+import { isRefreshGateAbortError } from '../../utils/refreshGate/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { isTradingRiskRouteCurrent, resolveTradingRiskRoute } from './routeValidation.js';
 import { buildTradingRiskRoutingIndex } from './routingIndex.js';
@@ -35,19 +36,6 @@ function createRouteExecutionState(): RouteExecutionState {
     latestRoute: null,
     latestEvent: null,
   };
-}
-
-/**
- * 判断 waitForFresh 的失败是否属于 stopAndDrain 主动中断。
- *
- * @param error waitForFresh 抛出的错误
- * @returns 属于 STOP_AND_DRAIN 中断时返回 true
- */
-function isStopAndDrainAbortError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.message === '[postTradeConsistencyRuntime] freshness wait aborted: STOP_AND_DRAIN'
-  );
 }
 
 /**
@@ -288,7 +276,7 @@ export function createTradingRiskEventRuntime(
         try {
           await deps.postTradeConsistencyRuntime.waitForFresh();
         } catch (error) {
-          if (isStopAndDrainAbortError(error)) {
+          if (isRefreshGateAbortError(error, 'STOP_AND_DRAIN')) {
             return;
           }
 

@@ -9,7 +9,9 @@
  */
 import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProtection/utils.js';
 import { formatError } from '../../utils/error/index.js';
+import { isRefreshGateAbortError } from '../../utils/refreshGate/index.js';
 import { logger } from '../../utils/logger/index.js';
+import { areStringSetsEqual } from '../../utils/utils.js';
 import type { StartSwitchOnDistanceResult } from '../../types/monitorContextPorts.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { QuoteUpdatedEvent } from '../../types/services.js';
@@ -81,19 +83,6 @@ function isBaselineReady(deps: CreateMonitorQuoteEventRuntimeDeps): boolean {
 }
 
 /**
- * 判断 waitForFresh 的失败是否属于 stopAndDrain 主动中断。
- *
- * @param error waitForFresh 抛出的错误
- * @returns 属于 STOP_AND_DRAIN 中断时返回 true
- */
-function isStopAndDrainAbortError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.message === '[postTradeConsistencyRuntime] freshness wait aborted: STOP_AND_DRAIN'
-  );
-}
-
-/**
  * 创建 route 初始状态。
  *
  * @param mode route 模式
@@ -104,6 +93,8 @@ function createRouteState(mode: MonitorQuoteRouteMode): MonitorQuoteRouteState {
     latestMonitorContext: null,
     latestEvent: null,
     wakeupSymbols: new Set(),
+    retainedQuoteSymbols: new Set(),
+    retainNeedsRetry: false,
     mode,
     inFlight: false,
     dirty: false,
@@ -344,6 +335,13 @@ function createMonitorQuoteEventRuntime(
    * @param monitorSymbol 监控标的
    */
   function releaseStaticLiquidationRetain(monitorSymbol: string): void {
+    const routeState = routeStates.get(monitorSymbol);
+    if (routeState === undefined || routeState.retainedQuoteSymbols.size === 0) {
+      return;
+    }
+
+    routeState.retainedQuoteSymbols = new Set<string>();
+    routeState.retainNeedsRetry = false;
     const quoteSubscriptionRuntime = deps.quoteSubscriptionRuntime;
     if (quoteSubscriptionRuntime === undefined) {
       return;
@@ -372,13 +370,28 @@ function createMonitorQuoteEventRuntime(
     monitorSymbol: string,
     symbols: ReadonlySet<string>,
   ): void {
-    const quoteSubscriptionRuntime = deps.quoteSubscriptionRuntime;
-    if (quoteSubscriptionRuntime === undefined) {
+    const routeState = routeStates.get(monitorSymbol);
+    if (routeState === undefined) {
       return;
     }
 
     if (symbols.size === 0) {
       releaseStaticLiquidationRetain(monitorSymbol);
+      return;
+    }
+
+    if (
+      !routeState.retainNeedsRetry &&
+      areStringSetsEqual(routeState.retainedQuoteSymbols, symbols)
+    ) {
+      return;
+    }
+
+    const requestedSymbols = new Set(symbols);
+    routeState.retainedQuoteSymbols = requestedSymbols;
+    routeState.retainNeedsRetry = false;
+    const quoteSubscriptionRuntime = deps.quoteSubscriptionRuntime;
+    if (quoteSubscriptionRuntime === undefined) {
       return;
     }
 
@@ -389,6 +402,10 @@ function createMonitorQuoteEventRuntime(
         symbols: [...symbols],
       })
       .catch((error: unknown) => {
+        if (routeState.retainedQuoteSymbols === requestedSymbols) {
+          routeState.retainNeedsRetry = true;
+        }
+
         logger.error(
           '[MonitorQuoteEventRuntime] 注册静态清仓 quote retain 失败',
           formatError(error),
@@ -426,16 +443,23 @@ function createMonitorQuoteEventRuntime(
     }
 
     clearRouteRetryTimer(routeState);
-    removeStaticWakeupIndexes(monitorSymbol);
+    const nextWakeupSymbols = new Set(executionResult.wakeupSymbols);
     if (!running) {
+      removeStaticWakeupIndexes(monitorSymbol);
       routeState.wakeupSymbols = new Set();
       releaseStaticLiquidationRetain(monitorSymbol);
       return;
     }
 
-    routeState.wakeupSymbols = new Set(executionResult.wakeupSymbols);
-    registerStaticWakeupIndexes(monitorSymbol);
+    const wakeupSymbolsChanged = !areStringSetsEqual(routeState.wakeupSymbols, nextWakeupSymbols);
+    if (wakeupSymbolsChanged) {
+      removeStaticWakeupIndexes(monitorSymbol);
+      routeState.wakeupSymbols = nextWakeupSymbols;
+      registerStaticWakeupIndexes(monitorSymbol);
+    }
+
     retainStaticLiquidationSymbols(monitorSymbol, routeState.wakeupSymbols);
+
     if (executionResult.retryAtMs === null) {
       return;
     }
@@ -494,7 +518,7 @@ function createMonitorQuoteEventRuntime(
     try {
       await deps.postTradeConsistencyRuntime.waitForFresh();
     } catch (error) {
-      if (isStopAndDrainAbortError(error)) {
+      if (isRefreshGateAbortError(error, 'STOP_AND_DRAIN')) {
         return false;
       }
 
