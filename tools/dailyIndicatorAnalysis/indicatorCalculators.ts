@@ -164,3 +164,53 @@ export function calculateRSI(candles: ReadonlyArray<CandleData>, period: number)
     return null;
   }
 }
+
+/**
+ * 计算 Kaufman Efficiency Ratio。默认行为：样本不足、周期无效或窗口内存在无效收盘价时返回 null。
+ *
+ * @param candles K 线数据数组
+ * @param period ER 周期
+ * @returns ER 值，无法计算时返回 null
+ */
+export function calculateEfficiencyRatio(
+  candles: ReadonlyArray<CandleData>,
+  period: number,
+): number | null {
+  if (candles.length <= period || !Number.isFinite(period) || period <= 0) {
+    return null;
+  }
+
+  const windowCandles = candles.slice(-period - 1);
+  const closes: number[] = [];
+  for (const candle of windowCandles) {
+    const close = toNumber(candle.close);
+    if (!isValidPositiveNumber(close)) {
+      return null;
+    }
+
+    closes.push(close);
+  }
+
+  const firstClose = closes[0];
+  const lastClose = closes.at(-1);
+  if (firstClose === undefined || lastClose === undefined) {
+    return null;
+  }
+
+  let pathMovement = 0;
+  for (let index = 1; index < closes.length; index += 1) {
+    const close = closes[index];
+    const previousClose = closes[index - 1];
+    if (close === undefined || previousClose === undefined) {
+      return null;
+    }
+
+    pathMovement += Math.abs(close - previousClose);
+  }
+
+  if (pathMovement === 0) {
+    return 0;
+  }
+
+  return Math.abs(lastClose - firstClose) / pathMovement;
+}
