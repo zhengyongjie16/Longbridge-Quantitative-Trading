@@ -31,7 +31,7 @@ import { logger } from '../../utils/logger/index.js';
 import { prepareSeatsForRuntime } from '../recovery/seatPreparation.js';
 import { collectRuntimeQuoteSymbols, refreshAccountAndPositions } from '../utils.js';
 import { decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { resolveOrderOwnership } from '../../core/orderRecorder/orderOwnershipParser.js';
+import { resolveOrderOwnership } from '../../core/orderRecorder/index.js';
 import { hasProtectiveLiquidationRemark } from '../../core/trader/utils.js';
 import { buildCooldownKey } from '../../services/liquidationCooldown/utils.js';
 import type {

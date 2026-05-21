@@ -16,7 +16,7 @@ import { createDelayedSignalVerifier } from '../../main/asyncProgram/delayedSign
 import { createAutoSymbolManager } from '../../services/autoSymbolManager/index.js';
 import { compileIndicatorUsageProfile } from '../../services/indicators/profile/index.js';
 import type { MonitorContext } from '../../types/state.js';
-import { resolveMonitorContextRuntimeSnapshot } from '../../utils/utils.js';
+import { resolveMonitorContextRuntimeSnapshot } from '../../utils/seat/snapshots.js';
 import type { CreateMonitorContextsParams, MonitorContextFactoryDeps } from '../types.js';
 
 const DEFAULT_STRATEGY_FACTORY = createMultiIndicatorTradingStrategy;

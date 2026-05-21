@@ -85,6 +85,48 @@ describe('trader facade business flow', () => {
     expect('monitorAndManageOrders' in trader).toBe(false);
   });
 
+  it('createTrader 通过公开 orderRecorder 工厂组装真实订单记录器', async () => {
+    const createTrader = await loadCreateTraderWithStubbedTradeContext('trader-order-recorder', {
+      new(): object {
+        return {};
+      },
+    });
+
+    const trader = await createTrader({
+      config: {},
+      tradingConfig: createTradingConfig(),
+      marketDataClient: createMarketDataClientDouble(),
+      symbolRegistry: createSymbolRegistryDouble(),
+      dailyLossTracker: createDailyLossTrackerDouble(),
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+      postTradeConsistencyRuntime: {
+        recordSettlementRefreshNeed: () => {},
+      },
+      isExecutionAllowed: () => true,
+    });
+
+    trader.orderRecorder.recordLocalBuy('BULL.HK', 1, 100, true, 1000);
+    trader.orderRecorder.recordLocalBuy('BULL.HK', 1.2, 100, true, 2000);
+
+    const buyOrders = trader.orderRecorder.getBuyOrdersForSymbol('BULL.HK', true);
+    const sellableOrders = trader.orderRecorder.selectSellableOrders({
+      symbol: 'BULL.HK',
+      direction: 'LONG',
+      strategy: 'PROFIT_ONLY',
+      currentPrice: 1.1,
+    });
+
+    expect(buyOrders).toHaveLength(2);
+    expect(trader.orderRecorder.getCostAveragePrice('BULL.HK', true)).toBeCloseTo(1.1, 6);
+    expect(sellableOrders.orders).toHaveLength(1);
+    expect(sellableOrders.orders[0]?.executedPrice).toBe(1);
+
+    trader.resetRuntimeState();
+
+    expect(trader.orderRecorder.getBuyOrdersForSymbol('BULL.HK', true)).toEqual([]);
+    expect(trader.orderRecorder.getCostAveragePrice('BULL.HK', true)).toBeNull();
+  });
+
   it('createTrader 在 TradeContext.new 同步抛错时保持 rejected promise 语义', async () => {
     const createTrader = await loadCreateTraderWithStubbedTradeContext('trader-sync-throw', {
       new(): object {

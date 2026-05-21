@@ -6,7 +6,7 @@
  * - 将当前席位快照投影到 monitorContext 缓存
  * - 不清理任务队列、不刷新名称、不承担时间循环同步职责
  */
-import { resolveMonitorContextSeatSnapshot } from '../../utils/utils.js';
+import { resolveMonitorContextSeatSnapshot } from '../../utils/seat/snapshots.js';
 import type { SignalSeatInfo, SignalSeatProjectionParams } from './types.js';
 
 /**

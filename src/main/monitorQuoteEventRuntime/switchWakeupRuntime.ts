@@ -12,8 +12,8 @@ import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { formatError } from '../../utils/error/index.js';
 import { isRefreshGateAbortError } from '../../utils/refreshGate/index.js';
 import { logger } from '../../utils/logger/index.js';
-import { areStringSetsEqual } from '../../utils/utils.js';
 import type { SwitchDriveResult } from '../../types/monitorContextPorts.js';
+import { areStringSetsEqual } from './setUtils.js';
 import type {
   SwitchWakeupHandoffParams,
   SwitchWakeupRoute,

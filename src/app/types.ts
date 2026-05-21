@@ -185,28 +185,6 @@ export type PushRuntimeValidationSymbolParams = Readonly<{
 }>;
 
 /**
- * 解析监控标的席位代码的参数。
- * 类型用途：为 resolveSeatSymbolsByMonitor 传入 symbolRegistry 和 monitorSymbol。
- * 数据来源：由 app 运行时校验收集流程传入。
- * 使用范围：仅 app 装配层使用。
- */
-export type ResolveSeatSymbolsByMonitorParams = Readonly<{
-  symbolRegistry: SymbolRegistry;
-  monitorSymbol: string;
-}>;
-
-/**
- * 单个监控标的的双向席位标的代码。
- * 类型用途：表达 monitorSymbol 对应的 long/short 就绪席位代码。
- * 数据来源：由 symbolRegistry 查询并组合得到。
- * 使用范围：仅 app 运行时校验收集流程使用。
- */
-export type ResolvedSeatSymbols = Readonly<{
-  longSeatSymbol: string | null;
-  shortSeatSymbol: string | null;
-}>;
-
-/**
  * 开盘重建执行参数。
  * 类型用途：封装 runTradingDayOpenRebuild 所需的当前时间和重建相关函数依赖。
  * 数据来源：由 app 生命周期装配时组装并传入。

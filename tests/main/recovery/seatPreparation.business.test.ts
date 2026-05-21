@@ -7,10 +7,7 @@
 import { describe, expect, it } from 'bun:test';
 import { WarrantStatus, WarrantType } from 'longbridge';
 
-import {
-  prepareSeatsForRuntime,
-  resolveBoundSeatSymbol,
-} from '../../../src/main/recovery/seatPreparation.js';
+import { prepareSeatsForRuntime } from '../../../src/main/recovery/seatPreparation.js';
 import { AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY } from '../../../src/constants/index.js';
 import { getHKDateKey } from '../../../src/utils/time/index.js';
 import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
@@ -119,33 +116,6 @@ function seedAutoSearchCandidates(quoteCtx: ReturnType<typeof createQuoteContext
 }
 
 describe('recovery seat preparation business flow', () => {
-  it('returns symbol only when seat has a bound symbol', () => {
-    const registry = createSymbolRegistryDouble({
-      monitorSymbol: 'HSI.HK',
-      longSeat: {
-        symbol: 'BULL.HK',
-        status: 'ACTIVE',
-        lastSwitchAt: null,
-        lastSearchAt: null,
-        lastSeatActivatedAt: null,
-        searchFailCountToday: 0,
-        frozenTradingDayKey: null,
-      },
-      shortSeat: {
-        symbol: null,
-        status: 'EMPTY',
-        lastSwitchAt: null,
-        lastSearchAt: null,
-        lastSeatActivatedAt: null,
-        searchFailCountToday: 0,
-        frozenTradingDayKey: null,
-      },
-    });
-
-    expect(resolveBoundSeatSymbol(registry, 'HSI.HK', 'LONG')).toBe('BULL.HK');
-    expect(resolveBoundSeatSymbol(registry, 'HSI.HK', 'SHORT')).toBeNull();
-  });
-
   it('restores configured symbols on startup when auto-search is disabled', async () => {
     const startupTime = '2026-02-16T01:00:00.000Z';
     const monitor = createMonitorConfigDouble({
@@ -284,6 +254,56 @@ describe('recovery seat preparation business flow', () => {
     expect(shortSeat.searchFailCountToday).toBe(1);
 
     expect(prepared.seatSymbols).toEqual([]);
+  });
+
+  it('skips startup recovery search for frozen empty seats', async () => {
+    const monitor = createAutoSearchMonitor();
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitor.monitorSymbol,
+      longSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 2,
+        frozenTradingDayKey: '2026-02-15',
+      },
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 1,
+        frozenTradingDayKey: '2026-02-15',
+      },
+    });
+
+    const prepared = await prepareSeatsForRuntime({
+      tradingConfig: createTradingConfig({ monitors: [monitor] }),
+      symbolRegistry,
+      positions: [],
+      orders: [],
+      marketDataClient: createMarketDataClientDouble({
+        getQuoteContext: async () => {
+          throw new Error('should not request quote context');
+        },
+      }),
+      now: () => new Date('2026-02-16T01:35:00.000Z'),
+      logger: createLoggerStub(),
+      getTradingMinutesSinceOpen: () => 5,
+      resolveCanAutoSearchNow: () => true,
+    });
+
+    expect(prepared.seatSymbols).toEqual([]);
+    expect(symbolRegistry.getSeatState(monitor.monitorSymbol, 'LONG').frozenTradingDayKey).toBe(
+      '2026-02-15',
+    );
+
+    expect(symbolRegistry.getSeatState(monitor.monitorSymbol, 'SHORT').frozenTradingDayKey).toBe(
+      '2026-02-15',
+    );
   });
 
   it('rethrows ExternalApiRequestError during startup recovery search and preserves prior failure state', async () => {

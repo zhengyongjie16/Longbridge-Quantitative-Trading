@@ -22,7 +22,7 @@ import type { Quote } from '../../types/quote.js';
 import type { SymbolRegistry } from '../../types/seat.js';
 import type { MarketDataClient, RawOrderFromAPI } from '../../types/services.js';
 import type { DailyLossTracker } from '../../types/risk.js';
-import { resolveMonitorContextRuntimeSnapshot } from '../../utils/utils.js';
+import { resolveMonitorContextRuntimeSnapshot } from '../../utils/seat/snapshots.js';
 import type { RebuildTradingDayStateDeps, RebuildTradingDayStateParams } from './types.js';
 import {
   clearSeatActivationCarryover,

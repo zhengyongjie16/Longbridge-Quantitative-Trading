@@ -6,12 +6,11 @@
  * - 为席位退场事件 owner 提供统一清理统计
  */
 import { isRecord } from '../../utils/helpers/index.js';
-import { getQueueClearTotalRemoved } from '../../utils/utils.js';
 import type { DelayedSignalVerifierPort } from '../../types/monitorContextPorts.js';
-import type { QueueClearResult } from '../../types/queue.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { BuyTaskType, SellTaskType, TaskQueue } from '../asyncProgram/tradeTaskQueue/types.js';
+import type { QueueClearResult } from './types.js';
 
 /**
  * 判断订单动作是否属于指定方向。
@@ -130,7 +129,8 @@ export function logDirectionQueueCleanup(params: {
   readonly logger: { debug: (message: string) => void };
 }): void {
   const { source, monitorSymbol, direction, result, logger } = params;
-  const totalRemoved = getQueueClearTotalRemoved(result);
+  const totalRemoved =
+    result.removedDelayed + result.removedBuy + result.removedSell + result.removedMonitorTasks;
   if (totalRemoved <= 0) {
     return;
   }

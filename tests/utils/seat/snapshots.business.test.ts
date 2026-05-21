@@ -1,12 +1,17 @@
+/**
+ * seat snapshots 业务测试
+ *
+ * 覆盖：monitorContext 席位快照与运行时快照解析。
+ */
 import { describe, expect, it } from 'bun:test';
 
 import {
   resolveMonitorContextRuntimeSnapshot,
   resolveMonitorContextSeatSnapshot,
-} from '../../src/utils/utils.js';
-import { createQuoteDouble, createSymbolRegistryDouble } from '../helpers/testDoubles.js';
+} from '../../../src/utils/seat/snapshots.js';
+import { createQuoteDouble, createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
 
-describe('shared utils business flow', () => {
+describe('seat snapshots business flow', () => {
   it('resolves monitor runtime snapshot from ready seats and quotes', () => {
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',

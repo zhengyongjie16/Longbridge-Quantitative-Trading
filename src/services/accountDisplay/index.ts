@@ -5,10 +5,27 @@
  * - 使用缓存账户与持仓输出统一展示日志
  * - 基于可选行情补充持仓现价、市值与仓位信息
  */
+import { ACCOUNT_CHANNEL_MAP } from '../../constants/index.js';
 import { logger } from '../../utils/logger/index.js';
-import { formatAccountChannel, formatNumber } from '../../utils/utils.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { DisplayAccountAndPositionsParams, SymbolDisplayInfo } from './types.js';
+
+function formatNumber(num: number | null | undefined, digits: number = 2): string {
+  if (num === null || num === undefined) {
+    return '-';
+  }
+
+  return Number.isFinite(num) ? num.toFixed(digits) : String(num);
+}
+
+function formatAccountChannel(accountChannel: string | null | undefined): string {
+  if (!accountChannel || typeof accountChannel !== 'string') {
+    return '未知账户';
+  }
+
+  const key = accountChannel.toLowerCase();
+  return ACCOUNT_CHANNEL_MAP[key] ?? accountChannel;
+}
 
 /**
  * 将 lastState 中的账户与持仓缓存输出到日志。

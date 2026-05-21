@@ -11,7 +11,7 @@
  * - 本模块在决定卖出时使用当前 quote，并写回 signal.price，确保 orderExecutor 提交时用的是执行时价格。
  */
 import { logger } from '../../utils/logger/index.js';
-import { getLongDirectionName, getShortDirectionName } from '../utils.js';
+import { LONG_DIRECTION_NAME, SHORT_DIRECTION_NAME } from '../../constants/index.js';
 import {
   buildSellReason,
   validateSellContext,
@@ -63,7 +63,7 @@ function calculateSellQuantity(params: {
     tradingCalendarSnapshot,
   } = params;
   const reason = originalReason || '';
-  const directionName = direction === 'LONG' ? getLongDirectionName() : getShortDirectionName();
+  const directionName = direction === 'LONG' ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
 
   // 验证输入参数
   const validationResult = validateSellContext(position, quote);

@@ -5,8 +5,8 @@
  * - 基于 symbolRegistry 的权威席位快照重建 tradingSymbol -> route 的唯一映射
  * - 对重复归属执行 fail-fast，避免同一标的同时路由到多个监控标的
  */
-import { resolveMonitorContextSeatSnapshot } from '../../utils/utils.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
+import { resolveMonitorContextSeatSnapshot } from '../../utils/seat/snapshots.js';
 import type { SymbolRegistry } from '../../types/seat.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { TradingRiskRoute, TradingRiskRouteKey, TradingRiskRoutingIndex } from './types.js';

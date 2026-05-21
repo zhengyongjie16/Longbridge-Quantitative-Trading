@@ -1,6 +1,7 @@
 import type { TradeContext } from 'longbridge';
 import type { Quote } from '../../types/quote.js';
-import type { OrderFilteringEngine } from '../../types/orderRecorder.js';
+import type { MonitorConfig } from '../../types/config.js';
+import type { OrderFilteringEngine, OrderOwnership } from '../../types/orderRecorder.js';
 import type {
   OrderRecord,
   PendingSellInfo,
@@ -214,10 +215,39 @@ export type OrderAPIManagerDeps = {
 };
 
 /**
+ * 订单记录器正式工厂依赖。
+ * 类型用途：创建 OrderRecorder 时注入外部交易上下文与 API 限流器。
+ * 数据来源：由 Trader 装配层创建后传入。
+ * 使用范围：仅 orderRecorder 对外工厂使用。
+ */
+export type OrderRecorderFactoryDeps = {
+  readonly ctx: TradeContext;
+  readonly rateLimiter: RateLimiter;
+};
+
+/**
+ * 日内亏损回算所需的订单分析依赖。
+ * 类型用途：作为 orderRecorder 对外暴露的最小分析能力集合，供装配层注入 dailyLossTracker。
+ * 数据来源：由 orderRecorder 公共边界内组装后返回。
+ * 使用范围：仅 orderRecorder 的对外分析导出使用。
+ */
+export type OrderDailyLossAnalysisDeps = {
+  readonly filteringEngine: OrderFilteringEngine;
+  readonly resolveOrderOwnership: (
+    order: RawOrderFromAPI,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
+  ) => OrderOwnership | null;
+  readonly classifyAndConvertOrders: (orders: ReadonlyArray<RawOrderFromAPI>) => {
+    readonly buyOrders: ReadonlyArray<OrderRecord>;
+    readonly sellOrders: ReadonlyArray<OrderRecord>;
+  };
+};
+
+/**
  * 订单记录器依赖。
  * 类型用途：用于创建 OrderRecorder 时的依赖注入。
  * 数据来源：如适用。
- * 使用范围：见调用方（如启动层、riskDomain）。
+ * 使用范围：仅 orderRecorder 模块内部组装使用。
  */
 export type OrderRecorderDeps = {
   readonly storage: OrderStorage;

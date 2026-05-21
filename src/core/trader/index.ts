@@ -38,9 +38,6 @@ import { createOrderCacheManager } from './orderCacheManager.js';
 import { createOrderMonitor } from './orderMonitor/index.js';
 import { createOrderExecutor } from './orderExecutor/index.js';
 import { createOrderHoldRegistry } from './orderHoldRegistry.js';
-import { createOrderStorage } from '../orderRecorder/orderStorage.js';
-import { createOrderAPIManager } from '../orderRecorder/orderApiManager.js';
-import { createOrderFilteringEngine } from '../orderRecorder/orderFilteringEngine.js';
 
 /**
  * 创建交易执行模块（门面模式）。
@@ -74,14 +71,10 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
 
     const accountService = createAccountService({ ctx, rateLimiter });
 
-    // ========== 3. 创建 orderRecorder（依赖注入子模块） ==========
-    const orderStorage = createOrderStorage();
-    const orderApiManager = createOrderAPIManager({ ctx, rateLimiter });
-    const orderFilteringEngine = createOrderFilteringEngine();
+    // ========== 3. 创建 orderRecorder（边界内组装内部子模块） ==========
     const orderRecorder = createOrderRecorder({
-      storage: orderStorage,
-      apiManager: orderApiManager,
-      filteringEngine: orderFilteringEngine,
+      ctx,
+      rateLimiter,
     });
 
     // ========== 4. 创建 orderHoldRegistry ==========

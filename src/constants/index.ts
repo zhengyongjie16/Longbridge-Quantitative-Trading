@@ -425,3 +425,7 @@ export const ORDER_OWNERSHIP = {
   LONG_MARKERS: ['RC', 'BULL', 'CALL', '\u725B'],
   SHORT_MARKERS: ['RP', 'BEAR', 'PUT', '\u718A'],
 } as const;
+
+export const LONG_DIRECTION_NAME = '\u505A\u591A\u6807\u7684';
+
+export const SHORT_DIRECTION_NAME = '\u505A\u7A7A\u6807\u7684';

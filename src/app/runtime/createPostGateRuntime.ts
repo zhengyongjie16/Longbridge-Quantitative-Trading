@@ -10,9 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { INDICATOR_CACHE, LOGGING, TIME, TRADING, VERIFICATION } from '../../constants/index.js';
 import { createTrader } from '../../core/trader/index.js';
-import { createOrderFilteringEngine } from '../../core/orderRecorder/orderFilteringEngine.js';
-import { classifyAndConvertOrders } from '../../core/orderRecorder/utils.js';
-import { resolveOrderOwnership } from '../../core/orderRecorder/orderOwnershipParser.js';
+import { createDailyLossOrderAnalysisDeps } from '../../core/orderRecorder/index.js';
 import { createDailyLossTracker } from '../../core/riskController/dailyLossTracker.js';
 import { createDoomsdayProtection } from '../../core/doomsdayProtection/index.js';
 import { createSignalProcessor } from '../../core/signalProcessor/index.js';
@@ -213,9 +211,7 @@ export function createPostGateRuntimeFactory(
       nowMs: () => Date.now(),
     });
     const dailyLossTracker = createDailyLossTracker({
-      filteringEngine: createOrderFilteringEngine(),
-      resolveOrderOwnership,
-      classifyAndConvertOrders,
+      ...createDailyLossOrderAnalysisDeps(),
       toHongKongTimeIso,
     });
     const protectiveLiquidationEpisodeTracker = createProtectiveLiquidationEpisodeTracker();

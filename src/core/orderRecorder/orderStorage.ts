@@ -14,11 +14,8 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import {
-  formatSymbolDisplayFromQuote,
-  getLongDirectionName,
-  getShortDirectionName,
-} from '../utils.js';
+import { formatSymbolDisplayFromQuote } from '../utils.js';
+import { LONG_DIRECTION_NAME, SHORT_DIRECTION_NAME } from '../../constants/index.js';
 import type { Quote } from '../../types/quote.js';
 import type {
   OrderRecord,
@@ -163,7 +160,7 @@ export const createOrderStorage = (): OrderStorage => {
     const list = getBuyOrdersList(symbol, isLongSymbol);
     setBuyOrdersList(symbol, [...list, nextRecord], isLongSymbol);
 
-    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+    const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
     logger.info(
       `[现存订单记录] 本地新增买入记录：${positionType} ${symbol} 价格=${executedPrice.toFixed(3)} 数量=${executedQuantity}`,
     );
@@ -209,7 +206,7 @@ export const createOrderStorage = (): OrderStorage => {
     }
 
     const totalQuantity = calculateTotalQuantity(list);
-    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+    const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
 
     // 如果卖出数量大于等于当前记录的总数量，视为全部卖出，清空记录
     if (executedQuantity >= totalQuantity) {
@@ -246,7 +243,7 @@ export const createOrderStorage = (): OrderStorage => {
 
   /** 清空指定标的的买入订单记录（用于保护性清仓） */
   const clearBuyOrders = (symbol: string, isLongSymbol: boolean, quote?: Quote | null): void => {
-    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+    const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
     setBuyOrdersList(symbol, [], isLongSymbol);
 
     // 使用 formatSymbolDisplayFromQuote 格式化标的显示

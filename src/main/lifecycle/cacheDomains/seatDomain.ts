@@ -11,7 +11,7 @@
  * - 席位在统一开盘重建流水线（loadTradingDayRuntimeSnapshot）中重建，此处为空操作
  */
 import { logger } from '../../../utils/logger/index.js';
-import { resolveMonitorContextSeatSnapshot } from '../../../utils/utils.js';
+import { resolveMonitorContextSeatSnapshot } from '../../../utils/seat/snapshots.js';
 import type { MonitorContext } from '../../../types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { SeatState, SymbolRegistry } from '../../../types/seat.js';

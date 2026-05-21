@@ -65,17 +65,6 @@ export type PreparedSeats = {
 };
 
 /**
- * 收集就绪席位标的列表的入参。
- * 类型用途：统一 collectSeatSymbols 所需的 monitors 与 symbolRegistry。
- * 数据来源：由 prepareSeatsForRuntime 在恢复完成后组装传入。
- * 使用范围：仅运行时席位恢复流程内部使用。
- */
-export type CollectSeatSymbolsParams = Readonly<{
-  monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>;
-  symbolRegistry: SymbolRegistry;
-}>;
-
-/**
  * 运行时恢复寻标参数。
  * 类型用途：封装 searchSeatSymbol 所需的监控标的、方向、自动寻标配置与当前时间。
  * 数据来源：由 prepareSeatsForRuntime 在尝试补空席位时组装传入。

@@ -9,11 +9,8 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import {
-  formatSymbolDisplayFromQuote,
-  getLongDirectionName,
-  getShortDirectionName,
-} from '../utils.js';
+import { formatSymbolDisplayFromQuote } from '../utils.js';
+import { LONG_DIRECTION_NAME, SHORT_DIRECTION_NAME } from '../../constants/index.js';
 import {
   decimalAdd,
   decimalGt,
@@ -137,7 +134,7 @@ export const createUnrealizedLossChecker = (
       lastUpdateTime: Date.now(),
     });
 
-    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+    const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
     const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
 
     logger.info(
@@ -195,7 +192,7 @@ export const createUnrealizedLossChecker = (
 
     // 检查浮亏是否超过阈值（浮亏为负数表示亏损）
     if (decimalLt(unrealizedLoss, decimalNeg(threshold))) {
-      const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+      const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
       const reason = `[保护性清仓] ${positionType} ${symbol} 浮亏=${formatDecimal(
         unrealizedLoss,
         2,

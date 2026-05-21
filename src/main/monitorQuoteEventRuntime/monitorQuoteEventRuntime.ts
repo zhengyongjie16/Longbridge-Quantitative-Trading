@@ -11,8 +11,8 @@ import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProt
 import { formatError } from '../../utils/error/index.js';
 import { isRefreshGateAbortError } from '../../utils/refreshGate/index.js';
 import { logger } from '../../utils/logger/index.js';
-import { areStringSetsEqual } from '../../utils/utils.js';
 import type { StartSwitchOnDistanceResult } from '../../types/monitorContextPorts.js';
+import { areStringSetsEqual } from './setUtils.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { QuoteUpdatedEvent } from '../../types/services.js';
 import { isSeatActive } from '../../utils/seat/guards.js';

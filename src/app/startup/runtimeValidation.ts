@@ -7,30 +7,17 @@
  */
 import type {
   PushRuntimeValidationSymbolParams,
-  ResolveSeatSymbolsByMonitorParams,
-  ResolvedSeatSymbols,
   MutableRuntimeValidationCollector,
   RuntimeValidationCollector,
   RuntimeValidationCollectionParams,
 } from '../types.js';
-import { shouldSkipRuntimeValidationSymbol } from '../../utils/utils.js';
-import { resolveBoundSeatSymbol } from '../../main/recovery/seatPreparation.js';
+import { resolveBoundSeatSymbol } from '../../utils/seat/symbols.js';
 
-/**
- * 解析指定监控标的的双向已绑定席位代码。
- * 默认行为：返回已绑定 seat 的 symbol；未绑定时返回 null。
- *
- * @param params 解析参数，包含 symbolRegistry 与 monitorSymbol
- * @returns 当前监控标的的 longSeatSymbol/shortSeatSymbol
- */
-function resolveSeatSymbolsByMonitor(
-  params: ResolveSeatSymbolsByMonitorParams,
-): ResolvedSeatSymbols {
-  const { symbolRegistry, monitorSymbol } = params;
-  return {
-    longSeatSymbol: resolveBoundSeatSymbol(symbolRegistry, monitorSymbol, 'LONG'),
-    shortSeatSymbol: resolveBoundSeatSymbol(symbolRegistry, monitorSymbol, 'SHORT'),
-  };
+function shouldSkipRuntimeValidationSymbol(
+  symbol: string | null,
+  requiredSymbols: ReadonlySet<string>,
+): boolean {
+  return !symbol || requiredSymbols.has(symbol);
 }
 
 /**
@@ -92,10 +79,16 @@ export function collectRuntimeValidationSymbols(
       collector,
     });
 
-    const { longSeatSymbol, shortSeatSymbol } = resolveSeatSymbolsByMonitor({
+    const longSeatSymbol = resolveBoundSeatSymbol(
       symbolRegistry,
-      monitorSymbol: monitorConfig.monitorSymbol,
-    });
+      monitorConfig.monitorSymbol,
+      'LONG',
+    );
+    const shortSeatSymbol = resolveBoundSeatSymbol(
+      symbolRegistry,
+      monitorConfig.monitorSymbol,
+      'SHORT',
+    );
     const autoSearchEnabled = monitorConfig.autoSearchConfig.autoSearchEnabled;
     pushRuntimeValidationSymbol({
       symbol: longSeatSymbol,

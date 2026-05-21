@@ -9,7 +9,7 @@
  */
 import path from 'node:path';
 import { constants as fsConstants } from 'node:fs';
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'bun:test';
 
 const projectRoot = process.cwd();
@@ -25,6 +25,26 @@ async function exists(relativePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function collectTypeScriptFiles(relativeDir: string): Promise<ReadonlyArray<string>> {
+  const absoluteDir = path.join(projectRoot, relativeDir);
+  const entries = await readdir(absoluteDir, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const childRelativePath = path.join(relativeDir, entry.name).replaceAll(path.sep, '/');
+    if (entry.isDirectory()) {
+      files.push(...(await collectTypeScriptFiles(childRelativePath)));
+      continue;
+    }
+
+    if (entry.isFile() && childRelativePath.endsWith('.ts')) {
+      files.push(childRelativePath);
+    }
+  }
+
+  return files;
 }
 
 function getRelevantLines(source: string): string[] {
@@ -252,6 +272,84 @@ describe('type organization regressions', () => {
     expectNoNamedExport(asyncProgramTypesSource, 'CreateTriggeredLongOnlyLiquidationContextParams');
   });
 
+  it('keeps orderRecorder internal implementation files behind the public boundary', async () => {
+    const productionFiles = await collectTypeScriptFiles('src');
+    const forbiddenImportPattern =
+      /from\s+['"][^'"]*orderRecorder\/(?:orderStorage|orderApiManager|orderFilteringEngine|orderOwnershipParser|utils)\.js['"]/;
+    const violations: string[] = [];
+
+    for (const relativePath of productionFiles) {
+      if (relativePath.startsWith('src/core/orderRecorder/')) {
+        continue;
+      }
+
+      const source = await readProjectFile(relativePath);
+      if (forbiddenImportPattern.test(source)) {
+        violations.push(relativePath);
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it('keeps orderRecorder factory deps out of shared public types', async () => {
+    const sharedOrderRecorderTypesSource = await readProjectFile('src/types/orderRecorder.ts');
+
+    expect(sharedOrderRecorderTypesSource).not.toContain('OrderRecorderFactoryDeps');
+    expect(sharedOrderRecorderTypesSource).not.toContain('TradeContext');
+    expect(sharedOrderRecorderTypesSource).not.toContain('RateLimiter');
+  });
+
+  it('keeps seat symbol helper parameter types minimal and local', async () => {
+    const symbolsSource = await readProjectFile('src/utils/seat/symbols.ts');
+
+    expect(symbolsSource).not.toContain('MonitorConfig');
+    expect(symbolsSource).toMatch(
+      /readonly\s+monitors:\s*ReadonlyArray<\{\s*readonly\s+monitorSymbol:\s*string;\s*\}>/,
+    );
+
+    expect(symbolsSource).toMatch(
+      /resolveBoundSeatSymbol\s*\(\s*symbolRegistry:\s*Pick<SymbolRegistry,\s*'getSeatState'>/,
+    );
+
+    expect(symbolsSource).toMatch(
+      /readonly\s+symbolRegistry:\s*Pick<SymbolRegistry,\s*'getSeatState'>/,
+    );
+  });
+
+  it('keeps seat symbol helpers out of recovery-only modules', async () => {
+    expect(await exists('src/utils/seat/symbols.ts')).toBe(true);
+    expect(await exists('src/utils/seat/utils.ts')).toBe(false);
+
+    const appFiles = await collectTypeScriptFiles('src/app');
+    const recoveryFiles = await collectTypeScriptFiles('src/main/recovery');
+    const recoveryImportViolations: string[] = [];
+    const recoveryHelperViolations: string[] = [];
+    const forbiddenRecoveryImportPattern = /from\s+['"][^'"]*main\/recovery\/[^'"]+\.js['"]/;
+    const forbiddenRecoveryHelperPattern =
+      /(?:export\s+\{[^}]*\b(?:resolveBoundSeatSymbol|collectBoundSeatSymbols)\b[^}]*\}|\b(?:function|const)\s+(?:resolveBoundSeatSymbol|collectSeatSymbols|collectBoundSeatSymbols)\b)/;
+
+    for (const relativePath of appFiles) {
+      const source = await readProjectFile(relativePath);
+      if (forbiddenRecoveryImportPattern.test(source)) {
+        recoveryImportViolations.push(relativePath);
+      }
+    }
+
+    for (const relativePath of recoveryFiles) {
+      const source = await readProjectFile(relativePath);
+      if (forbiddenRecoveryHelperPattern.test(source)) {
+        recoveryHelperViolations.push(relativePath);
+      }
+    }
+
+    const recoveryTypesSource = await readProjectFile('src/main/recovery/types.ts');
+
+    expect(recoveryImportViolations).toEqual([]);
+    expect(recoveryHelperViolations).toEqual([]);
+    expect(recoveryTypesSource).not.toContain('CollectSeatSymbolsParams');
+  });
+
   it('keeps non-app modules free of confirmed dead public surface', async () => {
     const indicatorRuntimeUtilsSource = await readProjectFile(
       'src/services/indicators/runtime/utils.ts',
@@ -285,5 +383,35 @@ describe('type organization regressions', () => {
     expect(monitorTaskProcessorTypesSource).not.toMatch(
       /export\s+interface\s+MonitorTaskProcessor[\s\S]*?readonly\s+stop:/,
     );
+  });
+
+  it('removes catch-all utils and queue protocol from the shared public surface', async () => {
+    expect(await exists('src/utils/utils.ts')).toBe(false);
+    expect(await exists('src/types/queue.ts')).toBe(false);
+
+    const runtimeValidationSource = await readProjectFile('src/app/startup/runtimeValidation.ts');
+    const runtimeSource = await readProjectFile('src/utils/runtime/index.ts');
+    const accountDisplaySource = await readProjectFile('src/services/accountDisplay/index.ts');
+    const queueCleanupSource = await readProjectFile(
+      'src/main/seatRuntimeCleanupDispatcher/queueCleanup.ts',
+    );
+
+    expect(runtimeValidationSource).not.toContain("from '../../utils/utils.js'");
+    expect(runtimeSource).not.toContain("from '../utils.js'");
+    expect(accountDisplaySource).not.toContain("from '../../utils/utils.js'");
+    expect(queueCleanupSource).not.toContain("from '../../utils/utils.js'");
+    expect(queueCleanupSource).not.toContain("from '../../types/queue.js'");
+  });
+
+  it('moves seat projection helpers out of catch-all utils', async () => {
+    const source = await readProjectFile('src/utils/seat/snapshots.ts');
+    expect(source).toContain('resolveMonitorContextSeatSnapshot');
+    expect(source).toContain('resolveMonitorContextRuntimeSnapshot');
+    expect(await exists('src/utils/utils.ts')).toBe(false);
+  });
+
+  it('keeps the old catch-all utils files deleted', async () => {
+    expect(await exists('src/utils/utils.ts')).toBe(false);
+    expect(await exists('src/types/queue.ts')).toBe(false);
   });
 });
