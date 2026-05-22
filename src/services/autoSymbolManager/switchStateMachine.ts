@@ -860,6 +860,9 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
       resetQuoteRetryState(state);
       state.stage = state.shouldRebuy ? 'WAIT_QUOTE' : 'COMPLETE';
+      if (state.stage === 'WAIT_QUOTE') {
+        return createWaitDriveResult([{ kind: 'SYMBOL_QUOTE', symbol: nextSymbol }]);
+      }
     }
 
     if (state.stage === 'WAIT_QUOTE') {

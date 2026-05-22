@@ -69,8 +69,7 @@
 
 ### 3.1 `orderRecorder` 边界尚未完全收口，但不宜定性为硬规范违规
 
-> 状态：已修复（2026-05-21 复核确认）。
-> 当前依据：外部 owner 已统一通过 `src/core/orderRecorder/index.ts` 的正式边界使用相关能力，`tests/architecture/typeOrganization.test.ts` 也已阻止生产代码继续直接导入 `orderRecorder` 内部实现文件。
+> 状态：已修复（2026-05-21 复核确认）。当前依据：外部 owner 已统一通过 `src/core/orderRecorder/index.ts` 的正式边界使用相关能力，`tests/architecture/typeOrganization.test.ts` 也已阻止生产代码继续直接导入 `orderRecorder` 内部实现文件。
 
 #### 现状
 
@@ -121,8 +120,7 @@
 
 ### 3.2 `main/recovery` 内混放了恢复流程与通用 helper
 
-> 状态：已修复（2026-05-21 复核确认）。
-> 当前依据：通用 seat helper 已迁到 `src/utils/seat/symbols.ts`，`src/app` 对 `main/recovery` 的反向依赖已消除，相关 architecture 护栏已建立。
+> 状态：已修复（2026-05-21 复核确认）。当前依据：通用 seat helper 已迁到 `src/utils/seat/symbols.ts`，`src/app` 对 `main/recovery` 的反向依赖已消除，相关 architecture 护栏已建立。
 
 #### 现状
 
@@ -143,8 +141,7 @@
 
 ### 3.3 `src/utils/utils.ts` 已形成 catch-all 文件
 
-> 状态：已修复（2026-05-21 复核确认）。
-> 当前依据：`src/utils/utils.ts` 已删除，原 helper 已按 owner / 最近共同父级分别迁回 `src/utils/seat/`、`src/main/monitorQuoteEventRuntime/`、`src/main/seatRuntimeCleanupDispatcher/`、`src/services/accountDisplay/` 与 `src/utils/runtime/`。
+> 状态：已修复（2026-05-21 复核确认）。当前依据：`src/utils/utils.ts` 已删除，原 helper 已按 owner / 最近共同父级分别迁回 `src/utils/seat/`、`src/main/monitorQuoteEventRuntime/`、`src/main/seatRuntimeCleanupDispatcher/`、`src/services/accountDisplay/` 与 `src/utils/runtime/`。
 
 #### 现状
 
@@ -184,8 +181,7 @@
 
 ### 3.4 `src/types/queue.ts` 挂在全局层级偏高
 
-> 状态：已修复（2026-05-21 复核确认）。
-> 当前依据：`src/types/queue.ts` 已删除，`QueueClearResult` 已收回 `src/main/seatRuntimeCleanupDispatcher/types.ts`，不再挂在全局 `src/types/` 层级。
+> 状态：已修复（2026-05-21 复核确认）。当前依据：`src/types/queue.ts` 已删除，`QueueClearResult` 已收回 `src/main/seatRuntimeCleanupDispatcher/types.ts`，不再挂在全局 `src/types/` 层级。
 
 #### 使用面
 

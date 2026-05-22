@@ -841,6 +841,321 @@ describe('switchWakeupRuntime', () => {
     await runtime.stopAndDrain();
   });
 
+  it('deletes the route when pending switch is cleared before a wakeup is handled', async () => {
+    let advanceCalls = 0;
+    let pendingSwitchActive = true;
+    const runtimeHarness = createBaseHarness({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: { kind: 'NOOP' },
+        }),
+        advancePendingSwitch: async (params) => {
+          advanceCalls += 1;
+          return {
+            advanced: true,
+            direction: params.direction,
+            stillPending: false,
+            driveResult: { kind: 'COMPLETED' },
+          };
+        },
+        hasPendingSwitch: () => pendingSwitchActive,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+    });
+
+    pendingSwitchActive = false;
+    emitQuoteUpdated('BULL.HK', 1.1);
+    await waitTick();
+
+    pendingSwitchActive = true;
+    emitQuoteUpdated('BULL.HK', 1.2);
+    await waitTick();
+
+    expect(advanceCalls).toBe(0);
+    await runtimeHarness.runtime.stopAndDrain();
+  });
+
+  it('deletes the route when pending switch is cleared during freshness wait', async () => {
+    let advanceCalls = 0;
+    let pendingSwitchActive = true;
+    const runtimeHarness = createBaseHarness({
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: { kind: 'NOOP' },
+        }),
+        advancePendingSwitch: async (params) => {
+          advanceCalls += 1;
+          return {
+            advanced: true,
+            direction: params.direction,
+            stillPending: false,
+            driveResult: { kind: 'COMPLETED' },
+          };
+        },
+        hasPendingSwitch: () => pendingSwitchActive,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.consistencyHarness.blockFreshWait();
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'FRESHNESS' }]),
+    });
+
+    runtimeHarness.consistencyHarness.emitFreshReached();
+    await waitTick();
+
+    pendingSwitchActive = false;
+    runtimeHarness.consistencyHarness.resolveFreshWait();
+    await waitTick();
+    await waitTick();
+
+    pendingSwitchActive = true;
+    runtimeHarness.consistencyHarness.emitFreshReached();
+    await waitTick();
+
+    expect(advanceCalls).toBe(0);
+    await runtimeHarness.runtime.stopAndDrain();
+  });
+
+  it('re-drives the route after quote retain resolves for the current route', async () => {
+    const retainDeferred = createDeferred<() => void>();
+    let advanceCalls = 0;
+    const runtimeHarness = createBaseHarness({
+      quoteSubscriptionRuntime: {
+        retainSymbols: async () => await retainDeferred.promise,
+        releaseRetain: async () => {},
+      },
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: { kind: 'NOOP' },
+        }),
+        advancePendingSwitch: async (params) => {
+          advanceCalls += 1;
+          return {
+            advanced: true,
+            direction: params.direction,
+            stillPending: true,
+            driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+          };
+        },
+        hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+    });
+
+    await waitTick();
+    expect(advanceCalls).toBe(0);
+
+    retainDeferred.resolve(() => {});
+    await waitTick();
+    await waitTick();
+
+    expect(advanceCalls).toBe(1);
+    await runtimeHarness.runtime.stopAndDrain();
+  });
+
+  it('does not re-drive a stale route when quote retain resolves after seatVersion changes', async () => {
+    const retainDeferred = createDeferred<() => void>();
+    let advanceCalls = 0;
+    const symbolRegistry = createSymbolRegistryDouble({ longVersion: 1, shortVersion: 1 });
+    const runtimeHarness = createBaseHarness({
+      symbolRegistry,
+      quoteSubscriptionRuntime: {
+        retainSymbols: async () => await retainDeferred.promise,
+        releaseRetain: async () => {},
+      },
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: { kind: 'NOOP' },
+        }),
+        advancePendingSwitch: async (params) => {
+          advanceCalls += 1;
+          return {
+            advanced: true,
+            direction: params.direction,
+            stillPending: true,
+            driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+          };
+        },
+        hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+    });
+
+    await waitTick();
+    expect(advanceCalls).toBe(0);
+
+    symbolRegistry.bumpSeatVersion('HSI.HK', 'LONG');
+    retainDeferred.resolve(() => {});
+    await waitTick();
+    await waitTick();
+
+    expect(advanceCalls).toBe(0);
+    await runtimeHarness.runtime.stopAndDrain();
+  });
+
+  it('ignores an outdated retain promise after WAIT quote symbols change on the same route', async () => {
+    const bullRetainDeferred = createDeferred<() => void>();
+    const bearRetainDeferred = createDeferred<() => void>();
+    const retainCalls: string[] = [];
+    let advanceCalls = 0;
+    const runtimeHarness = createBaseHarness({
+      quoteSubscriptionRuntime: {
+        retainSymbols: async ({ symbols }) => {
+          const [symbol] = [...symbols];
+          if (symbol === undefined) {
+            throw new Error('expected retain symbol');
+          }
+
+          retainCalls.push(symbol);
+          if (symbol === 'BULL.HK') {
+            return await bullRetainDeferred.promise;
+          }
+
+          if (symbol === 'BEAR.HK') {
+            return await bearRetainDeferred.promise;
+          }
+
+          throw new Error(`unexpected retain symbol: ${symbol}`);
+        },
+        releaseRetain: async () => {},
+      },
+      autoSymbolManager: {
+        maybeSearchOnEvent: async () => {},
+        evaluatePeriodicSwitchDue: async () => ({ kind: 'NOOP' }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: { kind: 'NOOP' },
+        }),
+        advancePendingSwitch: async (params) => {
+          advanceCalls += 1;
+          return {
+            advanced: true,
+            direction: params.direction,
+            stillPending: true,
+            driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BEAR.HK' }]),
+          };
+        },
+        hasPendingSwitch: () => true,
+        getPeriodicSwitchPendingState: () => ({
+          pending: false,
+          pendingSinceMs: null,
+        }),
+        resetAllState: () => {},
+      },
+    });
+    const monitorContext = runtimeHarness.monitorContexts.get('HSI.HK');
+    if (monitorContext === undefined) {
+      throw new Error('expected HSI.HK monitor context');
+    }
+
+    runtimeHarness.runtime.start();
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BULL.HK' }]),
+    });
+
+    runtimeHarness.runtime.handoffPendingSwitch({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      monitorContext,
+      driveResult: createWaitResult([{ kind: 'SYMBOL_QUOTE', symbol: 'BEAR.HK' }]),
+    });
+
+    expect(retainCalls).toEqual(['BULL.HK', 'BEAR.HK']);
+
+    bullRetainDeferred.resolve(() => {});
+    await waitTick();
+    await waitTick();
+    expect(advanceCalls).toBe(0);
+
+    bearRetainDeferred.resolve(() => {});
+    await waitTick();
+    await waitTick();
+    expect(advanceCalls).toBe(1);
+    await runtimeHarness.runtime.stopAndDrain();
+  });
+
   it('retries unchanged switch quote retain after previous retain failure', async () => {
     const retainCalls: ReadonlyArray<string>[] = [];
     let remainingRetainFailures = 1;

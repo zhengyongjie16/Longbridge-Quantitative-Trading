@@ -217,7 +217,9 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
   }
 
   /**
-   * 按最新 WAIT quote wakeup 集合刷新 route retain。
+   * 按最新 WAIT quote wakeup 集合刷新 route retain，并在 retain 成功后仅为当前 route 补发重推进。
+   *
+   * 旧 retain、旧 seatVersion 或 retained 集合已变化时，都不会触发新的 route 推进。
    *
    * @param routeKey 路由键
    * @param symbols 等待 quote 唤醒期间必须保留订阅的标的
@@ -256,6 +258,16 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
         ownerKey: routeKey,
         reason: 'SWITCH_WAKEUP',
         symbols: [...symbols],
+      })
+      .then(() => {
+        if (
+          routeState.retainedQuoteSymbols !== requestedSymbols ||
+          !isRouteCurrent(routeState.route)
+        ) {
+          return;
+        }
+
+        triggerRoute(routeKey, 'QUOTE_RETAIN_READY');
       })
       .catch((error: unknown) => {
         if (routeState.retainedQuoteSymbols === requestedSymbols) {
