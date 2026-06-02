@@ -70,7 +70,7 @@ describe('trader facade business flow', () => {
     });
 
     const trader = await createTrader({
-      config: {},
+      config: { refreshAccessToken: () => Promise.resolve('') },
       tradingConfig: createTradingConfig(),
       marketDataClient: createMarketDataClientDouble(),
       symbolRegistry: createSymbolRegistryDouble(),
@@ -93,7 +93,7 @@ describe('trader facade business flow', () => {
     });
 
     const trader = await createTrader({
-      config: {},
+      config: { refreshAccessToken: () => Promise.resolve('') },
       tradingConfig: createTradingConfig(),
       marketDataClient: createMarketDataClientDouble(),
       symbolRegistry: createSymbolRegistryDouble(),
@@ -137,7 +137,7 @@ describe('trader facade business flow', () => {
     let caught: unknown = null;
     try {
       await createTrader({
-        config: {},
+        config: { refreshAccessToken: () => Promise.resolve('') },
         tradingConfig: createTradingConfig(),
         marketDataClient: createMarketDataClientDouble(),
         symbolRegistry: createSymbolRegistryDouble(),
@@ -167,7 +167,7 @@ describe('trader facade business flow', () => {
     });
 
     const trader = await createTrader({
-      config: {},
+      config: { refreshAccessToken: () => Promise.resolve('') },
       tradingConfig: createTradingConfig(),
       marketDataClient: createMarketDataClientDouble(),
       symbolRegistry: createSymbolRegistryDouble(),
@@ -207,7 +207,7 @@ describe('trader facade business flow', () => {
     });
 
     const trader = await createTrader({
-      config: {},
+      config: { refreshAccessToken: () => Promise.resolve('') },
       tradingConfig: createTradingConfig(),
       marketDataClient: createMarketDataClientDouble(),
       symbolRegistry: createSymbolRegistryDouble(),
@@ -261,7 +261,7 @@ describe('trader facade business flow', () => {
     });
 
     const trader = await createTrader({
-      config: {},
+      config: { refreshAccessToken: () => Promise.resolve('') },
       tradingConfig: createTradingConfig(),
       marketDataClient: createMarketDataClientDouble(),
       symbolRegistry: createSymbolRegistryDouble(),

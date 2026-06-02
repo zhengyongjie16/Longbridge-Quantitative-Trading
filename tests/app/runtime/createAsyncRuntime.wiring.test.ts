@@ -62,7 +62,7 @@ function createDeps(
 
   return {
     preGateRuntime: {
-      config: {},
+      config: { refreshAccessToken: () => Promise.resolve('') },
       tradingConfig: createTradingConfig({ monitors: [] }),
       symbolRegistry: createSymbolRegistryDouble(),
       warrantListCache,
