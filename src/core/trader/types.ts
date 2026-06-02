@@ -7,7 +7,7 @@ import type {
   TimeInForceType,
   TradeContext,
 } from 'longbridge';
-import type { Signal, SignalType, OrderTypeConfig } from '../../types/signal.js';
+import type { ExecutableSignal, Signal, SignalType, OrderTypeConfig } from '../../types/signal.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';
 import type { ExternalApiRetryConfig } from '../../utils/apiFailure/types.js';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../../types/config.js';
@@ -266,7 +266,7 @@ export interface OrderMonitor {
 export interface OrderExecutor {
   canTradeNow: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => TradeCheckResult;
   executeSignals: (
-    signals: ReadonlyArray<Signal>,
+    signals: ReadonlyArray<ExecutableSignal>,
   ) => Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }>;
 
   /** 清空 lastBuyTime（买入节流状态） */
@@ -542,6 +542,9 @@ export type OrderMonitorDeps = {
 
   /** 运行时执行门禁（卖单超时转市价单时校验，禁止门禁关闭时新开单） */
   readonly isExecutionAllowed: IsExecutionAllowed;
+
+  /** 运行期 route 处理失败的 fatal 通道 */
+  readonly onFatalError?: (error: unknown) => void;
 };
 
 /**
@@ -599,4 +602,7 @@ export type TraderDeps = {
 
   /** 运行时执行门禁（单一状态源注入，执行层统一判定） */
   readonly isExecutionAllowed: IsExecutionAllowed;
+
+  /** 运行期异步错误 fatal 通道 */
+  readonly onFatalError?: (error: unknown) => void;
 };

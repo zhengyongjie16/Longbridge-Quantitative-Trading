@@ -267,6 +267,32 @@ export function createPostGateRuntimeFactory(
         await quoteSubscriptionRuntimeRef?.reconcilePositionHoldFromCurrentTruth();
       },
     });
+    let fatalError: Error | null = null;
+    const fatalRejectors = new Set<(error: Error) => void>();
+
+    const handleFatalError = (error: unknown): void => {
+      if (fatalError !== null) {
+        return;
+      }
+
+      fatalError = toError(error);
+      for (const reject of fatalRejectors) {
+        reject(fatalError);
+      }
+
+      fatalRejectors.clear();
+    };
+
+    const drainFatalError = (): Promise<never> => {
+      if (fatalError !== null) {
+        return Promise.reject(fatalError);
+      }
+
+      return new Promise<never>((_, reject) => {
+        fatalRejectors.add(reject);
+      });
+    };
+
     const trader = await buildTrader({
       config,
       tradingConfig,
@@ -276,6 +302,7 @@ export function createPostGateRuntimeFactory(
       protectiveLiquidationEpisodeTracker,
       postTradeConsistencyRuntime,
       isExecutionAllowed: () => lastState.isTradingEnabled,
+      onFatalError: handleFatalError,
     });
     traderRef = trader;
     const tradeLogHydrator = createTradeLogHydrator({
@@ -311,39 +338,16 @@ export function createPostGateRuntimeFactory(
     const doomsdayProtection = createDoomsdayProtection();
     const doomsdayProtectionEnabled = tradingConfig.global.doomsdayProtection;
     const tradingGateEventRuntime = createTradingGateEventRuntime();
+
     const quoteSubscriptionRuntime = createQuoteSubscriptionRuntime({
       tradingConfig,
       symbolRegistry,
       marketDataClient,
       trader,
       lastState,
+      onFatalError: handleFatalError,
     });
     quoteSubscriptionRuntimeRef = quoteSubscriptionRuntime;
-    let fatalError: Error | null = null;
-    const fatalRejectors = new Set<(error: Error) => void>();
-
-    const handleFatalError = (error: unknown): void => {
-      if (fatalError !== null) {
-        return;
-      }
-
-      fatalError = toError(error);
-      for (const reject of fatalRejectors) {
-        reject(fatalError);
-      }
-
-      fatalRejectors.clear();
-    };
-
-    const drainFatalError = (): Promise<never> => {
-      if (fatalError !== null) {
-        return Promise.reject(fatalError);
-      }
-
-      return new Promise<never>((_, reject) => {
-        fatalRejectors.add(reject);
-      });
-    };
 
     trader.onOrderStateChanged((event) => {
       try {
@@ -396,6 +400,7 @@ export function createPostGateRuntimeFactory(
       quoteSubscriptionRuntime,
       now: () => new Date(),
       handoffPendingSwitch: switchWakeupRuntime.handoffPendingSwitch,
+      onFatalError: handleFatalError,
     });
     const monitorDisplayRuntime = createMonitorDisplayRuntime({
       marketDataClient,

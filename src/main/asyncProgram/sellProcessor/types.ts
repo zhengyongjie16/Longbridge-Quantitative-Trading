@@ -4,7 +4,7 @@ import type {
   PostTradeConsistencyFreshnessPort,
   Trader,
 } from '../../../types/services.js';
-import type { Signal } from '../../../types/signal.js';
+import type { SellSignal } from '../../../types/signal.js';
 import type { TaskQueue, SellTaskType } from '../tradeTaskQueue/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 
@@ -16,7 +16,7 @@ import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
  */
 export type SellRetryState = {
   handle: ReturnType<typeof setTimeout> | null;
-  retrySignal: Signal | null;
+  retrySignal: SellSignal | null;
   attempts: number;
 };
 

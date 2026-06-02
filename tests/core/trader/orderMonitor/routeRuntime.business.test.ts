@@ -816,6 +816,31 @@ describe('orderMonitor route runtime', () => {
     await expectPromiseRejectsToMatch(() => stopPromise, /route process failed/);
   });
 
+  it('route 处理失败会在运行期进入 fatal 通道', async () => {
+    const runtime = createRuntimeStore();
+    runtime.routeStatesBySymbol.set('BULL.HK', createRouteState('BULL.HK'));
+    const routeError = new Error('route runtime fatal failure');
+    const fatalErrors: unknown[] = [];
+    const { marketDataClient } = createQuoteEmitter();
+    const routeRuntime = createRouteRuntime({
+      runtime,
+      config: routeConfig,
+      marketDataClient,
+      processRoute: async () => {
+        throw routeError;
+      },
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+    });
+
+    routeRuntime.start();
+    routeRuntime.triggerRoute('BULL.HK', 'ORDER_EVENT');
+    await flushMicrotasks();
+
+    expect(fatalErrors).toEqual([routeError]);
+  });
+
   it('stopAndDrain 不会重复暴露同一条 route 失败', async () => {
     const runtime = createRuntimeStore();
     runtime.routeStatesBySymbol.set('BULL.HK', createRouteState('BULL.HK'));

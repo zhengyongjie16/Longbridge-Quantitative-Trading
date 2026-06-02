@@ -18,6 +18,7 @@ import {
 } from '../../helpers/testDoubles.js';
 import { createMonitorConfig } from '../../../mock/factories/configFactory.js';
 import { createDefaultMonitorQuoteEventRuntime } from '../../../src/main/monitorQuoteEventRuntime/monitorQuoteEventRuntime.js';
+import { createExternalApiRequestError } from '../../../src/utils/apiFailure/index.js';
 import type {
   CreateDefaultMonitorQuoteEventRuntimeDeps,
   MonitorQuoteEventRuntime,
@@ -211,6 +212,8 @@ function createDefaultDistanceSwitchHarness(
   params: {
     readonly waitForDistanceResult?: Promise<ReadonlyArray<StartSwitchOnDistanceResult>>;
     readonly canTrade?: boolean | null;
+    readonly switchFailure?: Error;
+    readonly onFatalError?: (error: unknown) => void;
   } = {},
 ): RuntimeHarness &
   Readonly<{
@@ -271,6 +274,10 @@ function createDefaultDistanceSwitchHarness(
     autoSymbolManager: createAutoSymbolManagerDouble({
       startSwitchOnDistance: async ({ direction }) => {
         startSwitchDirections.push(direction);
+        if (params.switchFailure) {
+          throw params.switchFailure;
+        }
+
         if (params.waitForDistanceResult) {
           const result = await params.waitForDistanceResult;
           return result[0] ?? { started: false, direction, driveResult: { kind: 'NOOP' } };
@@ -313,6 +320,7 @@ function createDefaultDistanceSwitchHarness(
     postTradeConsistencyRuntime: createFreshnessRuntimeDouble(),
     doomsdayProtectionEnabled: false,
     now: () => new Date('2026-04-08T10:00:00+08:00'),
+    ...(params.onFatalError ? { onFatalError: params.onFatalError } : {}),
     handoffPendingSwitch: (handoffParams) => {
       switchWakeupHandoffs.push({
         monitorSymbol: handoffParams.monitorSymbol,
@@ -768,5 +776,28 @@ describe('monitorQuoteEventRuntime contract', () => {
     await stopPromise;
 
     expect(harness.switchWakeupHandoffs).toEqual([]);
+  });
+
+  it('sends distance switch route errors to fatal drain', async () => {
+    const fatalErrors: unknown[] = [];
+    const routeError = createExternalApiRequestError({
+      operation: 'AutoSymbolManager.startSwitchOnDistance',
+      attempts: 1,
+      cause: new Error('distance switch route broken'),
+    });
+    const harness = createDefaultDistanceSwitchHarness({
+      switchFailure: routeError,
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+    });
+
+    harness.runtime.start();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+
+    expect(fatalErrors).toEqual([routeError]);
+    await harness.runtime.stopAndDrain();
   });
 });

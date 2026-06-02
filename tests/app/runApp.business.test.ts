@@ -209,8 +209,10 @@ function createMockPostGateRuntime(
 ): MutableMonitorContextsPostGateRuntime {
   const signalProcessor: SignalProcessor = {
     processSellSignals: ({ signals }: ProcessSellSignalsParams): Signal[] => signals,
-    applyRiskChecks: async (signals: Signal[], _context: RiskCheckContext): Promise<Signal[]> =>
-      signals,
+    applyRiskChecks: async <TSignal extends Signal>(
+      signals: TSignal[],
+      _context: RiskCheckContext,
+    ): Promise<TSignal[]> => signals,
     resetRiskCheckCooldown: () => {},
   };
 

@@ -2,7 +2,7 @@ import { logger } from '../../utils/logger/index.js';
 import type { BaseProcessorConfig, Processor } from './types.js';
 import type { TaskAddedCallback } from './tradeTaskQueue/types.js';
 import type { Trader } from '../../types/services.js';
-import type { Signal } from '../../types/signal.js';
+import type { ExecutableSignal } from '../../types/signal.js';
 import { formatError } from '../../utils/error/index.js';
 
 /**
@@ -15,7 +15,7 @@ import { formatError } from '../../utils/error/index.js';
 export async function executeSignalsWithLifecycleGate(params: {
   readonly getCanProcessTask?: (() => boolean) | undefined;
   readonly trader: Trader;
-  readonly signal: Signal;
+  readonly signal: ExecutableSignal;
   readonly symbolDisplay: string;
   readonly loggerPrefix: string;
   readonly successMessage: string;

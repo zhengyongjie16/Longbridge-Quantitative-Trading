@@ -88,12 +88,15 @@ export const createRiskCheckPipeline = ({
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   readonly lastRiskCheckTime: Map<string, number>;
-}): ((signals: Signal[], context: RiskCheckContext) => Promise<Signal[]>) => {
+}): (<TSignal extends Signal>(
+  signals: TSignal[],
+  context: RiskCheckContext,
+) => Promise<TSignal[]>) => {
   /** 对信号列表应用风险检查，过滤不符合条件的信号 */
-  const applyRiskChecks = async (
-    signals: Signal[],
+  const applyRiskChecks = async <TSignal extends Signal>(
+    signals: TSignal[],
     context: RiskCheckContext,
-  ): Promise<Signal[]> => {
+  ): Promise<TSignal[]> => {
     const {
       trader,
       riskChecker,
@@ -117,7 +120,7 @@ export const createRiskCheckPipeline = ({
     // 先过滤风险检查冷却期信号
     // 这样可以避免冷却期内信号进入后续检查与实时数据拉取
     const cooldownMs = VERIFICATION.VERIFIED_SIGNAL_COOLDOWN_SECONDS * 1000;
-    const signalsAfterCooldown: Signal[] = [];
+    const signalsAfterCooldown: TSignal[] = [];
     for (const sig of signals) {
       const sigSymbol = sig.symbol;
       const cooldownKey = getRiskCheckCooldownKey(sigSymbol, sig.action);
@@ -136,7 +139,7 @@ export const createRiskCheckPipeline = ({
       return [];
     }
 
-    const finalSignals: Signal[] = [];
+    const finalSignals: TSignal[] = [];
 
     // 遍历过滤后的信号进行风险检查
     for (const sig of signalsAfterCooldown) {

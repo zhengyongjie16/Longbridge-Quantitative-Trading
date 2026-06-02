@@ -1,7 +1,7 @@
 import type { AutoSearchConfig, MonitorConfig } from '../../types/config.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
-import type { Signal } from '../../types/signal.js';
+import type { BuySignal, SellSignal, Signal } from '../../types/signal.js';
 import type {
   SeatState,
   SeatStateChangedEvent,
@@ -344,7 +344,7 @@ export type ThresholdResolverDeps = {
  * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export type BuildOrderSignalParams = {
-  readonly action: Signal['action'];
+  readonly action: BuySignal['action'] | SellSignal['action'];
   readonly symbol: string;
   readonly quote: Quote | null;
   readonly reason: string;
@@ -358,7 +358,9 @@ export type BuildOrderSignalParams = {
  * 类型用途：根据 BuildOrderSignalParams 构造订单 Signal，由 createSignalBuilder 实现并注入，供换标状态机消费。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
-export type OrderSignalBuilder = (params: BuildOrderSignalParams) => Signal;
+export type OrderSignal = BuySignal | SellSignal;
+
+export type OrderSignalBuilder = (params: BuildOrderSignalParams) => OrderSignal;
 
 /**
  * 信号构建器工厂的依赖注入参数（内部类型）。

@@ -58,21 +58,6 @@ const ANSI_RED = '\u001B[31m';
 const ANSI_YELLOW = '\u001B[33m';
 
 /**
- * 格式化数字文本。默认行为：无效值返回 "-"。
- *
- * @param value 待格式化值
- * @param digits 小数位数
- * @returns 格式化后的文本
- */
-function formatNumber(value: number | null | undefined, digits: number): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return '-';
-  }
-
-  return value.toFixed(digits);
-}
-
-/**
  * 输出指标表格（每分钟两行：高/低，每行独立着色）。
  *
  * @param rows 分钟指标结果
@@ -114,7 +99,7 @@ function displayRows(rows: ReadonlyArray<MinuteIndicatorRow>, symbol: string, da
   for (const row of rows) {
     const lineCells = [
       padToDisplayWidth(formatTimeWithVariant(row.time, row.variant), colWidths[0]),
-      padToDisplayWidth(formatNumber(row.close, 3), colWidths[1]),
+      padToDisplayWidth(formatMetricValue(row.close, 3), colWidths[1]),
       padToDisplayWidth(formatChangePercent(row.changePercent), colWidths[2]),
       padToDisplayWidth(String(Math.round(row.volume)), colWidths[3]),
       padToDisplayWidth(formatMetricValue(row.ema5), colWidths[4]),
@@ -125,9 +110,9 @@ function displayRows(rows: ReadonlyArray<MinuteIndicatorRow>, symbol: string, da
       padToDisplayWidth(formatMetricValue(row.kdj?.j), colWidths[9]),
       padToDisplayWidth(formatMetricValue(row.mfi), colWidths[10]),
       padToDisplayWidth(formatMetricValue(row.adx), colWidths[11]),
-      padToDisplayWidth(row.vp === null ? '-' : formatNumber(row.vp.poc, 3), colWidths[12]),
-      padToDisplayWidth(row.vp === null ? '-' : formatNumber(row.vp.vah, 3), colWidths[13]),
-      padToDisplayWidth(row.vp === null ? '-' : formatNumber(row.vp.val, 3), colWidths[14]),
+      padToDisplayWidth(row.vp === null ? '-' : formatMetricValue(row.vp.poc, 3), colWidths[12]),
+      padToDisplayWidth(row.vp === null ? '-' : formatMetricValue(row.vp.vah, 3), colWidths[13]),
+      padToDisplayWidth(row.vp === null ? '-' : formatMetricValue(row.vp.val, 3), colWidths[14]),
       padToDisplayWidth(formatMetricValue(row.vaPositionInValueArea), colWidths[15]),
     ];
     const line = `|${lineCells.join('|')}|`;

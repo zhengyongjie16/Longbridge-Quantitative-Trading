@@ -352,6 +352,14 @@ describe('trading config fail-fast parsing', () => {
         envKey: 'ORDER_MONITOR_PRICE_UPDATE_INTERVAL',
         value: 'abc',
       },
+      {
+        envKey: 'TRADING_ORDER_TYPE',
+        value: 'bad',
+      },
+      {
+        envKey: 'LIQUIDATION_ORDER_TYPE',
+        value: 'bad',
+      },
     ] as const;
 
     for (const testCase of invalidCases) {

@@ -8,7 +8,6 @@
  * - 以 monitorSymbol + direction + seatVersion 作为 route key，确保旧 seatVersion 注册自然失效
  */
 import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProtection/utils.js';
-import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 import { formatError } from '../../utils/error/index.js';
 import { isRefreshGateAbortError } from '../../utils/refreshGate/index.js';
 import { logger } from '../../utils/logger/index.js';
@@ -213,6 +212,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
       })
       .catch((error: unknown) => {
         logger.error('[SwitchWakeupRuntime] 释放 quote retain 失败', formatError(error));
+        deps.onFatalError?.(error);
       });
   }
 
@@ -275,6 +275,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
         }
 
         logger.error('[SwitchWakeupRuntime] 注册 quote retain 失败', formatError(error));
+        deps.onFatalError?.(error);
       });
   }
 
@@ -488,9 +489,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
         formatError(error),
       );
 
-      if (!isExternalApiRequestError(error)) {
-        deps.onFatalError?.(error);
-      }
+      deps.onFatalError?.(error);
     });
     activeRoutePromises.add(processingPromise);
     void processingPromise.finally(() => {
@@ -577,9 +576,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
           nextState.inFlight = true;
           const processingPromise = processRouteQueue(routeKey).catch((error: unknown) => {
             logger.error('[SwitchWakeupRuntime] pending switch 重入推进失败', formatError(error));
-            if (!isExternalApiRequestError(error)) {
-              deps.onFatalError?.(error);
-            }
+            deps.onFatalError?.(error);
           });
           activeRoutePromises.add(processingPromise);
           void processingPromise.finally(() => {

@@ -1,6 +1,6 @@
 import type { MonitorState } from '../../types/state.js';
 import type { MonitorConfig } from '../../types/config.js';
-import type { SignalType } from '../../types/signal.js';
+import type { BuySignalAction, SignalType } from '../../types/signal.js';
 import type { DecimalLike } from './types.js';
 
 /**
@@ -49,7 +49,7 @@ export function isValidPositiveNumber(value: unknown): value is number {
  * @param action 信号类型
  * @returns 为 BUYCALL 或 BUYPUT 时返回 true
  */
-export function isBuyAction(action: SignalType): boolean {
+export function isBuyAction(action: SignalType): action is BuySignalAction {
   return action === 'BUYCALL' || action === 'BUYPUT';
 }
 

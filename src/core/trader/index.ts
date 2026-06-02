@@ -19,7 +19,7 @@
  */
 import { TradeContext } from 'longbridge';
 import { createOrderRecorder } from '../orderRecorder/index.js';
-import type { Signal, SignalType } from '../../types/signal.js';
+import type { ExecutableSignal, SignalType } from '../../types/signal.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';
 import type {
   Trader,
@@ -58,6 +58,7 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
       protectiveLiquidationEpisodeTracker,
       postTradeConsistencyRuntime,
       isExecutionAllowed,
+      onFatalError,
     } = deps;
 
     // ========== 1. 创建基础依赖 ==========
@@ -94,6 +95,7 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
       tradingConfig,
       symbolRegistry,
       isExecutionAllowed,
+      ...(onFatalError ? { onFatalError } : {}),
     });
 
     // ========== 6. 创建 orderExecutor ==========
@@ -205,7 +207,7 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
       },
 
       executeSignals(
-        signals: ReadonlyArray<Signal>,
+        signals: ReadonlyArray<ExecutableSignal>,
       ): Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }> {
         return orderExecutor.executeSignals(signals);
       },

@@ -12,15 +12,3 @@ export function formatFiniteNumber(value: number | null | undefined, decimals: n
 
   return value.toFixed(decimals);
 }
-
-/**
- * 异步延迟指定毫秒数。
- *
- * @param ms 延迟毫秒数
- * @returns 延迟结束后 resolve 的 Promise
- */
-export async function sleep(ms: number): Promise<void> {
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}

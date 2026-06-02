@@ -1270,7 +1270,7 @@ describe('unrealizedLossMonitor directional execution', () => {
       executeSignals: async (signals) => {
         for (const signal of signals) {
           executedSignals.push({
-            seatVersion: signal.seatVersion ?? null,
+            seatVersion: signal.seatVersion,
             action: signal.action,
           });
         }

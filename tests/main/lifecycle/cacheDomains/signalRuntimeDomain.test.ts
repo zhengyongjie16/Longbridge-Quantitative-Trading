@@ -18,6 +18,7 @@ import type {
   BuyTaskType,
   SellTaskType,
   TaskQueue,
+  TaskSignal,
 } from '../../../../src/main/asyncProgram/tradeTaskQueue/types.js';
 import type { Signal } from '../../../../src/types/signal.js';
 import type { OrderedMethod } from '../types.js';
@@ -26,11 +27,14 @@ import {
   createMonitorContextDouble,
 } from '../../../helpers/testDoubles.js';
 
-function createSignalDouble(): Signal {
+function createSignalDouble<TAction extends Signal['action']>(
+  action: TAction,
+): Signal & { readonly action: TAction; readonly seatVersion: number } {
   return {
     symbol: 'HSI.HK',
     symbolName: 'HSI',
-    action: 'HOLD',
+    action,
+    seatVersion: 1,
   };
 }
 
@@ -76,7 +80,7 @@ function createOrderedProcessor(name: string, globalCalls: string[]): Processor 
 }
 
 function createTaskQueueDouble<TType extends string>(
-  signals: ReadonlyArray<Signal>,
+  signals: ReadonlyArray<TaskSignal<TType>>,
   onClear: () => void,
 ): TaskQueue<TType> {
   return {
@@ -136,14 +140,17 @@ describe('createSignalRuntimeDomain', () => {
     let cancelAllCount = 0;
 
     const buyTaskQueue = createTaskQueueDouble<BuyTaskType>(
-      [createSignalDouble(), createSignalDouble()],
+      [createSignalDouble('BUYCALL'), createSignalDouble('BUYPUT')],
       () => {
         globalCalls.push('buyTaskQueue.clearAll');
       },
     );
-    const sellTaskQueue = createTaskQueueDouble<SellTaskType>([createSignalDouble()], () => {
-      globalCalls.push('sellTaskQueue.clearAll');
-    });
+    const sellTaskQueue = createTaskQueueDouble<SellTaskType>(
+      [createSignalDouble('SELLCALL')],
+      () => {
+        globalCalls.push('sellTaskQueue.clearAll');
+      },
+    );
     const monitorTaskQueue = createMonitorTaskQueueDouble(() => {
       globalCalls.push('monitorTaskQueue.clearAll');
     });

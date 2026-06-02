@@ -6,9 +6,8 @@
  * - 名义金额换算下单数量
  * - 构造订单信号
  */
-import type { Signal } from '../../types/signal.js';
 import { calculateLotQuantityByNotional, decimalToNumberValue } from '../../utils/numeric/index.js';
-import type { BuildOrderSignalParams, OrderSignalBuilder } from './types.js';
+import type { BuildOrderSignalParams, OrderSignal, OrderSignalBuilder } from './types.js';
 
 /**
  * 将方向映射到对应的买卖动作与牛熊方向（LONG→BUYCALL/SELLCALL，SHORT→BUYPUT/SELLPUT）。
@@ -55,7 +54,7 @@ export function calculateBuyQuantityByNotional(
 /**
  * 构造订单信号。
  */
-const buildOrderSignal: OrderSignalBuilder = (params: BuildOrderSignalParams): Signal => {
+const buildOrderSignal: OrderSignalBuilder = (params: BuildOrderSignalParams): OrderSignal => {
   const { action, symbol, quote, reason, orderTypeOverride, quantity, seatVersion } = params;
 
   return {

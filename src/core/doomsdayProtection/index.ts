@@ -24,7 +24,7 @@ import {
 import type { MonitorContext } from '../../types/state.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
-import type { Signal, SignalType } from '../../types/signal.js';
+import type { SellSignal, SellSignalAction } from '../../types/signal.js';
 import type {
   DoomsdayProtection,
   DoomsdayClearanceContext,
@@ -46,13 +46,13 @@ import { isCancelAcceptedOrTerminalNonFilledClose } from '../../utils/trading/or
 
 /**
  * 创建单个清仓信号（清仓接管窗口使用）。
- * 直接构造普通 Signal 对象，避免跨链路共享可变池化对象。
+ * 直接构造清仓信号对象，避免跨链路共享可变池化对象。
  *
  * @param params 清仓信号参数（标的、名称、动作、价格、每手股数、多空类型）
- * @returns 填充后的 Signal
+ * @returns 填充后的卖出信号
  */
-function createClearanceSignal(params: ClearanceSignalParams): Signal {
-  const { symbol, symbolName, action, price, lotSize, positionType } = params;
+function createClearanceSignal(params: ClearanceSignalParams): SellSignal {
+  const { symbol, symbolName, action, price, lotSize, positionType, seatVersion } = params;
   const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
 
   return {
@@ -63,6 +63,7 @@ function createClearanceSignal(params: ClearanceSignalParams): Signal {
     price,
     lotSize,
     triggerTime: new Date(),
+    seatVersion,
   };
 }
 
@@ -94,6 +95,23 @@ function resolveSeatSymbol(
   return seatState.symbol;
 }
 
+function resolveSeatVersion(
+  context: MonitorContext | undefined,
+  monitorSymbol: string,
+  direction: 'LONG' | 'SHORT',
+): number | null {
+  if (!context) {
+    return null;
+  }
+
+  const seatState = context.symbolRegistry.getSeatState(monitorSymbol, direction);
+  if (!isSeatActive(seatState)) {
+    return null;
+  }
+
+  return context.symbolRegistry.getSeatVersion(monitorSymbol, direction);
+}
+
 /**
  * 解析指定监控标的的多空席位交易标的。
  * 供清仓流程按监控维度获取做多/做空标的，用于匹配持仓与拉取行情。
@@ -105,32 +123,41 @@ function resolveSeatSymbol(
 function resolveMonitorSymbols(
   monitorSymbol: string,
   monitorContexts: DoomsdayClearanceContext['monitorContexts'],
-): { longSymbol: string | null; shortSymbol: string | null } {
+): {
+  longSymbol: string | null;
+  shortSymbol: string | null;
+  longSeatVersion: number | null;
+  shortSeatVersion: number | null;
+} {
   const context = monitorContexts.get(monitorSymbol);
   return {
     longSymbol: resolveSeatSymbol(context, monitorSymbol, 'LONG'),
     shortSymbol: resolveSeatSymbol(context, monitorSymbol, 'SHORT'),
+    longSeatVersion: resolveSeatVersion(context, monitorSymbol, 'LONG'),
+    shortSeatVersion: resolveSeatVersion(context, monitorSymbol, 'SHORT'),
   };
 }
 
 /**
  * 处理单个持仓，生成一条清仓信号。
- * 仅当持仓属于当前监控配置（longSymbol/shortSymbol）且数量有效时生成信号；直接构造普通 Signal。
+ * 仅当持仓属于当前监控配置（longSymbol/shortSymbol）且数量有效时生成信号；直接构造清仓信号。
  *
  * @param pos 持仓信息（标的、可用数量、名称等）
  * @param longSymbol 当前监控下的做多交易标的，null 表示无
  * @param shortSymbol 当前监控下的做空交易标的，null 表示无
  * @param longQuote 做多标的最新行情（用于价格与 lotSize）
  * @param shortQuote 做空标的最新行情（用于价格与 lotSize）
- * @returns 一条清仓 Signal（SELLCALL/SELLPUT），或不属于本监控/无效持仓时 null
+ * @returns 一条清仓卖出信号（SELLCALL/SELLPUT），或不属于本监控/无效持仓时 null
  */
 function processPositionForClearance(
   pos: Position,
   longSymbol: string | null,
   shortSymbol: string | null,
+  longSeatVersion: number | null,
+  shortSeatVersion: number | null,
   longQuote: Quote | null,
   shortQuote: Quote | null,
-): Signal | null {
+): SellSignal | null {
   // 验证持仓对象有效性
   if (pos.symbol.length === 0) {
     return null;
@@ -147,6 +174,10 @@ function processPositionForClearance(
   }
 
   const isShortPos = pos.symbol === shortSymbol;
+  const seatVersion = isShortPos ? shortSeatVersion : longSeatVersion;
+  if (seatVersion === null) {
+    return null;
+  }
 
   // 获取该标的的当前价格、最小买卖单位和名称
   let currentPrice: number | null = null;
@@ -167,7 +198,7 @@ function processPositionForClearance(
   }
 
   // 清仓接管窗口清仓
-  const action: SignalType = isShortPos ? 'SELLPUT' : 'SELLCALL';
+  const action: SellSignalAction = isShortPos ? 'SELLPUT' : 'SELLCALL';
   const positionType = isShortPos ? 'short' : 'long';
   const signal = createClearanceSignal({
     symbol: pos.symbol,
@@ -176,6 +207,7 @@ function processPositionForClearance(
     price: currentPrice,
     lotSize,
     positionType,
+    seatVersion,
   });
   const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
   logger.debug(
@@ -296,11 +328,11 @@ export function createDoomsdayProtection(deps?: {
     }
 
     const quoteMap = await batchGetQuotes(marketDataClient, allTradingSymbols);
-    const allClearanceSignals: Signal[] = [];
+    const allClearanceSignals: SellSignal[] = [];
     const unresolvedSymbols = new Set<string>();
 
     for (const monitorConfig of monitorConfigs) {
-      const { longSymbol, shortSymbol } = resolveMonitorSymbols(
+      const { longSymbol, shortSymbol, longSeatVersion, shortSeatVersion } = resolveMonitorSymbols(
         monitorConfig.monitorSymbol,
         monitorContexts,
       );
@@ -348,6 +380,8 @@ export function createDoomsdayProtection(deps?: {
           pos,
           longSymbol,
           shortSymbol,
+          longSeatVersion,
+          shortSeatVersion,
           longQuote,
           shortQuote,
         );
@@ -357,7 +391,7 @@ export function createDoomsdayProtection(deps?: {
       }
     }
 
-    const uniqueSignalsMap = new Map<string, Signal>();
+    const uniqueSignalsMap = new Map<string, SellSignal>();
     for (const signal of allClearanceSignals) {
       const key = `${signal.action}_${signal.symbol}`;
       if (!uniqueSignalsMap.has(key)) {

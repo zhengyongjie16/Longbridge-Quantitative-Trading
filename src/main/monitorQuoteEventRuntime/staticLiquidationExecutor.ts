@@ -7,7 +7,7 @@
  */
 import { ORDER_QUOTE_RETRY, WARRANT_LIQUIDATION_ORDER_TYPE } from '../../constants/index.js';
 import { validateSignalSeat } from '../../services/autoSymbolManager/utils.js';
-import type { Signal } from '../../types/signal.js';
+import type { SellSignal } from '../../types/signal.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { QuoteUpdatedEvent } from '../../types/services.js';
 import { isSeatActive } from '../../utils/seat/guards.js';
@@ -116,7 +116,7 @@ function createStaticLiquidationCandidate(params: {
     return { kind: 'SKIP' };
   }
 
-  const signal: Signal = {
+  const signal: SellSignal = {
     symbol: seatState.symbol,
     symbolName: isLongDirection
       ? monitorContext.longSymbolName || seatState.symbol

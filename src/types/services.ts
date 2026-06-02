@@ -14,7 +14,7 @@ import type {
   WarrantStatus,
   WarrantType,
 } from 'longbridge';
-import type { SignalType, Signal } from './signal.js';
+import type { ExecutableSignal, Signal, SignalType } from './signal.js';
 import type { Quote, IndicatorSnapshot } from './quote.js';
 import type { AccountSnapshot, Position } from './account.js';
 import type { MonitorConfig } from './config.js';
@@ -699,7 +699,7 @@ export interface Trader {
 
   /** 执行交易信号；返回实际提交数量与订单 ID 列表（保护性清仓等仅在真正提交后才更新缓存） */
   executeSignals: (
-    signals: ReadonlyArray<Signal>,
+    signals: ReadonlyArray<ExecutableSignal>,
   ) => Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }>;
 }
 

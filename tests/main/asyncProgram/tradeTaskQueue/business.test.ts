@@ -11,13 +11,14 @@ import type {
   BuyTaskType,
   TaskQueue,
 } from '../../../../src/main/asyncProgram/tradeTaskQueue/types.js';
-import type { Signal } from '../../../../src/types/signal.js';
+import type { BuySignal } from '../../../../src/types/signal.js';
 
-function createSignal(symbol: string): Signal {
+function createSignal(symbol: string): BuySignal {
   return {
     symbol,
     symbolName: symbol,
     action: 'BUYCALL',
+    seatVersion: 1,
   };
 }
 

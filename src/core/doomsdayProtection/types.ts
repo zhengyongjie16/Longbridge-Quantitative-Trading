@@ -1,7 +1,7 @@
 import type { Position } from '../../types/account.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type { MonitorContext, LastState } from '../../types/state.js';
-import type { SignalType } from '../../types/signal.js';
+import type { SellSignalAction } from '../../types/signal.js';
 import type { Trader, MarketDataClient } from '../../types/services.js';
 
 /**
@@ -13,10 +13,11 @@ import type { Trader, MarketDataClient } from '../../types/services.js';
 export type ClearanceSignalParams = {
   readonly symbol: string;
   readonly symbolName: string | null;
-  readonly action: SignalType;
+  readonly action: SellSignalAction;
   readonly price: number | null;
   readonly lotSize: number | null;
   readonly positionType: 'long' | 'short';
+  readonly seatVersion: number;
 };
 
 /**

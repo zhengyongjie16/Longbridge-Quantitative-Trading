@@ -67,7 +67,10 @@ export interface SignalProcessor {
    * 风险检查阶段不会刷新买入频率状态，即不会在此阶段记录买入尝试。
    * 卖出路径继续使用缓存上下文 context.account/context.positions 执行基础风险检查。
    */
-  applyRiskChecks: (signals: Signal[], context: RiskCheckContext) => Promise<Signal[]>;
+  applyRiskChecks: <TSignal extends Signal>(
+    signals: TSignal[],
+    context: RiskCheckContext,
+  ) => Promise<TSignal[]>;
 
   /**
    * 清空风险检查冷却时间记录

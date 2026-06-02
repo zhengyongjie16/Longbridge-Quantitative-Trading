@@ -11,7 +11,7 @@ import { LOG_COLORS } from '../../../constants/index.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
 import { isSeatVersionMatch } from '../../../utils/seat/guards.js';
 import type { MonitorConfig } from '../../../types/config.js';
-import type { Signal } from '../../../types/signal.js';
+import type { ExecutableSignal, Signal } from '../../../types/signal.js';
 import type { OrderExecutor, OrderExecutorDeps } from '../types.js';
 import { createSubmitTargetOrder } from './submitFlow.js';
 import { createBuyThrottle } from './buyThrottle.js';
@@ -24,15 +24,21 @@ import {
 
 /**
  * 校验信号携带的席位版本是否与执行时席位版本一致。
- * 仅当信号携带有限 seatVersion 时启用该校验；未携带 seatVersion 的信号沿用原流程。
+ * 信号必须携带有限 seatVersion，缺失或版本不匹配均拒绝执行。
  *
  * @param signal 信号对象
  * @param currentSeatVersion 当前席位版本号
  * @returns true 表示通过校验，false 表示应跳过
  */
-function validateSignalSeatVersionAtExecution(signal: Signal, currentSeatVersion: number): boolean {
+function validateSignalSeatVersionAtExecution(
+  signal: ExecutableSignal,
+  currentSeatVersion: number,
+): boolean {
   if (!Number.isFinite(signal.seatVersion)) {
-    return true;
+    logger.debug(
+      `[执行门禁] 信号缺少有效席位版本，跳过信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`,
+    );
+    return false;
   }
 
   if (!isSeatVersionMatch(signal.seatVersion, currentSeatVersion)) {
@@ -131,7 +137,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
    * @returns 提交统计
    */
   async function executeSignals(
-    signals: ReadonlyArray<Signal>,
+    signals: ReadonlyArray<ExecutableSignal>,
   ): Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }> {
     if (!isExecutionAllowed()) {
       logger.debug('[执行门禁] 门禁关闭，跳过本次下单，不提交任何订单');
@@ -148,15 +154,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       }
 
       const signalSymbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
-
-      if (signal.action === 'HOLD') {
-        const holdReason =
-          signal.reason === null || signal.reason === undefined || signal.reason === ''
-            ? '持有'
-            : signal.reason;
-        logger.info(`[HOLD] ${signalSymbolDisplay} - ${holdReason}`);
-        continue;
-      }
 
       if (!isLiquidationSignal(signal) && isStaleCrossDaySignal(signal, new Date())) {
         logger.debug(

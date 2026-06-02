@@ -22,7 +22,6 @@ import {
 } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
 import { isExternalApiRequestError } from '../../../utils/apiFailure/index.js';
-import { isBuyAction } from '../../../utils/helpers/index.js';
 import { isSeatActive } from '../../../utils/seat/guards.js';
 import {
   describeSignalSeatValidationFailure,
@@ -32,7 +31,7 @@ import type { Processor } from '../types.js';
 import type { BuyProcessorDeps } from './types.js';
 import type { Task, BuyTaskType } from '../tradeTaskQueue/types.js';
 import type { RiskCheckContext } from '../../../types/services.js';
-import type { Signal } from '../../../types/signal.js';
+import type { BuySignal } from '../../../types/signal.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
 
 /**
@@ -70,13 +69,6 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
     const monitorSymbol = task.monitorSymbol;
     const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
     try {
-      // 验证信号类型：此处理器只处理买入信号
-      const isBuySignal = isBuyAction(signal.action);
-      if (!isBuySignal) {
-        logger.warn(`[BuyProcessor] 收到非买入信号，跳过: ${symbolDisplay} ${signal.action}`);
-        return; // 非预期信号，但不算失败
-      }
-
       // 获取监控上下文
       const ctx = getMonitorContext(monitorSymbol);
       if (!ctx) {
@@ -198,7 +190,7 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         return;
       }
 
-      const signalWithQuote: Signal = {
+      const signalWithQuote: BuySignal = {
         ...signal,
         price: finalExecutionQuote.price,
         lotSize: finalExecutionQuote.lotSize,

@@ -191,6 +191,7 @@ export function createDefaultMonitorQuoteEventRuntime(
     postTradeConsistencyRuntime: deps.postTradeConsistencyRuntime,
     doomsdayProtectionEnabled: deps.doomsdayProtectionEnabled,
     now: deps.now,
+    ...(deps.onFatalError ? { onFatalError: deps.onFatalError } : {}),
   };
 
   return createMonitorQuoteEventRuntime(runtimeDeps);
@@ -317,16 +318,29 @@ function createMonitorQuoteEventRuntime(
     return nextState;
   }
 
-  /**
-   * 注册在途 promise。
-   *
-   * @param promise 在途 promise
-   */
   function registerInFlight(promise: Promise<void>): void {
     activePromises.add(promise);
     void promise.finally(() => {
       activePromises.delete(promise);
     });
+  }
+
+  /**
+   * 启动 route 处理并接入 fatal drain。
+   *
+   * @param monitorSymbol 监控标的
+   * @param source 本次触发来源
+   */
+  function launchRouteProcessing(monitorSymbol: string, source: string): void {
+    const processingPromise = processRouteQueue(monitorSymbol).catch((error: unknown) => {
+      logger.error(
+        `[MonitorQuoteEventRuntime] monitor quote route 处理失败 source=${source} monitorSymbol=${monitorSymbol}`,
+        formatError(error),
+      );
+
+      deps.onFatalError?.(error);
+    });
+    registerInFlight(processingPromise);
   }
 
   /**
@@ -357,6 +371,7 @@ function createMonitorQuoteEventRuntime(
           '[MonitorQuoteEventRuntime] 释放静态清仓 quote retain 失败',
           formatError(error),
         );
+        deps.onFatalError?.(error);
       });
   }
 
@@ -410,6 +425,7 @@ function createMonitorQuoteEventRuntime(
           '[MonitorQuoteEventRuntime] 注册静态清仓 quote retain 失败',
           formatError(error),
         );
+        deps.onFatalError?.(error);
       });
   }
 
@@ -497,8 +513,7 @@ function createMonitorQuoteEventRuntime(
     }
 
     routeState.inFlight = true;
-    const processingPromise = processRouteQueue(monitorSymbol);
-    registerInFlight(processingPromise);
+    launchRouteProcessing(monitorSymbol, 'QUOTE_EVENT');
   }
 
   /**
@@ -618,8 +633,7 @@ function createMonitorQuoteEventRuntime(
         latestState.inFlight = false;
         if (latestState.dirty && running) {
           latestState.inFlight = true;
-          const processingPromise = processRouteQueue(monitorSymbol);
-          registerInFlight(processingPromise);
+          launchRouteProcessing(monitorSymbol, 'REENTER');
         }
       }
     }

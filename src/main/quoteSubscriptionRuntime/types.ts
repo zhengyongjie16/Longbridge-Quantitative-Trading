@@ -61,6 +61,9 @@ export type QuoteSubscriptionRuntimeDeps = Readonly<{
   marketDataClient: Pick<MarketDataClient, 'subscribeSymbols' | 'unsubscribeSymbols'>;
   trader: Pick<Trader, 'getOrderHoldSymbols' | 'onOrderHoldSymbolsChanged'>;
   lastState: LastState;
+
+  /** 运行期订阅 mutation 失败的 fatal 通道。 */
+  onFatalError?: (error: unknown) => void;
 }>;
 
 /**

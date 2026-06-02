@@ -202,6 +202,15 @@ describe('auto-symbol-switch integration', () => {
       positions: [],
     });
 
+    expect(executedActions).toHaveLength(1);
+    expect(manager.hasPendingSwitch('LONG')).toBeTrue();
+
+    await runDistanceSwitch(manager, {
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
     expect(executedActions).toHaveLength(2);
     expect(executedActions[1]?.action).toBe('BUYCALL');
     expect(executedActions[1]?.symbol).toBe('NEW_BULL.HK');
@@ -394,6 +403,14 @@ describe('auto-symbol-switch integration', () => {
         },
       ],
     });
+
+    await runDistanceSwitch(manager, {
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
 
     await runDistanceSwitch(manager, {
       direction: 'LONG',

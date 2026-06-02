@@ -1271,7 +1271,10 @@ export function createMonitorContextDouble(
  *
  * 默认给定席位版本与触发时间，便于流水线直接消费。
  */
-export function createSignalDouble(action: SignalType, symbol: string): Signal {
+export function createSignalDouble<TAction extends SignalType>(
+  action: TAction,
+  symbol: string,
+): Signal & { readonly action: TAction; readonly seatVersion: number } {
   return {
     action,
     symbol,

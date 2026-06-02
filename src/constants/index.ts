@@ -378,7 +378,7 @@ export const ACCOUNT_CHANNEL_MAP: Record<string, string> = {
 };
 
 /** 有效的交易信号集合，不包含 HOLD（仅用于判断是否需要执行交易） */
-export const STRATEGY_ACTIONS: ReadonlyArray<StrategyAction> = [
+const STRATEGY_ACTIONS: ReadonlyArray<StrategyAction> = [
   'BUYCALL',
   'SELLCALL',
   'BUYPUT',

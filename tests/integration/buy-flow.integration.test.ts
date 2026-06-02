@@ -22,6 +22,7 @@ import {
   createSymbolRegistryDouble,
   createTraderDouble,
 } from '../helpers/testDoubles.js';
+import type { ExecutableSignal } from '../../src/types/signal.js';
 
 function withMockedNow<T>(nowMs: number, run: () => Promise<T>): Promise<T> {
   const originalNow = Date.now;
@@ -199,6 +200,120 @@ describe('buy-flow integration', () => {
       'order submitted but local sync failed: MOCK-000001',
     );
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
+  });
+
+  it('skips stale seatVersion at final order execution gate', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    let trackedOrderCount = 0;
+    const orderExecutor = createOrderExecutor({
+      ctx: tradeCtx as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: () => {
+          trackedOrderCount += 1;
+        },
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
+        replaceOrderPrice: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
+        recoverOrderTrackingFromSnapshot: async () => {},
+        getPendingSellOrders: () => [],
+        clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
+      },
+      orderRecorder: createOrderRecorderDouble(),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble({ longVersion: 2 }),
+      isExecutionAllowed: () => true,
+    });
+
+    const staleSignal = {
+      ...createSignal({
+        symbol: 'BULL.HK',
+        action: 'BUYCALL',
+        triggerTimeMs: Date.now(),
+        price: 5,
+        lotSize: 100,
+        reason: 'stale-seat-version',
+      }),
+      seatVersion: 1,
+    };
+
+    const result = await orderExecutor.executeSignals([staleSignal]);
+
+    expect(result).toEqual({ submittedCount: 0, submittedOrderIds: [] });
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+    expect(trackedOrderCount).toBe(0);
+  });
+
+  it('rejects missing seatVersion at final order execution gate', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    let trackedOrderCount = 0;
+    const orderExecutor = createOrderExecutor({
+      ctx: tradeCtx as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: () => {
+          trackedOrderCount += 1;
+        },
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
+        replaceOrderPrice: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
+        recoverOrderTrackingFromSnapshot: async () => {},
+        getPendingSellOrders: () => [],
+        clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
+      },
+      orderRecorder: createOrderRecorderDouble(),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble({ longVersion: 1 }),
+      isExecutionAllowed: () => true,
+    });
+    const { seatVersion: omittedSeatVersion, ...missingSeatVersionSignal } = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: Date.now(),
+      price: 5,
+      lotSize: 100,
+      reason: 'missing-seat-version',
+    });
+    void omittedSeatVersion;
+
+    const invalidSignals = [missingSeatVersionSignal] as unknown as ReadonlyArray<ExecutableSignal>;
+    const result = await orderExecutor.executeSignals(invalidSignals);
+
+    expect(result).toEqual({ submittedCount: 0, submittedOrderIds: [] });
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+    expect(trackedOrderCount).toBe(0);
   });
 
   it('runs risk pipeline -> order execution and submits notional-based buy quantity', async () => {

@@ -17,7 +17,7 @@ import type {
   DirectionalUnrealizedLossMonitorContext,
   UnrealizedLossMonitor,
 } from '../../types/risk.js';
-import type { Signal } from '../../types/signal.js';
+import type { SellSignal } from '../../types/signal.js';
 import type { OrderRecorder, RiskChecker, Trader } from '../../types/services.js';
 import type { UnrealizedLossMonitorDeps } from './types.js';
 
@@ -82,7 +82,7 @@ export const createUnrealizedLossMonitor = (
         : lossCheck.reason;
     logger.error(liquidationReason);
 
-    const liquidationSignal: Signal = {
+    const liquidationSignal: SellSignal = {
       symbol,
       symbolName: quote.name ?? null,
       action: isLong ? 'SELLCALL' : 'SELLPUT',

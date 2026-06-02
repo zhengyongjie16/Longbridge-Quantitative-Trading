@@ -29,7 +29,7 @@ describe('buyProcessor business flow', () => {
     let riskCheckCalls = 0;
     const signalProcessor = {
       processSellSignals: () => [],
-      applyRiskChecks: async (signals: Signal[]) => {
+      applyRiskChecks: async <TSignal extends Signal>(signals: TSignal[]) => {
         riskCheckCalls += 1;
         return signals;
       },
@@ -276,7 +276,7 @@ describe('buyProcessor business flow', () => {
     let riskCalls = 0;
     const signalProcessor = {
       processSellSignals: () => [],
-      applyRiskChecks: async (signals: Signal[]) => {
+      applyRiskChecks: async <TSignal extends Signal>(signals: TSignal[]) => {
         riskCalls += 1;
         return signals;
       },
@@ -343,7 +343,7 @@ describe('buyProcessor business flow', () => {
     const fatalErrors: unknown[] = [];
     const signalProcessor = {
       processSellSignals: () => [],
-      applyRiskChecks: async (signals: Signal[]) => signals,
+      applyRiskChecks: async <TSignal extends Signal>(signals: TSignal[]) => signals,
       resetRiskCheckCooldown: () => {},
     };
 
@@ -398,7 +398,7 @@ describe('buyProcessor business flow', () => {
     let executeCalls = 0;
     const signalProcessor = {
       processSellSignals: () => [],
-      applyRiskChecks: async (signals: Signal[]) => signals,
+      applyRiskChecks: async <TSignal extends Signal>(signals: TSignal[]) => signals,
       resetRiskCheckCooldown: () => {},
     };
 

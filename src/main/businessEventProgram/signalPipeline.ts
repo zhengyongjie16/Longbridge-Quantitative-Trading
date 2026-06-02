@@ -23,9 +23,35 @@ import { ordinarySignalGuard } from '../ordinarySignalGuard/index.js';
 import { isSeatActive } from '../../utils/seat/guards.js';
 import { describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
 import { formatSignalLog } from './utils.js';
-import type { Signal } from '../../types/signal.js';
+import type { BuySignal, SellSignal, Signal } from '../../types/signal.js';
 import type { SignalPipelineParams } from './types.js';
 import { formatSymbolDisplay, isSellAction } from '../../utils/display/index.js';
+
+function toSellSignal(signal: Signal): SellSignal | null {
+  if (!isSellAction(signal.action)) {
+    return null;
+  }
+
+  const seatVersion = signal.seatVersion;
+  if (typeof seatVersion !== 'number' || !Number.isFinite(seatVersion)) {
+    return null;
+  }
+
+  return { ...signal, action: signal.action, seatVersion };
+}
+
+function toBuySignal(signal: Signal): BuySignal | null {
+  if (!isBuyAction(signal.action)) {
+    return null;
+  }
+
+  const seatVersion = signal.seatVersion;
+  if (typeof seatVersion !== 'number' || !Number.isFinite(seatVersion)) {
+    return null;
+  }
+
+  return { ...signal, action: signal.action, seatVersion };
+}
 
 /**
  * 执行信号处理流水线。
@@ -126,17 +152,22 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
     }
 
     logger.debug(`[立即信号] ${formatSignalLog(prepared)}`);
-    const isSellSignal = isSellAction(prepared.action);
-    if (isSellSignal) {
+    const sellSignal = toSellSignal(prepared);
+    if (sellSignal) {
       sellTaskQueue.push({
         type: 'IMMEDIATE_SELL',
-        data: prepared,
+        data: sellSignal,
         monitorSymbol,
       });
     } else {
+      const buySignal = toBuySignal(prepared);
+      if (!buySignal) {
+        continue;
+      }
+
       buyTaskQueue.push({
         type: 'IMMEDIATE_BUY',
-        data: prepared,
+        data: buySignal,
         monitorSymbol,
       });
     }

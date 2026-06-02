@@ -160,6 +160,8 @@ export function createRouteRuntime(deps: RouteRuntimeDeps): RouteRuntime {
         if (firstRouteProcessingError === null && error instanceof Error) {
           firstRouteProcessingError = error;
         }
+
+        deps.onFatalError?.(error);
       });
   }
 
@@ -264,10 +266,7 @@ export function createRouteRuntime(deps: RouteRuntimeDeps): RouteRuntime {
       const latestRouteState = getRouteState(symbol);
       if (latestRouteState !== null && latestRouteState.generation === generation) {
         latestRouteState.inFlight = false;
-        if (!isRouteRuntimeActive()) {
-          latestRouteState.dirty = false;
-          latestRouteState.pendingWakeupKind = null;
-        } else if (latestRouteState.dirty) {
+        if (isRouteRuntimeActive() && latestRouteState.dirty) {
           const rerunWakeupKind = latestRouteState.pendingWakeupKind;
           latestRouteState.dirty = false;
           latestRouteState.pendingWakeupKind = null;
@@ -291,6 +290,9 @@ export function createRouteRuntime(deps: RouteRuntimeDeps): RouteRuntime {
               break;
             }
           }
+        } else if (!isRouteRuntimeActive()) {
+          latestRouteState.dirty = false;
+          latestRouteState.pendingWakeupKind = null;
         }
       }
     }

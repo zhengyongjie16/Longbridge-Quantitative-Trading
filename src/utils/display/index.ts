@@ -1,4 +1,4 @@
-import type { SignalType } from '../../types/signal.js';
+import type { SellSignalAction, SignalType } from '../../types/signal.js';
 
 /**
  * 格式化标的显示为「中文名称(代码)」。
@@ -30,6 +30,6 @@ export function formatSymbolDisplay(
  * @param action 信号类型
  * @returns 为 SELLCALL 或 SELLPUT 时返回 true
  */
-export function isSellAction(action: SignalType): boolean {
+export function isSellAction(action: SignalType): action is SellSignalAction {
   return action === 'SELLCALL' || action === 'SELLPUT';
 }

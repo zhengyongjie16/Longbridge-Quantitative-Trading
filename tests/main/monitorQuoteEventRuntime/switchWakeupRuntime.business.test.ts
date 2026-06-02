@@ -18,6 +18,7 @@ import {
 } from '../../helpers/testDoubles.js';
 import { createMonitorConfig } from '../../../mock/factories/configFactory.js';
 import { createSwitchWakeupRuntime } from '../../../src/main/monitorQuoteEventRuntime/switchWakeupRuntime.js';
+import { createExternalApiRequestError } from '../../../src/utils/apiFailure/index.js';
 import type {
   AutoSymbolManagerPort,
   SwitchDriveResult,
@@ -333,7 +334,11 @@ describe('switchWakeupRuntime', () => {
           driveResult: { kind: 'NOOP' },
         }),
         advancePendingSwitch: async () => {
-          throw new TypeError('switch route broken');
+          throw createExternalApiRequestError({
+            operation: 'AutoSymbolManager.advancePendingSwitch',
+            attempts: 1,
+            cause: new Error('switch route broken'),
+          });
         },
         hasPendingSwitch: () => true,
         getPeriodicSwitchPendingState: () => ({
@@ -362,8 +367,10 @@ describe('switchWakeupRuntime', () => {
     await runtimeHarness.runtime.stopAndDrain();
 
     expect(fatalErrors).toHaveLength(1);
-    expect(fatalErrors[0]).toBeInstanceOf(TypeError);
-    expect((fatalErrors[0] as Error).message).toContain('switch route broken');
+    expect(fatalErrors[0]).toMatchObject({
+      name: 'ExternalApiRequestError',
+      operation: 'AutoSymbolManager.advancePendingSwitch',
+    });
   });
 
   it('re-drives the same pending switch on order, freshness, quote and retry-timer wakeups', async () => {

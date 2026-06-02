@@ -117,6 +117,10 @@ function createWaitDriveResult(
   };
 }
 
+function createOrderAndFreshnessWait(symbol: string): Extract<SwitchDriveResult, { kind: 'WAIT' }> {
+  return createWaitDriveResult([{ kind: 'ORDER_EVENT', symbols: [symbol] }, { kind: 'FRESHNESS' }]);
+}
+
 async function fetchRealtimeQuote(
   marketDataClient: SwitchStateMachineDeps['marketDataClient'],
   symbol: string,
@@ -613,15 +617,6 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     const invalidResultAtEntry = stopIfSwitchInvalid();
     if (invalidResultAtEntry !== null) {
       return invalidResultAtEntry;
-    }
-
-    function createOrderAndFreshnessWait(
-      symbol: string,
-    ): Extract<SwitchDriveResult, { kind: 'WAIT' }> {
-      return createWaitDriveResult([
-        { kind: 'ORDER_EVENT', symbols: [symbol] },
-        { kind: 'FRESHNESS' },
-      ]);
     }
 
     function createQuoteRetryWait(symbol: string): Extract<SwitchDriveResult, { kind: 'WAIT' }> {

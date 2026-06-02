@@ -14,6 +14,33 @@ import { ordinarySignalGuard } from '../../main/ordinarySignalGuard/index.js';
 import { formatSymbolDisplay, isSellAction } from '../../utils/display/index.js';
 import { isBuyAction } from '../../utils/helpers/index.js';
 import type { RegisterDelayedSignalHandlersParams } from '../types.js';
+import type { BuySignal, SellSignal, Signal } from '../../types/signal.js';
+
+function toSellSignal(signal: Signal): SellSignal | null {
+  if (!isSellAction(signal.action)) {
+    return null;
+  }
+
+  const seatVersion = signal.seatVersion;
+  if (typeof seatVersion !== 'number' || !Number.isFinite(seatVersion)) {
+    return null;
+  }
+
+  return { ...signal, action: signal.action, seatVersion };
+}
+
+function toBuySignal(signal: Signal): BuySignal | null {
+  if (!isBuyAction(signal.action)) {
+    return null;
+  }
+
+  const seatVersion = signal.seatVersion;
+  if (typeof seatVersion !== 'number' || !Number.isFinite(seatVersion)) {
+    return null;
+  }
+
+  return { ...signal, action: signal.action, seatVersion };
+}
 
 /**
  * 注册所有监控标的的延迟验证通过回调。
@@ -75,18 +102,25 @@ export function registerDelayedSignalHandlers(params: RegisterDelayedSignalHandl
 
       logger.debug(`[延迟验证通过] 信号推入任务队列: ${signalLabel}`);
 
-      if (isSellAction(signal.action)) {
+      const sellSignal = toSellSignal(signal);
+      if (sellSignal) {
         sellTaskQueue.push({
           type: 'VERIFIED_SELL',
-          data: signal,
+          data: sellSignal,
           monitorSymbol: signalMonitorSymbol,
         });
         return;
       }
 
+      const buySignal = toBuySignal(signal);
+      if (!buySignal) {
+        discardSignal('[延迟验证通过] 非买入动作信号，丢弃信号');
+        return;
+      }
+
       buyTaskQueue.push({
         type: 'VERIFIED_BUY',
-        data: signal,
+        data: buySignal,
         monitorSymbol: signalMonitorSymbol,
       });
     });

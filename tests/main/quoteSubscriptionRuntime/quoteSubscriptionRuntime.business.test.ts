@@ -221,6 +221,40 @@ describe('QuoteSubscriptionRuntime', () => {
     expect(unsubscribed).toEqual([['NEXT.HK', 'PREV.HK']]);
   });
 
+  it('retain release mutation 失败会进入 fatal drain', async () => {
+    const monitorConfig = createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' });
+    const symbolRegistry = createSymbolRegistry([monitorConfig]);
+    const lastState = createLastState();
+    const orderHoldEventSource = createOrderHoldEventSource([]);
+    const releaseError = new Error('unsubscribe failed');
+    const fatalErrors: unknown[] = [];
+    const runtime = createQuoteSubscriptionRuntime({
+      tradingConfig: createTradingConfig({ monitors: [monitorConfig] }),
+      symbolRegistry,
+      marketDataClient: {
+        subscribeSymbols: async () => {},
+        unsubscribeSymbols: async () => {
+          throw releaseError;
+        },
+      },
+      trader: orderHoldEventSource.trader,
+      lastState,
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+    });
+
+    const release = await runtime.retainSymbols({
+      ownerKey: 'HSI.HK:LONG:2',
+      reason: 'SEAT_REFRESH_WAIT',
+      symbols: ['NEXT.HK'],
+    });
+    release();
+    await runtime.waitForAdmission([]).catch(() => {});
+
+    expect(fatalErrors).toEqual([releaseError]);
+  });
+
   it('lifecycle 午夜重置后会按 lastState.allTradingSymbols 重新投影 committed truth', async () => {
     const monitorConfig = createMonitorConfigDouble({
       monitorSymbol: 'HSI.HK',
@@ -323,5 +357,52 @@ describe('QuoteSubscriptionRuntime', () => {
     expect(subscribed).toEqual([]);
     expect(unsubscribed).toEqual([]);
     expect(lastState.allTradingSymbols).toEqual(new Set(['HSI.HK', 'BULL.HK', 'BEAR.HK']));
+  });
+
+  it('seat 事件订阅 mutation 失败会进入 fatal drain', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      monitorSymbol: 'HSI.HK',
+      longSymbol: 'BULL.HK',
+      shortSymbol: 'BEAR.HK',
+    });
+    const symbolRegistry = createSymbolRegistry([monitorConfig]);
+    const lastState = createLastState();
+    const orderHoldEventSource = createOrderHoldEventSource([]);
+    const subscriptionError = new Error('subscribe failed');
+    const fatalErrors: unknown[] = [];
+    const runtime = createQuoteSubscriptionRuntime({
+      tradingConfig: createTradingConfig({ monitors: [monitorConfig] }),
+      symbolRegistry,
+      marketDataClient: {
+        subscribeSymbols: async (symbols) => {
+          if (symbols.includes('NEXT_BULL.HK')) {
+            throw subscriptionError;
+          }
+        },
+        unsubscribeSymbols: async () => {},
+      },
+      trader: orderHoldEventSource.trader,
+      lastState,
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+    });
+
+    await runtime.reconcileFromCurrentTruth();
+    runtime.start();
+    symbolRegistry.updateSeatState(monitorConfig.monitorSymbol, 'LONG', {
+      symbol: 'NEXT_BULL.HK',
+      status: 'ACTIVE',
+      lastSwitchAt: Date.now(),
+      lastSearchAt: Date.now(),
+      lastSeatActivatedAt: null,
+      callPrice: null,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    });
+    await runtime.waitForAdmission(['NEXT_BULL.HK']).catch(() => {});
+
+    expect(fatalErrors).toEqual([subscriptionError]);
+    await runtime.stopAndDrain().catch(() => {});
   });
 });

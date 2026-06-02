@@ -45,7 +45,7 @@ import type { Processor } from '../types.js';
 import type { SellProcessorDeps, SellRetryState } from './types.js';
 import type { Task, SellTaskType } from '../tradeTaskQueue/types.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
-import type { Signal } from '../../../types/signal.js';
+import type { SellSignal, Signal } from '../../../types/signal.js';
 
 /**
  * 复制卖出信号，用于 quote retry 的 delayed re-enqueue。
@@ -53,12 +53,29 @@ import type { Signal } from '../../../types/signal.js';
  * @param signal 原始卖出信号
  * @returns 可重新入队的卖出信号副本
  */
-function cloneSellSignal(signal: Signal): Signal {
+function cloneSellSignal(signal: SellSignal): SellSignal {
   return {
     ...signal,
     triggerTime: signal.triggerTime ? new Date(signal.triggerTime) : null,
     indicators1: signal.indicators1 ? { ...signal.indicators1 } : null,
     relatedBuyOrderIds: signal.relatedBuyOrderIds ? [...signal.relatedBuyOrderIds] : null,
+  };
+}
+
+function toExecutableSellSignal(signal: Signal): SellSignal | null {
+  if (signal.action !== 'SELLCALL' && signal.action !== 'SELLPUT') {
+    return null;
+  }
+
+  const seatVersion = signal.seatVersion;
+  if (typeof seatVersion !== 'number' || !Number.isFinite(seatVersion)) {
+    return null;
+  }
+
+  return {
+    ...signal,
+    action: signal.action,
+    seatVersion,
   };
 }
 
@@ -70,7 +87,7 @@ function cloneSellSignal(signal: Signal): Signal {
  */
 function buildSellRetryKey(params: {
   readonly monitorSymbol: string;
-  readonly signal: Signal;
+  readonly signal: SellSignal;
 }): string {
   const { monitorSymbol, signal } = params;
   const relatedOrderIds = signal.relatedBuyOrderIds?.join(',') ?? '';
@@ -79,7 +96,7 @@ function buildSellRetryKey(params: {
     monitorSymbol,
     signal.action,
     signal.symbol,
-    String(signal.seatVersion ?? ''),
+    String(signal.seatVersion),
     String(signal.quantity ?? ''),
     signal.orderTypeOverride ?? '',
     String(signal.isProtectiveLiquidation ?? ''),
@@ -296,9 +313,17 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         return; // 处理成功（虽然跳过了）
       }
 
+      const executionSignal = toExecutableSellSignal(firstSignal);
+      if (executionSignal === null) {
+        logger.debug(
+          `[SellProcessor] 卖出信号缺少可执行动作或席位版本，跳过信号: ${symbolDisplay} ${firstSignal.action}`,
+        );
+        return;
+      }
+
       const executionSeatValidation = validateSignalSeat({
         monitorSymbol,
-        signal: firstSignal,
+        signal: executionSignal,
         symbolRegistry,
       });
       if (!executionSeatValidation.valid) {
@@ -311,7 +336,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       await executeSignalsWithLifecycleGate({
         getCanProcessTask,
         trader,
-        signal: firstSignal,
+        signal: executionSignal,
         symbolDisplay,
         loggerPrefix: 'SellProcessor',
         successMessage: '卖出订单执行完成',

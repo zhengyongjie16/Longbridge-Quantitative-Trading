@@ -19,6 +19,26 @@ import {
   createQuoteDouble,
   createSymbolRegistryDouble,
 } from '../helpers/testDoubles.js';
+import type { SellSignal, Signal } from '../../src/types/signal.js';
+
+function requireExecutableSellSignals(signals: ReadonlyArray<Signal>): SellSignal[] {
+  return signals.map((signal) => {
+    if (signal.action !== 'SELLCALL' && signal.action !== 'SELLPUT') {
+      throw new Error(`Expected executable sell signal, got ${signal.action}`);
+    }
+
+    const seatVersion = signal.seatVersion;
+    if (typeof seatVersion !== 'number' || !Number.isFinite(seatVersion)) {
+      throw new TypeError('Expected executable sell signal with finite seatVersion');
+    }
+
+    return {
+      ...signal,
+      action: signal.action,
+      seatVersion,
+    };
+  });
+}
 
 describe('sell-flow integration', () => {
   it('throws ExternalApiRequestError without retry when sell quantity resolution reads stock positions', async () => {
@@ -200,7 +220,9 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const executeResult = await orderExecutor.executeSignals(processed);
+    const executeResult = await orderExecutor.executeSignals(
+      requireExecutableSellSignals(processed),
+    );
 
     expect(executeResult.submittedCount).toBe(1);
     expect(trackedOrders).toHaveLength(1);
@@ -343,7 +365,9 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const executeResult = await orderExecutor.executeSignals(processed);
+    const executeResult = await orderExecutor.executeSignals(
+      requireExecutableSellSignals(processed),
+    );
 
     expect(executeResult.submittedCount).toBe(1);
     expect(trackedOrders).toHaveLength(1);
@@ -468,7 +492,9 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const executeResult = await orderExecutor.executeSignals(processed);
+    const executeResult = await orderExecutor.executeSignals(
+      requireExecutableSellSignals(processed),
+    );
 
     expect(executeResult.submittedCount).toBe(1);
     expect(trackedOrders).toHaveLength(1);

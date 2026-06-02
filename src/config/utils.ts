@@ -627,10 +627,10 @@ function isOrderTypeConfig(value: string): value is OrderTypeConfig {
 }
 
 /**
- * 解析订单类型配置（LO/ELO/MO），必须大写，无效时回退默认值。
+ * 解析订单类型配置（LO/ELO/MO），必须大写；未配置时使用默认值，显式非法值直接 fail-fast。
  * @param env - 进程环境变量对象
  * @param envKey - 环境变量键名
- * @param defaultType - 无效或未设置时的默认订单类型，默认为 'ELO'
+ * @param defaultType - 未设置时的默认订单类型，默认为 'ELO'
  * @returns 对应的 OrderType 枚举值
  */
 export function parseOrderTypeConfig(
@@ -645,8 +645,9 @@ export function parseOrderTypeConfig(
       return ORDER_TYPE_CONFIG_TO_OPEN_API[value];
     }
 
-    logger.warn(
-      `[配置警告] ${envKey} 值无效: ${value}，必须使用全大写: LO, ELO, MO。已使用默认值: ${defaultType}`,
+    throw createConfigValidationError(
+      `[配置错误] ${envKey} 值无效: ${value}，必须使用全大写: LO, ELO, MO`,
+      [envKey],
     );
   }
 

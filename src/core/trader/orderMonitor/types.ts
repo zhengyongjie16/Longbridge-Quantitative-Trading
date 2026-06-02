@@ -225,6 +225,7 @@ export type RouteRuntimeDeps = Readonly<{
   readonly config: OrderMonitorConfig;
   readonly marketDataClient: Pick<MarketDataClient, 'onQuoteUpdated'>;
   readonly processRoute: (params: RouteRuntimeProcessParams) => Promise<void>;
+  readonly onFatalError?: (error: unknown) => void;
 }>;
 
 /**

@@ -158,6 +158,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     config,
     marketDataClient,
     processRoute: routeProcessor.processRoute,
+    ...(deps.onFatalError ? { onFatalError: deps.onFatalError } : {}),
   });
 
   async function recoverOrderTrackingFromSnapshot(

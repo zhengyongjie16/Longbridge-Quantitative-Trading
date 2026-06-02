@@ -141,6 +141,35 @@ describe('riskController(index) business flow', () => {
     expect(() => checker.refresh(orderRecorder, 'BULL.HK', true)).toThrow(internalError);
   });
 
+  it('calculates unrealized loss from refreshed R1/N1 and daily loss offset', async () => {
+    const checker = createUnrealizedLossChecker({
+      maxUnrealizedLossPerSymbol: 499,
+    });
+    const orderRecorder = {
+      getBuyOrdersForSymbol: () => [
+        { executedPrice: 10, executedQuantity: 80 },
+        { executedPrice: '20', executedQuantity: '10' },
+        { executedPrice: 0, executedQuantity: 100 },
+      ],
+    } as unknown as OrderRecorder;
+
+    const refreshed = await checker.refresh(orderRecorder, 'BULL.HK', true, null, -200);
+    const result = checker.check('BULL.HK', 7, true);
+
+    expect(refreshed).toEqual({ r1: 1200, n1: 90 });
+    expect(checker.getUnrealizedLossData('BULL.HK')).toMatchObject({
+      r1: 1200,
+      baseR1: 1000,
+      dailyLossOffset: -200,
+      n1: 90,
+    });
+
+    expect(result).toMatchObject({
+      shouldLiquidate: true,
+      quantity: 90,
+    });
+  });
+
   it('rethrows submitOrder API failure during protective liquidation', async () => {
     const monitor = createUnrealizedLossMonitor({
       maxUnrealizedLossPerSymbol: 1_000,

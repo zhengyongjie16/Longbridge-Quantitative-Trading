@@ -1,5 +1,5 @@
 import type { MonitorContext, LastState } from '../../types/state.js';
-import type { Signal } from '../../types/signal.js';
+import type { SellSignal } from '../../types/signal.js';
 import type {
   MarketDataClient,
   PostTradeConsistencyFreshnessPort,
@@ -95,6 +95,9 @@ export type CreateMonitorQuoteEventRuntimeDeps = Readonly<{
     QuoteSubscriptionRuntime,
     'retainSymbols' | 'releaseRetain'
   >;
+
+  /** route 内部错误可观测通道 */
+  readonly onFatalError?: (error: unknown) => void;
 }>;
 
 /**
@@ -124,6 +127,9 @@ export type CreateDefaultMonitorQuoteEventRuntimeDeps = Readonly<{
     SwitchWakeupRuntime,
     'handoffPendingSwitch'
   >['handoffPendingSwitch'];
+
+  /** route 内部错误可观测通道 */
+  readonly onFatalError?: (error: unknown) => void;
 }>;
 
 /**
@@ -333,7 +339,7 @@ export type CreateStaticLiquidationExecutorDeps = Readonly<{
  * 使用范围：仅 staticLiquidationExecutor 模块内部使用。
  */
 export type StaticLiquidationCandidate = Readonly<{
-  readonly signal: Signal;
+  readonly signal: SellSignal;
   readonly quote: QuoteUpdatedEvent['quote'];
 }>;
 
