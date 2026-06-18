@@ -25,7 +25,7 @@ export type VerificationSampleValues = Readonly<
  * 延迟验证样本条目。
  * 类型用途：存储单个时间点的延迟验证最小样本，供延迟验证按时间点回溯历史值。
  * 数据来源：由 IndicatorCache.push() 创建并存入时间窗口队列。
- * 使用范围：仅 indicatorCache 模块内部使用。
+ * 使用范围：indicatorCache 实现、delayedSignalVerifier 与相关测试辅助共享使用。
  */
 export type IndicatorCacheEntry = {
   /** 记录时间戳（毫秒） */

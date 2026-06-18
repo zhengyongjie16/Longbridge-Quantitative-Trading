@@ -1,3 +1,10 @@
+/**
+ * orderRecorder 分析边界测试
+ *
+ * 覆盖：
+ * - 校验对外暴露的分析依赖面保持最小且稳定
+ * - 防止订单分析能力泄漏不必要的内部实现细节
+ */
 import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderStatus, OrderType } from 'longbridge';
 import * as orderRecorder from '../../../src/core/orderRecorder/index.js';

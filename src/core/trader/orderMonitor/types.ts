@@ -255,6 +255,12 @@ export type TimeoutMarketConversionTerminalState = Readonly<{
   readonly executedTimeMs: number | null;
 }>;
 
+/**
+ * orderMonitor 内部扩展追踪订单模型。
+ * 类型用途：在基础 TrackedOrder 上补充改单限流、quote retry 与卖单超时转市价等待态。
+ * 数据来源：trackOrder 初始化后，由 orderOps、eventFlow 与 routeProcessor 按订单链路推进更新。
+ * 使用范围：仅 orderMonitor 目录内部使用。
+ */
 export type OrderMonitorTrackedOrder = TrackedOrder & {
   /** 连续命中 602013 的计数 */
   replaceTempBlockedCount: number;

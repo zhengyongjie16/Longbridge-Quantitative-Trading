@@ -23,6 +23,12 @@ const PUSH_CANDLESTICK_MODE_CONFIG_MAP: Readonly<Record<string, PushCandlestickM
   confirmed: PushCandlestickMode.Confirmed,
 };
 
+/**
+ * 解析布尔环境变量文本。
+ *
+ * @param value 原始环境变量值
+ * @returns `true`、`false` 或无法识别时的 `undefined`
+ */
 function parseBooleanEnvValue(value: string | null): boolean | undefined {
   if (value === null) {
     return undefined;
@@ -39,6 +45,12 @@ function parseBooleanEnvValue(value: string | null): boolean | undefined {
   return undefined;
 }
 
+/**
+ * 解析 OAuth 回调端口配置。
+ *
+ * @param env 进程环境变量
+ * @returns 合法端口号；未配置或非法时返回 null
+ */
 function parseCallbackPort(env: NodeJS.ProcessEnv): number | null {
   const callbackPortValue = getStringConfig(env, 'LONGBRIDGE_CALLBACK_PORT');
   if (callbackPortValue === null) {
@@ -53,10 +65,22 @@ function parseCallbackPort(env: NodeJS.ProcessEnv): number | null {
   return callbackPort;
 }
 
+/**
+ * 判断原始认证模式字符串是否属于受支持的 SDK 认证模式。
+ *
+ * @param value 原始认证模式字符串
+ * @returns true 表示可收窄为 AuthMode
+ */
 function isAuthMode(value: string): value is AuthMode {
   return value === 'oauth' || value === 'apikey';
 }
 
+/**
+ * 读取可选语言配置。
+ *
+ * @param env 进程环境变量
+ * @returns Longbridge SDK 语言枚举；未配置时返回 undefined
+ */
 function readOptionalLanguage(env: NodeJS.ProcessEnv): Language | undefined {
   const languageValue = getStringConfig(env, 'LONGBRIDGE_LANGUAGE');
   if (languageValue === null) {
@@ -66,6 +90,12 @@ function readOptionalLanguage(env: NodeJS.ProcessEnv): Language | undefined {
   return LANGUAGE_CONFIG_MAP[languageValue];
 }
 
+/**
+ * 读取可选 K 线推送模式配置。
+ *
+ * @param env 进程环境变量
+ * @returns Longbridge SDK 推送模式枚举；未配置时返回 undefined
+ */
 function readOptionalPushCandlestickMode(env: NodeJS.ProcessEnv): PushCandlestickMode | undefined {
   const pushCandlestickModeValue = getStringConfig(env, 'LONGBRIDGE_PUSH_CANDLESTICK_MODE');
   if (pushCandlestickModeValue === null) {

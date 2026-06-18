@@ -1,3 +1,11 @@
+/**
+ * Longbridge 认证配置装配模块
+ *
+ * 功能/职责：
+ * - 基于环境变量解析 OAuth 或 API Key 认证参数
+ * - 先执行统一配置校验，再按认证模式构造 Longbridge SDK Config
+ * - 在 OAuth 模式下透传授权 URL 打开回调
+ */
 import { Config, OAuth } from 'longbridge';
 import {
   readApiKeyAuthConfig,

@@ -343,12 +343,21 @@ function createDefaultDistanceSwitchHarness(
 function createDefaultStaticWaitHarness(
   params: {
     readonly retainFailureCount?: number;
+    readonly shouldLiquidateShort?: boolean;
+    readonly longQuoteAvailable?: boolean;
+    readonly shortQuoteAvailable?: boolean;
+    readonly failShortSubmissionOnce?: boolean;
+    readonly deferQuoteResponse?: boolean;
   } = {},
 ): RuntimeHarness &
   Readonly<{
     getQuoteRequestCount: () => number;
     getRetainCalls: () => ReadonlyArray<ReadonlyArray<string>>;
     getReleaseCalls: () => ReadonlyArray<RetainReleaseCall>;
+    getSubmittedActions: () => ReadonlyArray<string>;
+    getFatalErrorCount: () => number;
+    resolveQuoteResponse: () => void;
+    setLongQuoteAvailable: (available: boolean) => void;
     switchLongSeatToNextSymbol: () => void;
     switchMonitorRouteToDistanceMode: () => void;
   }> {
@@ -356,7 +365,13 @@ function createDefaultStaticWaitHarness(
   const quoteRequests: string[][] = [];
   const retainCalls: string[][] = [];
   const releaseCalls: RetainReleaseCall[] = [];
+  const submittedActions: string[] = [];
   let remainingRetainFailures = params.retainFailureCount ?? 0;
+  let remainingShortSubmissionFailures = params.failShortSubmissionOnce ? 1 : 0;
+  let fatalErrorCount = 0;
+  let longQuoteAvailable = params.longQuoteAvailable ?? false;
+  const shortQuoteAvailable = params.shortQuoteAvailable ?? false;
+  const quoteResponseGate = params.deferQuoteResponse ? createDeferred<true>() : null;
   const symbolRegistry = createSymbolRegistryDouble({
     monitorSymbol: 'HSI.HK',
     longSeat: {
@@ -397,6 +412,12 @@ function createDefaultStaticWaitHarness(
       shortSymbol: 'BEAR.HK',
     }),
     symbolRegistry,
+    riskChecker: createRiskCheckerDouble({
+      checkWarrantDistanceLiquidation: (_symbol, isLongSymbol) => ({
+        shouldLiquidate: isLongSymbol || (params.shouldLiquidateShort ?? false),
+        ...(isLongSymbol || params.shouldLiquidateShort ? { reason: '触发清仓阈值' } : {}),
+      }),
+    }),
   });
   const distanceMonitorContext = createMonitorContextDouble({
     config: createMonitorConfig({
@@ -438,17 +459,43 @@ function createDefaultStaticWaitHarness(
       },
       getQuotes: async (symbols) => {
         quoteRequests.push([...symbols]);
-        return new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 100)]]);
+        await quoteResponseGate?.promise;
+        return new Map([
+          ['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 100)],
+          ['BULL.HK', longQuoteAvailable ? createQuoteDouble('BULL.HK', 1, 100) : null],
+          ['BEAR.HK', shortQuoteAvailable ? createQuoteDouble('BEAR.HK', 1, 100) : null],
+        ]);
       },
     },
     monitorContexts,
-    trader: createTraderDouble(),
+    trader: createTraderDouble({
+      executeSignals: async (signals) => {
+        if (
+          signals.some((signal) => signal.action === 'SELLPUT') &&
+          remainingShortSubmissionFailures > 0
+        ) {
+          remainingShortSubmissionFailures -= 1;
+          throw new Error('short submission failed');
+        }
+
+        submittedActions.push(...signals.map((signal) => signal.action));
+        return {
+          submittedCount: signals.length,
+          submittedOrderIds: signals.map((_, index) => `ORDER-${submittedActions.length}-${index}`),
+        };
+      },
+    }),
     lastState: {
       positionCache: createPositionCacheDouble([
         createPositionDouble({
           symbol: 'BULL.HK',
           quantity: 200,
           availableQuantity: 200,
+        }),
+        createPositionDouble({
+          symbol: 'BEAR.HK',
+          quantity: 300,
+          availableQuantity: 300,
         }),
         createPositionDouble({
           symbol: 'NEXT_BULL.HK',
@@ -464,6 +511,9 @@ function createDefaultStaticWaitHarness(
     postTradeConsistencyRuntime: createFreshnessRuntimeDouble(),
     doomsdayProtectionEnabled: false,
     now: () => new Date('2026-04-08T10:00:00+08:00'),
+    onFatalError: () => {
+      fatalErrorCount += 1;
+    },
     quoteSubscriptionRuntime: {
       retainSymbols: async ({ symbols }) => {
         retainCalls.push([...symbols]);
@@ -488,6 +538,14 @@ function createDefaultStaticWaitHarness(
     getQuoteRequestCount: () => quoteRequests.length,
     getRetainCalls: () => retainCalls.map((symbols) => [...symbols]),
     getReleaseCalls: () => releaseCalls.map((call) => ({ ...call })),
+    getSubmittedActions: () => [...submittedActions],
+    getFatalErrorCount: () => fatalErrorCount,
+    resolveQuoteResponse(): void {
+      quoteResponseGate?.resolve(true);
+    },
+    setLongQuoteAvailable(available: boolean): void {
+      longQuoteAvailable = available;
+    },
     switchLongSeatToNextSymbol(): void {
       symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
         symbol: 'NEXT_BULL.HK',
@@ -564,6 +622,7 @@ describe('monitorQuoteEventRuntime contract', () => {
     harness.runtime.start();
     harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
 
+    await waitTick();
     await harness.runtime.stopAndDrain();
     expect(harness.submittedActions).toEqual(['SELLCALL']);
     expect(harness.getClearedOrders()).toBe(1);
@@ -610,6 +669,50 @@ describe('monitorQuoteEventRuntime contract', () => {
 
     await waitTick();
     expect(harness.getRetainCalls()).toEqual([['HSI.HK', 'BULL.HK', 'BEAR.HK']]);
+
+    await harness.runtime.stopAndDrain();
+  });
+
+  it('does not resubmit a completed direction while another static liquidation direction is waiting', async () => {
+    const harness = createDefaultStaticWaitHarness({
+      shouldLiquidateShort: true,
+      shortQuoteAvailable: true,
+    });
+
+    harness.runtime.start();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+    expect(harness.getSubmittedActions()).toEqual(['SELLPUT']);
+
+    harness.setLongQuoteAvailable(true);
+    harness.emitQuoteUpdated(createQuoteUpdatedEvent('BULL.HK', 1));
+
+    await waitTick();
+    expect(harness.getSubmittedActions()).toEqual(['SELLPUT', 'SELLCALL']);
+
+    await harness.runtime.stopAndDrain();
+  });
+
+  it('retains a submitted direction when the following direction throws', async () => {
+    const harness = createDefaultStaticWaitHarness({
+      shouldLiquidateShort: true,
+      longQuoteAvailable: true,
+      shortQuoteAvailable: true,
+      failShortSubmissionOnce: true,
+    });
+
+    harness.runtime.start();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+    expect(harness.getSubmittedActions()).toEqual(['SELLCALL']);
+    expect(harness.getFatalErrorCount()).toBe(1);
+
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+
+    await waitTick();
+    expect(harness.getSubmittedActions()).toEqual(['SELLCALL', 'SELLPUT']);
 
     await harness.runtime.stopAndDrain();
   });
@@ -695,6 +798,29 @@ describe('monitorQuoteEventRuntime contract', () => {
 
     await waitTick();
     expect(harness.getQuoteRequestCount()).toBe(1);
+
+    await harness.runtime.stopAndDrain();
+  });
+
+  it('discards an in-flight static WAIT result after the route switches to distance mode', async () => {
+    const harness = createDefaultStaticWaitHarness({
+      deferQuoteResponse: true,
+      longQuoteAvailable: true,
+    });
+
+    harness.runtime.start();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+    await waitTick();
+    expect(harness.getQuoteRequestCount()).toBe(1);
+
+    harness.switchMonitorRouteToDistanceMode();
+    harness.emitQuoteUpdated(createMonitorQuoteUpdatedEvent());
+    harness.resolveQuoteResponse();
+    await waitTick();
+    await waitTick();
+
+    expect(harness.getRetainCalls()).toEqual([]);
+    expect(harness.getSubmittedActions()).toEqual([]);
 
     await harness.runtime.stopAndDrain();
   });

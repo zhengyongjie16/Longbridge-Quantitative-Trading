@@ -99,14 +99,6 @@ function createStaticLiquidationCandidate(params: {
     return { kind: 'SKIP' };
   }
 
-  if (
-    tradingQuote === null ||
-    !Number.isFinite(tradingQuote.price) ||
-    !Number.isFinite(tradingQuote.lotSize)
-  ) {
-    return { kind: 'WAIT' };
-  }
-
   const liquidationResult = monitorContext.riskChecker.checkWarrantDistanceLiquidation(
     seatState.symbol,
     isLongDirection,
@@ -114,6 +106,14 @@ function createStaticLiquidationCandidate(params: {
   );
   if (!liquidationResult.shouldLiquidate) {
     return { kind: 'SKIP' };
+  }
+
+  if (
+    tradingQuote === null ||
+    !Number.isFinite(tradingQuote.price) ||
+    !Number.isFinite(tradingQuote.lotSize)
+  ) {
+    return { kind: 'WAIT' };
   }
 
   const signal: SellSignal = {
@@ -156,6 +156,9 @@ export function createStaticLiquidationExecutor(
   readonly monitorContext: MonitorContext;
   readonly event: QuoteUpdatedEvent;
   readonly retryAttempts: number;
+  readonly excludedDirections?: ReadonlySet<'LONG' | 'SHORT'>;
+  readonly canContinue?: () => boolean;
+  readonly onDirectionSubmitted?: (direction: 'LONG' | 'SHORT') => void;
 }) => Promise<StaticLiquidationRuntimeResult> {
   const { trader, marketDataClient, lastState, now } = deps;
 
@@ -163,6 +166,9 @@ export function createStaticLiquidationExecutor(
     readonly monitorContext: MonitorContext;
     readonly event: QuoteUpdatedEvent;
     readonly retryAttempts: number;
+    readonly excludedDirections?: ReadonlySet<'LONG' | 'SHORT'>;
+    readonly canContinue?: () => boolean;
+    readonly onDirectionSubmitted?: (direction: 'LONG' | 'SHORT') => void;
   }): Promise<StaticLiquidationRuntimeResult> {
     const { monitorContext } = params;
     const executionTime = now();
@@ -181,6 +187,10 @@ export function createStaticLiquidationExecutor(
     }
 
     const executionQuotes = await marketDataClient.getQuotes(wakeupSymbols);
+    if (params.canContinue?.() === false) {
+      return { kind: 'NOOP' };
+    }
+
     const monitorQuote = executionQuotes.get(monitorSymbol) ?? null;
     if (monitorQuote === null || !Number.isFinite(monitorQuote.price)) {
       return createStaticLiquidationWaitResult(
@@ -195,54 +205,53 @@ export function createStaticLiquidationExecutor(
     const longPosition = longSymbol ? lastState.positionCache.get(longSymbol) : null;
     const shortPosition = shortSymbol ? lastState.positionCache.get(shortSymbol) : null;
     const candidates: StaticLiquidationCandidate[] = [];
+    let hasPendingWait = false;
 
-    const longCandidateResult = longSymbol
-      ? createStaticLiquidationCandidate({
-          monitorContext,
-          direction: 'LONG',
-          monitorQuote,
-          tradingQuote: longQuote,
-          availableQuantity: longPosition?.availableQuantity ?? 0,
-          executionTime,
-        })
-      : { kind: 'SKIP' as const };
+    const longCandidateResult =
+      longSymbol && !params.excludedDirections?.has('LONG')
+        ? createStaticLiquidationCandidate({
+            monitorContext,
+            direction: 'LONG',
+            monitorQuote,
+            tradingQuote: longQuote,
+            availableQuantity: longPosition?.availableQuantity ?? 0,
+            executionTime,
+          })
+        : { kind: 'SKIP' as const };
     if (longCandidateResult.kind === 'CANDIDATE') {
       candidates.push(longCandidateResult.candidate);
     } else if (longCandidateResult.kind === 'WAIT') {
-      return createStaticLiquidationWaitResult(
-        wakeupSymbols,
-        params.retryAttempts,
-        now().getTime(),
-      );
+      hasPendingWait = true;
     }
 
-    const shortCandidateResult = shortSymbol
-      ? createStaticLiquidationCandidate({
-          monitorContext,
-          direction: 'SHORT',
-          monitorQuote,
-          tradingQuote: shortQuote,
-          availableQuantity: shortPosition?.availableQuantity ?? 0,
-          executionTime,
-        })
-      : { kind: 'SKIP' as const };
+    const shortCandidateResult =
+      shortSymbol && !params.excludedDirections?.has('SHORT')
+        ? createStaticLiquidationCandidate({
+            monitorContext,
+            direction: 'SHORT',
+            monitorQuote,
+            tradingQuote: shortQuote,
+            availableQuantity: shortPosition?.availableQuantity ?? 0,
+            executionTime,
+          })
+        : { kind: 'SKIP' as const };
     if (shortCandidateResult.kind === 'CANDIDATE') {
       candidates.push(shortCandidateResult.candidate);
     } else if (shortCandidateResult.kind === 'WAIT') {
-      return createStaticLiquidationWaitResult(
-        wakeupSymbols,
-        params.retryAttempts,
-        now().getTime(),
-      );
+      hasPendingWait = true;
     }
 
-    if (candidates.length === 0) {
+    if (candidates.length === 0 && !hasPendingWait) {
       return { kind: 'NOOP' };
     }
 
     let hasSubmittedCandidate = false;
 
     for (const candidate of candidates) {
+      if (params.canContinue?.() === false) {
+        return hasSubmittedCandidate ? { kind: 'COMPLETED' } : { kind: 'NOOP' };
+      }
+
       const seatValidation = validateSignalSeat({
         monitorSymbol,
         signal: candidate.signal,
@@ -260,6 +269,7 @@ export function createStaticLiquidationExecutor(
       hasSubmittedCandidate = true;
 
       const isLongDirection = candidate.signal.action === 'SELLCALL';
+      params.onDirectionSubmitted?.(isLongDirection ? 'LONG' : 'SHORT');
       monitorContext.orderRecorder.clearBuyOrders(
         candidate.signal.symbol,
         isLongDirection,
@@ -275,6 +285,14 @@ export function createStaticLiquidationExecutor(
         isLongDirection,
         candidate.quote,
         dailyLossOffset,
+      );
+    }
+
+    if (hasPendingWait) {
+      return createStaticLiquidationWaitResult(
+        wakeupSymbols,
+        params.retryAttempts,
+        now().getTime(),
       );
     }
 

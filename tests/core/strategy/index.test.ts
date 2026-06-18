@@ -1,3 +1,10 @@
+/**
+ * 多指标策略测试
+ *
+ * 覆盖：
+ * - 校验信号配置解析后能驱动策略生成买卖信号
+ * - 验证指标组合、卖出前置条件与边界输入的行为一致性
+ */
 import { describe, expect, it } from 'bun:test';
 import { parseSignalConfig } from '../../../src/config/utils.js';
 import { createMultiIndicatorTradingStrategy } from '../../../src/core/strategy/index.js';

@@ -1,3 +1,10 @@
+/**
+ * indicatorCache 工具测试
+ *
+ * 覆盖：
+ * - 校验验证样本投影、样本队列裁剪与最近样本查找逻辑
+ * - 防止延迟验证依赖的缓存辅助函数在边界输入下回归
+ */
 import { describe, expect, it } from 'bun:test';
 
 import type { IndicatorCacheEntry } from '../../../../src/main/asyncProgram/indicatorCache/types.js';

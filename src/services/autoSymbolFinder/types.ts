@@ -95,7 +95,7 @@ export type WarrantListItem = {
  * 牛熊证列表缓存条目。
  * 类型用途：记录获取时间与数据，用于 TTL 过期判断。
  * 数据来源：由 fetchWarrantsWithCache 写入缓存。
- * 使用范围：仅 autoSymbolFinder 模块内部使用。
+ * 使用范围：autoSymbolFinder 缓存实现、app/runtime 装配层与相关测试共享使用。
  */
 export type WarrantListCacheEntry = {
   readonly fetchedAt: number;
@@ -106,7 +106,7 @@ export type WarrantListCacheEntry = {
  * 牛熊证列表缓存接口。
  * 类型用途：支持 TTL 缓存与请求去重（inFlight），供 findBestWarrant 复用列表请求。
  * 数据来源：由 createWarrantListCache 工厂函数实现并注入。
- * 使用范围：仅 autoSymbolFinder 模块内部使用。
+ * 使用范围：autoSymbolFinder、autoSymbolManager、app/runtime 装配层、lifecycle cache domain 与相关测试共享使用。
  */
 export interface WarrantListCache {
   getEntry: (key: string) => WarrantListCacheEntry | undefined;

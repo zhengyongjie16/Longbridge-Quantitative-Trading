@@ -1,3 +1,10 @@
+/**
+ * autoSymbolManager 工具业务测试
+ *
+ * 覆盖：
+ * - 校验席位状态更新、事件发布顺序与信号席位校验辅助逻辑
+ * - 防止工具层破坏自动寻标状态机依赖的不变量
+ */
 import { describe, expect, it } from 'bun:test';
 
 import {

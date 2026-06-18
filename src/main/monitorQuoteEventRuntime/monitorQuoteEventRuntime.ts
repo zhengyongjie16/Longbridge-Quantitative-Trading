@@ -90,6 +90,7 @@ function isBaselineReady(deps: CreateMonitorQuoteEventRuntimeDeps): boolean {
  */
 function createRouteState(mode: MonitorQuoteRouteMode): MonitorQuoteRouteState {
   return {
+    generation: 0,
     latestMonitorContext: null,
     latestEvent: null,
     wakeupSymbols: new Set(),
@@ -100,6 +101,7 @@ function createRouteState(mode: MonitorQuoteRouteMode): MonitorQuoteRouteState {
     dirty: false,
     retryAttempts: 0,
     retryTimerHandle: null,
+    submittedLiquidationDirections: new Set(),
   };
 }
 
@@ -132,6 +134,7 @@ function createDefaultStartDistanceSwitchExecutor(
   return async function startDistanceSwitchOnMonitorQuote(params: {
     readonly monitorContext: MonitorContext;
     readonly event: QuoteUpdatedEvent;
+    readonly canContinue: () => boolean;
   }): Promise<ReadonlyArray<StartSwitchOnDistanceResult>> {
     const { monitorContext, event } = params;
     const monitorSymbol = monitorContext.config.monitorSymbol;
@@ -141,7 +144,7 @@ function createDefaultStartDistanceSwitchExecutor(
     const positions = deps.lastState.cachedPositions;
     const results: StartSwitchOnDistanceResult[] = [];
 
-    if (isSeatActive(longSeat)) {
+    if (isSeatActive(longSeat) && params.canContinue()) {
       results.push(
         await monitorContext.autoSymbolManager.startSwitchOnDistance({
           direction: 'LONG',
@@ -151,7 +154,7 @@ function createDefaultStartDistanceSwitchExecutor(
       );
     }
 
-    if (isSeatActive(shortSeat)) {
+    if (isSeatActive(shortSeat) && params.canContinue()) {
       results.push(
         await monitorContext.autoSymbolManager.startSwitchOnDistance({
           direction: 'SHORT',
@@ -305,9 +308,11 @@ function createMonitorQuoteEventRuntime(
 
         removeStaticWakeupIndexes(monitorSymbol);
         releaseStaticLiquidationRetain(monitorSymbol);
+        existing.generation += 1;
         existing.mode = mode;
         existing.wakeupSymbols = new Set();
         existing.retryAttempts = 0;
+        existing.submittedLiquidationDirections.clear();
       }
 
       return existing;
@@ -323,6 +328,18 @@ function createMonitorQuoteEventRuntime(
     void promise.finally(() => {
       activePromises.delete(promise);
     });
+  }
+
+  function isRouteExecutionCurrent(params: {
+    readonly monitorSymbol: string;
+    readonly routeState: MonitorQuoteRouteState;
+    readonly generation: number;
+  }): boolean {
+    return (
+      running &&
+      routeStates.get(params.monitorSymbol) === params.routeState &&
+      params.routeState.generation === params.generation
+    );
   }
 
   /**
@@ -570,10 +587,21 @@ function createMonitorQuoteEventRuntime(
         }
 
         routeState.latestMonitorContext = latestMonitorContext;
+        const executionGeneration = routeState.generation;
 
         const canExecute = await waitForExecutionFreshness();
         if (!canExecute) {
           return;
+        }
+
+        if (
+          !isRouteExecutionCurrent({
+            monitorSymbol,
+            routeState,
+            generation: executionGeneration,
+          })
+        ) {
+          continue;
         }
 
         if (routeState.mode === 'DISTANCE_SWITCH') {
@@ -584,7 +612,23 @@ function createMonitorQuoteEventRuntime(
           const results = await startDistanceSwitch({
             monitorContext: latestMonitorContext,
             event: snapshotEvent,
+            canContinue: () =>
+              isRouteExecutionCurrent({
+                monitorSymbol,
+                routeState,
+                generation: executionGeneration,
+              }),
           });
+
+          if (
+            !isRouteExecutionCurrent({
+              monitorSymbol,
+              routeState,
+              generation: executionGeneration,
+            })
+          ) {
+            continue;
+          }
 
           for (const result of results) {
             if (
@@ -613,7 +657,35 @@ function createMonitorQuoteEventRuntime(
           monitorContext: latestMonitorContext,
           event: snapshotEvent,
           retryAttempts: routeState.retryAttempts,
+          excludedDirections: routeState.submittedLiquidationDirections,
+          canContinue: () =>
+            isRouteExecutionCurrent({
+              monitorSymbol,
+              routeState,
+              generation: executionGeneration,
+            }),
+          onDirectionSubmitted: (direction) => {
+            if (
+              isRouteExecutionCurrent({
+                monitorSymbol,
+                routeState,
+                generation: executionGeneration,
+              })
+            ) {
+              routeState.submittedLiquidationDirections.add(direction);
+            }
+          },
         });
+
+        if (
+          !isRouteExecutionCurrent({
+            monitorSymbol,
+            routeState,
+            generation: executionGeneration,
+          })
+        ) {
+          continue;
+        }
 
         if (executionResult.kind === 'WAIT') {
           routeState.retryAttempts += 1;
@@ -626,6 +698,7 @@ function createMonitorQuoteEventRuntime(
         releaseStaticLiquidationRetain(monitorSymbol);
         routeState.wakeupSymbols = new Set();
         routeState.retryAttempts = 0;
+        routeState.submittedLiquidationDirections.clear();
       }
     } finally {
       const latestState = routeStates.get(monitorSymbol);

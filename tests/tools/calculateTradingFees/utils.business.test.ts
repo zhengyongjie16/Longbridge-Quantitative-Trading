@@ -1,3 +1,10 @@
+/**
+ * calculateTradingFees 工具测试
+ *
+ * 覆盖：
+ * - 校验交易日志 JSON 边界解析与数值字段校验
+ * - 防止费用计算工具接受无效持久化输入
+ */
 import { describe, expect, it } from 'bun:test';
 import { parseTradeNumbers, parseTrades } from '../../../tools/calculateTradingFees/utils.js';
 

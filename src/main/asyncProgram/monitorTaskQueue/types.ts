@@ -1,7 +1,17 @@
 import type { TaskAddedCallback } from '../tradeTaskQueue/types.js';
 
+/**
+ * 监控任务数据映射基类（内部类型）。
+ * 类型用途：约束监控任务 type 到 payload 的映射表形状，作为后续泛型 helper 的边界。
+ * 使用范围：仅 monitorTaskQueue 类型定义内部使用。
+ */
 type MonitorTaskDataMapBase = Readonly<Record<string, unknown>>;
 
+/**
+ * 由任务数据映射派生出的完整监控任务联合类型（内部类型）。
+ * 类型用途：为公开的 MonitorTask 提供基础结构，统一 id、去重键、监控标的与创建时间。
+ * 使用范围：仅 monitorTaskQueue 类型定义内部使用。
+ */
 type MonitorTaskByDataMap<
   TDataMap extends MonitorTaskDataMapBase,
   TType extends keyof TDataMap = keyof TDataMap,
@@ -16,6 +26,11 @@ type MonitorTaskByDataMap<
     }>
   : never;
 
+/**
+ * 由任务数据映射派生出的监控任务入队参数联合类型（内部类型）。
+ * 类型用途：为公开的 MonitorTaskInput 提供基础结构，表达调用方入队时尚未生成 id 与 createdAt 的任务形态。
+ * 使用范围：仅 monitorTaskQueue 类型定义内部使用。
+ */
 type MonitorTaskInputByDataMap<
   TDataMap extends MonitorTaskDataMapBase,
   TType extends keyof TDataMap = keyof TDataMap,

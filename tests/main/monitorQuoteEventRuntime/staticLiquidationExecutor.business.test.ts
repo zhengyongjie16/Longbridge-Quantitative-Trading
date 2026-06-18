@@ -37,6 +37,7 @@ function createExecutorHarness(
     readonly bumpLongSeatVersionAfterSignalBuild?: boolean;
     readonly bumpLongSeatVersionAfterSubmission?: boolean;
     readonly longQuoteAvailable?: boolean;
+    readonly shortQuoteAvailable?: boolean;
     readonly monitorQuoteAvailable?: boolean;
     readonly executionMonitorPrice?: number;
     readonly waitResolvedTimeMs?: number;
@@ -51,6 +52,8 @@ function createExecutorHarness(
   let refreshUnrealizedCalls = 0;
   let currentNowMs = EXECUTION_TIME_MS;
   let executeSignalsCallIndex = 0;
+  let longQuoteAvailable = params.longQuoteAvailable !== false;
+  const shortQuoteAvailable = params.shortQuoteAvailable !== false;
 
   const orderRecorder = createOrderRecorderDouble({
     clearBuyOrders: (symbol) => {
@@ -181,11 +184,8 @@ function createExecutorHarness(
               ? null
               : createQuoteDouble('HSI.HK', params.executionMonitorPrice ?? 20_000, 100),
           ],
-          [
-            'BULL.HK',
-            params.longQuoteAvailable === false ? null : createQuoteDouble('BULL.HK', 1, 100),
-          ],
-          ['BEAR.HK', createQuoteDouble('BEAR.HK', 1, 100)],
+          ['BULL.HK', longQuoteAvailable ? createQuoteDouble('BULL.HK', 1, 100) : null],
+          ['BEAR.HK', shortQuoteAvailable ? createQuoteDouble('BEAR.HK', 1, 100) : null],
         ]);
       },
     }),
@@ -226,6 +226,9 @@ function createExecutorHarness(
     getRefreshedSymbols: () => [...refreshedSymbols],
     getClearedOrders: () => clearedOrders,
     getRefreshUnrealizedCalls: () => refreshUnrealizedCalls,
+    setLongQuoteAvailable: (available: boolean) => {
+      longQuoteAvailable = available;
+    },
   };
 }
 
@@ -325,6 +328,134 @@ describe('staticLiquidationExecutor', () => {
     expect(harness.submittedActions).toEqual([]);
     expect(harness.getClearedOrders()).toBe(0);
     expect(harness.getRefreshUnrealizedCalls()).toBe(0);
+  });
+
+  it('still executes the short-side liquidation candidate when long trading quote is unavailable', async () => {
+    const harness = createExecutorHarness({
+      longQuoteAvailable: false,
+      shouldLiquidateLong: false,
+      shouldLiquidateShort: true,
+    });
+
+    const result = await harness.executor({
+      monitorContext: harness.monitorContext,
+      event: {
+        symbol: 'HSI.HK',
+        quote: createQuoteDouble('HSI.HK', 20_000, 100),
+      },
+      retryAttempts: 0,
+    });
+
+    expect(result).toEqual({ kind: 'COMPLETED' });
+    expect(harness.submittedActions).toEqual(['SELLPUT']);
+    expect(harness.getClearedOrderSymbols()).toEqual(['BEAR.HK']);
+    expect(harness.getRefreshedSymbols()).toEqual(['BEAR.HK']);
+    expect(harness.getClearedOrders()).toBe(1);
+    expect(harness.getRefreshUnrealizedCalls()).toBe(1);
+  });
+
+  it('keeps WAIT ownership after submitting short-side liquidation when long side still needs a quote', async () => {
+    const harness = createExecutorHarness({
+      longQuoteAvailable: false,
+      shouldLiquidateLong: true,
+      shouldLiquidateShort: true,
+    });
+
+    const result = await harness.executor({
+      monitorContext: harness.monitorContext,
+      event: {
+        symbol: 'HSI.HK',
+        quote: createQuoteDouble('HSI.HK', 20_000, 100),
+      },
+      retryAttempts: 0,
+    });
+
+    expect(result.kind).toBe('WAIT');
+    if (result.kind !== 'WAIT') {
+      throw new Error('result should be WAIT');
+    }
+
+    expect(result.wakeupSymbols).toEqual(['HSI.HK', 'BULL.HK', 'BEAR.HK']);
+    expect(result.retryAtMs).toBe(EXPECTED_RETRY_AT_MS);
+    expect(harness.submittedActions).toEqual(['SELLPUT']);
+    expect(harness.getClearedOrderSymbols()).toEqual(['BEAR.HK']);
+    expect(harness.getRefreshedSymbols()).toEqual(['BEAR.HK']);
+    expect(harness.getClearedOrders()).toBe(1);
+    expect(harness.getRefreshUnrealizedCalls()).toBe(1);
+  });
+
+  it('keeps WAIT ownership after submitting long-side liquidation when short side still needs a quote', async () => {
+    const harness = createExecutorHarness({
+      shortQuoteAvailable: false,
+      shouldLiquidateLong: true,
+      shouldLiquidateShort: true,
+    });
+
+    const result = await harness.executor({
+      monitorContext: harness.monitorContext,
+      event: {
+        symbol: 'HSI.HK',
+        quote: createQuoteDouble('HSI.HK', 20_000, 100),
+      },
+      retryAttempts: 0,
+    });
+
+    expect(result.kind).toBe('WAIT');
+    if (result.kind !== 'WAIT') {
+      throw new Error('result should be WAIT');
+    }
+
+    expect(result.wakeupSymbols).toEqual(['HSI.HK', 'BULL.HK', 'BEAR.HK']);
+    expect(result.retryAtMs).toBe(EXPECTED_RETRY_AT_MS);
+    expect(harness.submittedActions).toEqual(['SELLCALL']);
+    expect(harness.getClearedOrderSymbols()).toEqual(['BULL.HK']);
+    expect(harness.getRefreshedSymbols()).toEqual(['BULL.HK']);
+    expect(harness.getClearedOrders()).toBe(1);
+    expect(harness.getRefreshUnrealizedCalls()).toBe(1);
+  });
+
+  it('retries only the unresolved direction after a mixed submit and WAIT result', async () => {
+    const harness = createExecutorHarness({
+      longQuoteAvailable: false,
+      shouldLiquidateLong: true,
+      shouldLiquidateShort: true,
+    });
+    const submittedDirections = new Set<'LONG' | 'SHORT'>();
+
+    const firstResult = await harness.executor({
+      monitorContext: harness.monitorContext,
+      event: {
+        symbol: 'HSI.HK',
+        quote: createQuoteDouble('HSI.HK', 20_000, 100),
+      },
+      retryAttempts: 0,
+      onDirectionSubmitted: (direction) => {
+        submittedDirections.add(direction);
+      },
+    });
+    expect(firstResult.kind).toBe('WAIT');
+    if (firstResult.kind !== 'WAIT') {
+      throw new Error('first result should be WAIT');
+    }
+
+    harness.setLongQuoteAvailable(true);
+    const secondResult = await harness.executor({
+      monitorContext: harness.monitorContext,
+      event: {
+        symbol: 'BULL.HK',
+        quote: createQuoteDouble('BULL.HK', 1, 100),
+      },
+      retryAttempts: 1,
+      excludedDirections: submittedDirections,
+      onDirectionSubmitted: (direction) => {
+        submittedDirections.add(direction);
+      },
+    });
+
+    expect(secondResult).toEqual({ kind: 'COMPLETED' });
+    expect(harness.submittedActions).toEqual(['SELLPUT', 'SELLCALL']);
+    expect(harness.getClearedOrderSymbols()).toEqual(['BEAR.HK', 'BULL.HK']);
+    expect(harness.getRefreshedSymbols()).toEqual(['BEAR.HK', 'BULL.HK']);
   });
 
   it('returns NOOP instead of WAIT when long side has position but liquidation is not triggered', async () => {

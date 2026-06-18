@@ -354,19 +354,18 @@ export type BuildOrderSignalParams = {
 };
 
 /**
- * 订单信号构建函数类型。
- * 类型用途：根据 BuildOrderSignalParams 构造订单 Signal，由 createSignalBuilder 实现并注入，供换标状态机消费。
+ * 订单信号联合类型。
+ * 类型用途：统一表达自动寻标与换标链路中生成的买入/卖出订单信号。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type OrderSignal = BuySignal | SellSignal;
 
-export type OrderSignalBuilder = (params: BuildOrderSignalParams) => OrderSignal;
-
 /**
- * 信号构建器工厂的依赖注入参数（内部类型）。
- * 类型用途：保留 createSignalBuilder 相关说明。
- * 使用范围：仅 autoSymbolManager 模块内部使用。
+ * 订单信号构建函数类型。
+ * 类型用途：根据 BuildOrderSignalParams 构造 OrderSignal，由 createSignalBuilder 实现并注入，供换标状态机消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
+export type OrderSignalBuilder = (params: BuildOrderSignalParams) => OrderSignal;
 
 /**
  * 席位不可用原因枚举。

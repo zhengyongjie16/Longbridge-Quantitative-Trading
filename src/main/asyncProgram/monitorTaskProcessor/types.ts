@@ -67,7 +67,7 @@ export type SeatRefreshRetryTimer = Readonly<{
  * 监控任务类型到 payload 的映射。
  * 类型用途：表达 task.type 与 task.data 的一一对应关系，确保队列与处理器形成判别联合。
  * 数据来源：由各调度点组装的具体任务数据入队时确定。
- * 使用范围：仅 monitorTaskProcessor、monitorTaskQueue 与各任务 owner 内部使用。
+ * 使用范围：monitorTaskProcessor、monitorTaskQueue、各任务 owner、app/runtime 装配层与相关测试共享使用。
  */
 export type MonitorTaskDataMap = Readonly<{
   AUTO_SYMBOL_TICK: AutoSymbolTickTaskData;
@@ -117,10 +117,7 @@ export type MonitorTaskContext = Pick<
  * 使用范围：仅 MonitorTaskProcessor 内部使用。
  */
 export type RefreshHelpers = Readonly<{
-  ensureAllOrders: (
-    monitorSymbol: string,
-    orderRecorder: MonitorTaskContext['orderRecorder'],
-  ) => Promise<ReadonlyArray<RawOrderFromAPI>>;
+  ensureAllOrders: () => Promise<ReadonlyArray<RawOrderFromAPI>>;
   refreshAccountCaches: () => Promise<void>;
 }>;
 

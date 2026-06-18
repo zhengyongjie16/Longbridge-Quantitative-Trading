@@ -117,6 +117,12 @@ export function describeSeatUnavailable(seatState: SeatState): string {
   return reason === null ? '席位不可用' : SEAT_UNAVAILABLE_REASON_MAP[reason];
 }
 
+/**
+ * 从交易动作推导席位方向。
+ *
+ * @param action 交易信号动作
+ * @returns LONG、SHORT；HOLD 返回 null，其余非法动作直接抛错
+ */
 function resolveSignalDirection(
   action: ValidateSignalSeatParams['signal']['action'],
 ): 'LONG' | 'SHORT' | null {
@@ -269,10 +275,9 @@ export function resolveSeatOnStartup({
 }
 
 /**
- * 创建席位状态对象（内部工厂函数）
- * @param symbol 交易标的代码，null 表示未绑定
- * @param status 席位状态（EMPTY/SEARCHING/SWITCHING/ACTIVATING/ACTIVE）
- * @returns 初始化的席位状态对象
+ * 断言席位状态满足基本不变量。
+ *
+ * @param seatState 待校验的席位状态
  */
 function assertSeatStateInvariant(seatState: SeatState): void {
   if ((seatState.status === 'ACTIVE' || seatState.status === 'ACTIVATING') && !seatState.symbol) {
@@ -280,6 +285,13 @@ function assertSeatStateInvariant(seatState: SeatState): void {
   }
 }
 
+/**
+ * 创建席位状态对象（内部工厂函数）。
+ *
+ * @param symbol 交易标的代码，null 表示未绑定
+ * @param status 席位状态（EMPTY/SEARCHING/SWITCHING/ACTIVATING/ACTIVE）
+ * @returns 初始化并通过不变量校验的席位状态对象
+ */
 function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
   const seatState = {
     symbol,

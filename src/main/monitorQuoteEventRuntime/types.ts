@@ -57,6 +57,9 @@ export type MonitorQuoteEventExecutor = (params: {
   readonly monitorContext: MonitorContext;
   readonly event: QuoteUpdatedEvent;
   readonly retryAttempts: number;
+  readonly excludedDirections: ReadonlySet<'LONG' | 'SHORT'>;
+  readonly canContinue: () => boolean;
+  readonly onDirectionSubmitted: (direction: 'LONG' | 'SHORT') => void;
 }) => Promise<StaticLiquidationRuntimeResult>;
 
 /**
@@ -68,6 +71,7 @@ export type MonitorQuoteEventExecutor = (params: {
 export type StartDistanceSwitchExecutor = (params: {
   readonly monitorContext: MonitorContext;
   readonly event: QuoteUpdatedEvent;
+  readonly canContinue: () => boolean;
 }) => Promise<ReadonlyArray<StartSwitchOnDistanceResult>>;
 
 /**
@@ -147,6 +151,7 @@ export type MonitorQuoteRouteMode = 'STATIC_LIQUIDATION' | 'DISTANCE_SWITCH';
  * 使用范围：仅 monitorQuoteEventRuntime 模块内部使用。
  */
 export type MonitorQuoteRouteState = {
+  generation: number;
   latestMonitorContext: MonitorContext | null;
   latestEvent: QuoteUpdatedEvent | null;
   wakeupSymbols: ReadonlySet<string>;
@@ -157,6 +162,7 @@ export type MonitorQuoteRouteState = {
   dirty: boolean;
   retryAttempts: number;
   retryTimerHandle: ReturnType<typeof setTimeout> | null;
+  submittedLiquidationDirections: Set<'LONG' | 'SHORT'>;
 };
 
 /**

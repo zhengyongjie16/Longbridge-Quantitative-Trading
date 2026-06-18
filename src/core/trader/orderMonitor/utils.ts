@@ -103,6 +103,12 @@ export function isClosedStatus(status: OrderStatus): boolean {
   );
 }
 
+/**
+ * 从订单状态解析关闭原因。
+ *
+ * @param status 订单状态
+ * @returns 对应的关闭原因；非关闭态返回 null
+ */
 export function resolveOrderClosedReasonFromStatus(status: OrderStatus): OrderClosedReason | null {
   if (status === OrderStatus.Filled) {
     return 'FILLED';
@@ -123,6 +129,12 @@ export function resolveOrderClosedReasonFromStatus(status: OrderStatus): OrderCl
   return null;
 }
 
+/**
+ * 判断改单能力是否处于“仅等待 WS 终态恢复”的临时模式。
+ *
+ * @param order 订单的改单能力与阻塞截止时间
+ * @returns true 表示当前仅允许等待 WS 推进，不应主动再次发改单
+ */
 export function isWaitWsOnlyReplaceMode(
   order: Pick<TrackedOrder, 'replaceCapability' | 'replaceBlockedUntilAt'>,
 ): boolean {
@@ -303,6 +315,12 @@ export function extractErrorMessage(err: unknown): string {
   return String(err);
 }
 
+/**
+ * 判断错误是否属于“订单已关闭”类业务错误。
+ *
+ * @param err 任意错误对象
+ * @returns true 表示错误码可确定归类为订单已关闭
+ */
 export function isOrderClosedBusinessError(err: unknown): boolean {
   const code = extractErrorCode(err);
   return code !== null && isOrderClosedErrorCode(code);

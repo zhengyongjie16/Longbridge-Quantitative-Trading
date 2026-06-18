@@ -205,7 +205,7 @@ export function createSeatRefreshHandler({
       const executionQuotes = await marketDataClient.getQuotes(quoteSymbols);
       const nextExecutionQuote = executionQuotes.get(data.nextSymbol) ?? null;
 
-      const allOrders = await helpers.ensureAllOrders(data.monitorSymbol, context.orderRecorder);
+      const allOrders = await helpers.ensureAllOrders();
       context.dailyLossTracker.recalculateFromAllOrders(
         allOrders,
         tradingConfig.monitors,

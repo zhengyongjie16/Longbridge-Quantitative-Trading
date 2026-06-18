@@ -67,7 +67,7 @@ function createBusinessProcessor(
     queue,
     context,
     lastState = createLastState(),
-    trader = createTraderDouble(),
+    trader,
     marketDataClient = createMarketDataClientDouble(),
     quoteSubscriptionRuntime = createQuoteSubscriptionRuntimeDouble(),
     onProcessed,
@@ -80,11 +80,15 @@ function createBusinessProcessor(
     },
     onFatalError,
   } = params;
+  const resolvedTrader = {
+    ...(trader ?? createTraderDouble()),
+    orderRecorder: context.orderRecorder,
+  };
 
   return createMonitorTaskProcessor({
     monitorTaskQueue: queue,
     getMonitorContext: () => context,
-    trader,
+    trader: resolvedTrader,
     marketDataClient,
     quoteSubscriptionRuntime,
     switchWakeupRuntime: {
