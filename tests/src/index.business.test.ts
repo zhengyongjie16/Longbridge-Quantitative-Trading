@@ -63,9 +63,9 @@ beforeEach(() => {
     errorCalls.push(args);
   }) as typeof console.error;
 
-  process.exit = ((code?: number) => {
+  process.exit = (code?: number) => {
     throw new ExitSignal(code);
-  });
+  };
 });
 
 afterEach(() => {
