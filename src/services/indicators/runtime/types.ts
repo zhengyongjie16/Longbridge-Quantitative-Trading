@@ -19,7 +19,7 @@ export type BufferNewPush = {
  * EMA 流式计算状态。
  * 类型用途：记录单条 EMA 流的 seed 阶段累加值与当前 EMA 值，供 initEmaStreamState / feedEmaStreamState 共用。
  * 数据来源：由 initEmaStreamState 初始化，由 feedEmaStreamState 逐值更新。
- * 使用范围：仅 indicators 子模块内部（EMA、MACD、RSI 共用）。
+ * 使用范围：仅 indicators 子模块内部（EMA、MACD 共用）。
  */
 export type EmaStreamState = {
   readonly period: number;
@@ -32,7 +32,7 @@ export type EmaStreamState = {
 /**
  * RSI 流式计算状态。
  * 类型用途：记录 RSI 计算过程中的 seed 阶段累加值、平滑上涨/下跌均值及最新原始 RSI 值。
- * 数据来源：由 initRsiStreamState 初始化，由 updateRsiStreamState 逐根 K 线更新。
+ * 数据来源：由 createRsiState 初始化，由 commitRsiClose 逐根有效 close 更新。
  * 使用范围：仅 indicators 子模块 rsi.ts 内部使用。
  */
 export type RsiStreamState = {
@@ -50,7 +50,7 @@ export type RsiStreamState = {
 /**
  * PSY 流式计算状态。
  * 类型用途：记录 PSY 计算过程中的环形上涨标志窗口、有效收盘价计数及当前窗口内上涨次数。
- * 数据来源：由 initPsyStreamState 初始化，由 updatePsyStreamState 逐根 K 线更新。
+ * 数据来源：由 createPsyState 初始化，由 commitPsyClose 逐根有效 close 更新。
  * 使用范围：仅 indicators 子模块 psy.ts 内部使用。
  */
 export type PsyStreamState = {
@@ -125,14 +125,16 @@ export type AdxStreamState = {
  */
 export type KdjStreamState = {
   readonly period: number;
-  readonly emaPeriod: number;
+  readonly signalPeriod: number;
   index: number;
   maxIndexDeque: number[];
   maxValueDeque: number[];
   minIndexDeque: number[];
   minValueDeque: number[];
-  emaKState: EmaStreamState;
-  emaDState: EmaStreamState;
+  rsvWindow: number[];
+  rsvWindowSum: number;
+  kWindow: number[];
+  kWindowSum: number;
   hasKdjValue: boolean;
   lastK: number;
   lastD: number;
@@ -166,8 +168,6 @@ export type IndicatorRuntimeStateFields = {
   readonly symbol: string;
   readonly profile: IndicatorUsageProfile;
   lastProcessedVersion: number;
-  closedBarTimestamp: number | null;
-  activeBarTimestamp: number | null;
   activeBarConfirmed: boolean | null;
   activeBar: CandleData | null;
   lastBarTimestamp: number | null;

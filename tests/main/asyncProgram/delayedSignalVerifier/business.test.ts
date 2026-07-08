@@ -2,13 +2,15 @@
  * delayedSignalVerifier 业务测试
  *
  * 功能：
- * - 验证延迟验证通过/拒绝场景与指标边界及业务期望。
+ * - 验证延迟验证通过/拒绝场景与指标边界及业务期望
  */
 import { describe, expect, it } from 'bun:test';
 import { createIndicatorCache } from '../../../../src/main/asyncProgram/indicatorCache/index.js';
 import { createDelayedSignalVerifier } from '../../../../src/main/asyncProgram/delayedSignalVerifier/index.js';
+import { performVerification } from '../../../../src/main/asyncProgram/delayedSignalVerifier/utils.js';
 import { createSignal } from '../../../../mock/factories/signalFactory.js';
 import type { VerificationIndicator } from '../../../../src/types/indicatorProfile.js';
+import type { IndicatorCache } from '../../../../src/main/asyncProgram/indicatorCache/types.js';
 
 const K_VERIFICATION_INDICATORS: ReadonlyArray<VerificationIndicator> = ['K'];
 const ADX_VERIFICATION_INDICATORS: ReadonlyArray<VerificationIndicator> = ['ADX'];
@@ -23,35 +25,149 @@ function withMockedNowSync<T>(nowMs: number, run: () => T): T {
   }
 }
 
-function createSnapshotK(k: number) {
+function createSampleK(k: number) {
   return {
-    price: 100,
-    changePercent: 0,
-    ema: null,
-    rsi: null,
-    psy: null,
-    mfi: null,
-    kdj: { k, d: k, j: k },
-    macd: { macd: 0, dif: 0, dea: 0 },
-    adx: null,
+    K: {
+      kind: 'value' as const,
+      value: k,
+    },
   };
 }
 
-function createSnapshotAdx(adx: number) {
+function createSampleAdx(adx: number) {
   return {
-    price: 100,
-    changePercent: 0,
-    ema: null,
-    rsi: null,
-    psy: null,
-    mfi: null,
-    kdj: { k: 50, d: 50, j: 50 },
-    macd: { macd: 0, dif: 0, dea: 0 },
-    adx,
+    ADX: {
+      kind: 'value' as const,
+      value: adx,
+    },
   };
 }
 
 describe('delayedSignalVerifier business flow', () => {
+  it('passes BUYCALL from minimal verification samples without full snapshot payload', async () => {
+    const baseTime = 90_000;
+    const indicatorCache = createIndicatorCache();
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
+    });
+
+    for (const sample of [
+      { values: createSampleK(11), timestamp: baseTime },
+      { values: createSampleK(12), timestamp: baseTime + 5_000 },
+      { values: createSampleK(13), timestamp: baseTime + 10_000 },
+    ]) {
+      indicatorCache.push('HSI.HK', sample.values, sample.timestamp);
+    }
+
+    let verified = 0;
+    verifier.onVerified(() => {
+      verified += 1;
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: baseTime,
+      indicators1: { K: 10 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
+    });
+
+    await Bun.sleep(20);
+
+    expect(verified).toBe(1);
+  });
+
+  it('exposes verification execution errors to fatal handler', async () => {
+    const baseTime = 91_000;
+    const errors: unknown[] = [];
+    const indicatorCache: IndicatorCache = {
+      push: () => {},
+      getClosest: () => {
+        throw new TypeError('indicator cache broken');
+      },
+      clearAll: () => {},
+    };
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
+      onFatalError: (error) => {
+        errors.push(error);
+      },
+    });
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: baseTime,
+      indicators1: { K: 10 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
+    });
+
+    await Bun.sleep(20);
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(TypeError);
+    expect((errors[0] as Error).message).toContain('indicator cache broken');
+  });
+
+  it('exposes onVerified callback errors to fatal handler', async () => {
+    const baseTime = 92_000;
+    const indicatorCache = createIndicatorCache();
+    const errors: unknown[] = [];
+    const verifierDeps = {
+      indicatorCache,
+      onFatalError: (error: unknown) => {
+        errors.push(error);
+      },
+    };
+    const verifier = createDelayedSignalVerifier(verifierDeps);
+
+    for (const sample of [
+      { values: createSampleK(11), timestamp: baseTime },
+      { values: createSampleK(12), timestamp: baseTime + 5_000 },
+      { values: createSampleK(13), timestamp: baseTime + 10_000 },
+    ]) {
+      indicatorCache.push('HSI.HK', sample.values, sample.timestamp);
+    }
+
+    verifier.onVerified(() => {
+      throw new Error('queue push failed');
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: baseTime,
+      indicators1: { K: 10 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
+    });
+
+    await Bun.sleep(20);
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(Error);
+    expect((errors[0] as Error).message).toContain('queue push failed');
+  });
+
   it('passes BUYCALL when T0/T+5/T+10 are all above initial value', async () => {
     const baseTime = 100_000;
     const indicatorCache = createIndicatorCache();
@@ -60,15 +176,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(11));
+      indicatorCache.push('HSI.HK', createSampleK(11), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(12));
+      indicatorCache.push('HSI.HK', createSampleK(12), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(13));
+      indicatorCache.push('HSI.HK', createSampleK(13), Date.now());
     });
 
     let verified = 0;
@@ -105,15 +221,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(9));
+      indicatorCache.push('HSI.HK', createSampleK(9), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(8));
+      indicatorCache.push('HSI.HK', createSampleK(8), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(7));
+      indicatorCache.push('HSI.HK', createSampleK(7), Date.now());
     });
 
     let verified = 0;
@@ -148,15 +264,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(19));
+      indicatorCache.push('HSI.HK', createSampleK(19), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(18));
+      indicatorCache.push('HSI.HK', createSampleK(18), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(17));
+      indicatorCache.push('HSI.HK', createSampleK(17), Date.now());
     });
 
     let verified = 0;
@@ -191,15 +307,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(41));
+      indicatorCache.push('HSI.HK', createSampleK(41), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(42));
+      indicatorCache.push('HSI.HK', createSampleK(42), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(43));
+      indicatorCache.push('HSI.HK', createSampleK(43), Date.now());
     });
 
     let verified = 0;
@@ -226,19 +342,58 @@ describe('delayedSignalVerifier business flow', () => {
     expect(verified).toBe(1);
   });
 
-  it('rejects signal when one required time point is missing', async () => {
+  it('rejects signal with invalid sample points and reports 值无效', async () => {
     const baseTime = 200_000;
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
     });
 
-    withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(11));
+    for (const timestamp of [baseTime, baseTime + 5_000, baseTime + 10_000]) {
+      indicatorCache.push('HSI.HK', { K: { kind: 'invalid' } }, timestamp);
+    }
+
+    let verifiedCount = 0;
+    verifier.onVerified(() => {
+      verifiedCount += 1;
     });
 
-    withMockedNowSync(baseTime + 4_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(12));
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: baseTime,
+      indicators1: { K: 10 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
+    });
+
+    await Bun.sleep(20);
+
+    expect(verifiedCount).toBe(0);
+    const timerId = setTimeout(() => {}, 0);
+    const result = performVerification(indicatorCache, {
+      signal,
+      monitorSymbol: 'HSI.HK',
+      triggerTime: baseTime,
+      initialIndicators: { K: 10 },
+      indicatorNames: K_VERIFICATION_INDICATORS,
+      timerId,
+    });
+    clearTimeout(timerId);
+    expect(result.reason).toContain('值无效');
+  });
+
+  it('fails when cache has no samples for required verification points', async () => {
+    const baseTime = 200_000;
+    const indicatorCache = createIndicatorCache();
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
     });
 
     let verifiedCount = 0;
@@ -253,7 +408,7 @@ describe('delayedSignalVerifier business flow', () => {
       indicators1: { K: 10 },
     });
 
-    withMockedNowSync(baseTime + 10000, () => {
+    withMockedNowSync(baseTime + 10_000, () => {
       verifier.addSignal({
         signal,
         monitorSymbol: 'HSI.HK',
@@ -266,7 +421,7 @@ describe('delayedSignalVerifier business flow', () => {
     expect(verifiedCount).toBe(0);
   });
 
-  it('accepts data points within +/-5s tolerance window', async () => {
+  it('accepts nearest retained samples even when one old sample covers multiple target points', async () => {
     const baseTime = 300_000;
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
@@ -274,15 +429,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 4_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(11));
+      indicatorCache.push('HSI.HK', createSampleK(11), Date.now());
     });
 
-    withMockedNowSync(baseTime + 5_000 + 4_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(12));
-    });
-
-    withMockedNowSync(baseTime + 10_000 + 4_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotK(13));
+    withMockedNowSync(baseTime + 9_000, () => {
+      indicatorCache.push('HSI.HK', createSampleK(12), Date.now());
     });
 
     let passed = 0;
@@ -297,7 +448,7 @@ describe('delayedSignalVerifier business flow', () => {
       indicators1: { K: 10 },
     });
 
-    withMockedNowSync(baseTime + 10000, () => {
+    withMockedNowSync(baseTime + 10_000, () => {
       verifier.addSignal({
         signal,
         monitorSymbol: 'HSI.HK',
@@ -318,15 +469,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(28));
+      indicatorCache.push('HSI.HK', createSampleAdx(28), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(27));
+      indicatorCache.push('HSI.HK', createSampleAdx(27), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(26));
+      indicatorCache.push('HSI.HK', createSampleAdx(26), Date.now());
     });
 
     let verified = 0;
@@ -361,15 +512,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(25));
+      indicatorCache.push('HSI.HK', createSampleAdx(25), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(24));
+      indicatorCache.push('HSI.HK', createSampleAdx(24), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(23));
+      indicatorCache.push('HSI.HK', createSampleAdx(23), Date.now());
     });
 
     let verified = 0;
@@ -404,15 +555,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(22));
+      indicatorCache.push('HSI.HK', createSampleAdx(22), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(21));
+      indicatorCache.push('HSI.HK', createSampleAdx(21), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(20));
+      indicatorCache.push('HSI.HK', createSampleAdx(20), Date.now());
     });
 
     let verified = 0;
@@ -447,15 +598,15 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(18));
+      indicatorCache.push('HSI.HK', createSampleAdx(18), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(17));
+      indicatorCache.push('HSI.HK', createSampleAdx(17), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(16));
+      indicatorCache.push('HSI.HK', createSampleAdx(16), Date.now());
     });
 
     let verified = 0;
@@ -491,15 +642,15 @@ describe('delayedSignalVerifier business flow', () => {
 
     // T0+5s ADX 上升而非下降
     withMockedNowSync(baseTime, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(28));
+      indicatorCache.push('HSI.HK', createSampleAdx(28), Date.now());
     });
 
     withMockedNowSync(baseTime + 5_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(31));
+      indicatorCache.push('HSI.HK', createSampleAdx(31), Date.now());
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      indicatorCache.push('HSI.HK', createSnapshotAdx(26));
+      indicatorCache.push('HSI.HK', createSampleAdx(26), Date.now());
     });
 
     let verified = 0;

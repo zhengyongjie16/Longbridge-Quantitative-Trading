@@ -60,11 +60,7 @@ export const createPositionLimitChecker = (
   };
 
   /** 检查有持仓时的市值限制（现有市值 + 下单金额） */
-  const checkWithExistingHoldings = (
-    pos: Position,
-    orderNotional: number,
-    _currentPrice: number | null,
-  ): RiskCheckResult => {
+  const checkWithExistingHoldings = (pos: Position, orderNotional: number): RiskCheckResult => {
     // 验证持仓数量有效性
     const posQuantity = pos.quantity || 0;
     if (!Number.isFinite(posQuantity) || posQuantity <= 0) {
@@ -111,7 +107,6 @@ export const createPositionLimitChecker = (
     signal: Signal,
     positions: ReadonlyArray<Position> | null,
     orderNotional: number,
-    currentPrice: number | null,
   ): RiskCheckResult => {
     // 验证下单金额有效性
     if (!Number.isFinite(orderNotional) || orderNotional < 0) {
@@ -138,7 +133,7 @@ export const createPositionLimitChecker = (
     }
 
     // 检查有持仓时的市值限制
-    return checkWithExistingHoldings(pos, orderNotional, currentPrice);
+    return checkWithExistingHoldings(pos, orderNotional);
   };
 
   return {

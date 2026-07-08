@@ -6,25 +6,27 @@ import type {
   OrderStatus,
   TimeInForceType,
   TradeContext,
-  PushOrderChanged,
 } from 'longbridge';
-import type { Signal, SignalType, OrderTypeConfig } from '../../types/signal.js';
+import type { ExecutableSignal, Signal, SignalType, OrderTypeConfig } from '../../types/signal.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';
+import type { ExternalApiRetryConfig } from '../../utils/apiFailure/types.js';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../../types/config.js';
 import type { SymbolRegistry } from '../../types/seat.js';
 import type {
   PendingOrder,
+  PostTradeConsistencyRuntimePort,
   TradeCheckResult,
   RateLimiter,
-  PendingRefreshSymbol,
   RawOrderFromAPI,
   OrderRecorder,
   MarketDataClient,
+  OrderStateChangedEvent,
+  OrderHoldSymbolsChangedEvent,
+  Unsubscribe,
 } from '../../types/services.js';
 import type { DailyLossTracker } from '../../types/risk.js';
 import type { CancelOrderOutcome } from '../../types/trader.js';
 import type { ProtectiveLiquidationEpisodeTracker } from './protectiveLiquidationEpisodeTracker/types.js';
-import type { RefreshGate } from '../../utils/types.js';
 
 /**
  * 订单提交 API 可能返回的响应形状。
@@ -85,11 +87,11 @@ export type TrackOrderParams = {
 
 /**
  * 订单监控运行态。
- * 类型用途：区分恢复期间（BOOTSTRAPPING）与实时处理期间（ACTIVE）的事件处理策略。
+ * 类型用途：区分停机忽略（STOPPED）、恢复缓存（BOOTSTRAPPING）与实时处理（ACTIVE）的事件策略。
  * 数据来源：OrderMonitor 内部状态机维护。
  * 使用范围：仅 trader/orderMonitor 模块内部使用。
  */
-export type OrderMonitorRuntimeState = 'BOOTSTRAPPING' | 'ACTIVE';
+export type OrderMonitorRuntimeState = 'STOPPED' | 'BOOTSTRAPPING' | 'ACTIVE';
 
 /**
  * 订单席位归属解析结果。
@@ -170,9 +172,31 @@ export type ErrorTypeIdentifier = {
  * 使用范围：仅 trader 模块内部实现与使用。
  */
 export interface AccountService {
-  getAccountSnapshot: () => Promise<AccountSnapshot | null>;
-  getStockPositions: (symbols?: ReadonlyArray<string> | null) => Promise<ReadonlyArray<Position>>;
+  getAccountSnapshot: (params?: {
+    readonly retryConfig?: ExternalApiRetryConfig;
+  }) => Promise<AccountSnapshot>;
+  getStockPositions: (params?: {
+    readonly symbols?: ReadonlyArray<string> | null;
+    readonly retryConfig?: ExternalApiRetryConfig;
+  }) => Promise<ReadonlyArray<Position>>;
 }
+
+/**
+ * 今日订单缓存原始条目。
+ * 类型用途：表达 orderCacheManager 从 todayOrders 信任边界接收并已校验的订单字段。
+ * 数据来源：Longbridge TradeContext.todayOrders 返回数组中的单条订单。
+ * 使用范围：仅 orderCacheManager 构造 PendingOrder 缓存前使用。
+ */
+export type TodayOrderForPendingCache = Readonly<{
+  orderId: string;
+  symbol: string;
+  side: OrderSide;
+  price: unknown;
+  quantity: unknown;
+  executedQuantity: unknown;
+  status: OrderStatus;
+  orderType: PendingOrder['orderType'];
+}>;
 
 /**
  * 订单缓存管理器接口。
@@ -190,13 +214,16 @@ export interface OrderCacheManager {
 
 /**
  * 订单监控器接口。
- * 类型用途：订单生命周期监控（追踪、撤单、改价、恢复、待刷新标的等），与 WebSocket 订单推送协同。
+ * 类型用途：订单生命周期监控（追踪、撤单、改价、恢复等），与 WebSocket 订单推送协同。
  * 数据来源：由 Trader 依赖注入，实现层在 orderMonitor 模块内。
- * 使用范围：trader 模块内部；主循环与恢复流程调用其方法。
+ * 使用范围：trader 模块内部；恢复流程调用其方法。
  */
 export interface OrderMonitor {
   /** 初始化 WebSocket 订阅 */
   initialize: () => Promise<void>;
+
+  /** 订阅订单终态结算事件 */
+  onOrderStateChanged: (listener: (event: OrderStateChangedEvent) => void) => Unsubscribe;
 
   /** 开始追踪订单 */
   trackOrder: (params: TrackOrderParams) => void;
@@ -207,10 +234,11 @@ export interface OrderMonitor {
   /** 修改订单价格 */
   replaceOrderPrice: (orderId: string, newPrice: number, quantity?: number | null) => Promise<void>;
 
-  /**
-   * 处理一轮订单监控（内部自行读取当前 realtime 行情）
-   */
-  processWithLatestQuotes: () => Promise<void>;
+  /** 启动订单监控 runtime */
+  startRuntime: () => void;
+
+  /** 停止订单监控 runtime 并等待在途处理完成 */
+  stopRuntimeAndDrain: () => Promise<void>;
 
   /** 基于启动/重建快照恢复订单追踪（仅使用调用方传入的 allOrders） */
   recoverOrderTrackingFromSnapshot: (allOrders: ReadonlyArray<RawOrderFromAPI>) => Promise<void>;
@@ -218,21 +246,13 @@ export interface OrderMonitor {
   /** 获取指定标的的未成交卖单快照 */
   getPendingSellOrders: (symbol: string) => ReadonlyArray<PendingSellOrderSnapshot>;
 
-  /**
-   * 获取并清空待刷新浮亏数据的标的列表
-   * 订单成交后会将标的添加到此列表，主循环中应调用此方法获取并刷新
-   *
-   * @returns 待刷新的标的列表（调用后列表会被清空）
-   */
-  getAndClearPendingRefreshSymbols: () => PendingRefreshSymbol[];
-
   /** 是否存在指定监控标的方向的未完成保护性清仓卖单链路 */
-  hasPendingProtectiveLiquidationOrders?: (
+  hasPendingProtectiveLiquidationOrders: (
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
   ) => boolean;
 
-  /** 清空恢复运行态（tracked/pendingSell/refreshQueue）与 BOOTSTRAPPING 事件缓存 */
+  /** 清空恢复运行态（tracked order lifecycle / closed set）与 BOOTSTRAPPING 事件缓存 */
   clearTrackedOrders: () => void;
 }
 
@@ -246,7 +266,7 @@ export interface OrderMonitor {
 export interface OrderExecutor {
   canTradeNow: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => TradeCheckResult;
   executeSignals: (
-    signals: Signal[],
+    signals: ReadonlyArray<ExecutableSignal>,
   ) => Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }>;
 
   /** 清空 lastBuyTime（买入节流状态） */
@@ -281,7 +301,7 @@ export type RateLimiterDeps = {
  * 使用范围：仅在 trader 模块内部使用。
  */
 export type AccountServiceDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
 };
 
@@ -292,7 +312,7 @@ export type AccountServiceDeps = {
  * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderCacheManagerDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
 };
 
@@ -478,6 +498,11 @@ export interface OrderHoldRegistry {
   /** 获取当前需要持续订阅的标的集合 */
   getHoldSymbols: () => ReadonlySet<string>;
 
+  /** 订阅订单保留标的集合变化事件 */
+  onOrderHoldSymbolsChanged: (
+    listener: (event: OrderHoldSymbolsChangedEvent) => void,
+  ) => Unsubscribe;
+
   /** 清空内部 map/set */
   clear: () => void;
 }
@@ -489,7 +514,7 @@ export interface OrderHoldRegistry {
  * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderMonitorDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
   readonly marketDataClient: MarketDataClient;
@@ -509,19 +534,17 @@ export type OrderMonitorDeps = {
   /** 标的注册表（用于解析动态标的归属） */
   readonly symbolRegistry: SymbolRegistry;
 
-  /** 可选测试钩子（仅用于单元测试） */
-  readonly testHooks?: {
-    readonly setHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
-  };
-
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
 
-  /** 刷新门禁（成交后标记 stale） */
-  readonly refreshGate?: RefreshGate;
+  /** 成交后一致性运行时（负责收口成交后的最小补刷需求） */
+  readonly postTradeConsistencyRuntime: PostTradeConsistencyRuntimePort;
 
   /** 运行时执行门禁（卖单超时转市价单时校验，禁止门禁关闭时新开单） */
   readonly isExecutionAllowed: IsExecutionAllowed;
+
+  /** 运行期 route 处理失败的 fatal 通道 */
+  readonly onFatalError?: (error: unknown) => void;
 };
 
 /**
@@ -539,7 +562,7 @@ type IsExecutionAllowed = () => boolean;
  * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderExecutorDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
   readonly orderMonitor: OrderMonitor;
@@ -574,9 +597,12 @@ export type TraderDeps = {
   readonly dailyLossTracker: DailyLossTracker;
   readonly protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
 
-  /** 刷新门禁（成交后标记 stale） */
-  readonly refreshGate?: RefreshGate;
+  /** 成交后一致性运行时（负责收口成交后的最小补刷需求） */
+  readonly postTradeConsistencyRuntime: PostTradeConsistencyRuntimePort;
 
   /** 运行时执行门禁（单一状态源注入，执行层统一判定） */
   readonly isExecutionAllowed: IsExecutionAllowed;
+
+  /** 运行期异步错误 fatal 通道 */
+  readonly onFatalError?: (error: unknown) => void;
 };

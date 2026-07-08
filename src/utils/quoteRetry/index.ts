@@ -1,27 +1,42 @@
 import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
 import type {
   IsQuoteReadyForRequirementParams,
+  QuoteReadinessStatus,
   ResolveNextQuoteRetryParams,
   ResolveNextQuoteRetryResult,
 } from './types.js';
 
 /**
- * 判断 quote 是否满足指定动作的就绪要求。
+ * 解析 quote 是否满足指定动作的就绪要求。
  * @param params quote 与字段要求
- * @returns 满足要求时返回 true，否则返回 false
+ * @returns quote 就绪性分类
  */
-export function isQuoteReadyForRequirement(params: IsQuoteReadyForRequirementParams): boolean {
+export function resolveQuoteReadinessForRequirement(
+  params: IsQuoteReadyForRequirementParams,
+): QuoteReadinessStatus {
   const { quote, requirement } = params;
-  if (!quote || !Number.isFinite(quote.price) || quote.price <= 0) {
-    return false;
+  if (!quote) {
+    return 'MISSING';
+  }
+
+  if (!Number.isFinite(quote.price) || quote.price <= 0) {
+    return 'INVALID_PRICE';
   }
 
   if (requirement === 'PRICE') {
-    return true;
+    return 'READY';
   }
 
   const lotSize = quote.lotSize;
-  return lotSize !== undefined && Number.isFinite(lotSize) && lotSize > 0;
+  if (lotSize === undefined) {
+    return 'MISSING_LOT_SIZE';
+  }
+
+  if (!Number.isFinite(lotSize) || lotSize <= 0) {
+    return 'INVALID_LOT_SIZE';
+  }
+
+  return 'READY';
 }
 
 /**

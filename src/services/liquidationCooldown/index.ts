@@ -2,7 +2,7 @@
  * 清仓冷却追踪器
  *
  * 功能/职责：记录保护性清仓触发与冷却时间，并计算剩余冷却时间。
- * 执行流程：运行时通过 recordLiquidationTrigger 累加触发计数并按上限激活冷却；启动恢复通过 recordCooldown/restoreTriggerCount 恢复状态；买入前通过 getRemainingMs 查询剩余冷却毫秒数；跨日时通过 clearMidnightEligible 与 resetAllTriggerCounts 清理状态。
+ * 执行流程：运行时通过 recordLiquidationTrigger 维护当前周期触发计数，并在达到上限时激活冷却；启动恢复通过 recordCooldown/restoreTriggerCount 恢复状态；买入前通过 getRemainingMs 查询剩余冷却毫秒数；跨日时通过 clearMidnightEligible 与 resetAllTriggerCounts 清理状态。
  */
 import type {
   ClearMidnightEligibleParams,
@@ -45,7 +45,8 @@ export function createLiquidationCooldownTracker(
 
   /**
    * 记录保护性清仓触发事件。
-   * 每次触发都会累加计数，达到 triggerLimit 时写入冷却记录。
+   * 仅在不处于有效冷却期时累加当前周期计数；若上一轮冷却已过期，会先清掉旧冷却与旧计数后重新开始。
+   * 达到 triggerLimit 时写入新的冷却记录。
    */
   function recordLiquidationTrigger({
     symbol,

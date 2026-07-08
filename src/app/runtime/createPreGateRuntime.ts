@@ -2,94 +2,101 @@
  * app pre-gate runtime 工厂模块
  *
  * 职责：
- * - 创建启动门禁前必须完成的共享依赖
- * - 执行配置校验、行情客户端创建与 startup gate 等待
+ * - 创建 app 启动阶段必须完成的共享依赖
+ * - 执行配置校验、行情客户端创建与启动交易日状态初始化
  * - 固定 pre-gate 对象所有权边界
  */
-import { AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS, TRADING } from '../../constants/index.js';
+import { AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS } from '../../constants/index.js';
 import { validateAllConfig } from '../../config/validator/index.js';
 import { createSdkConfigFromAuth } from '../../config/auth/index.js';
 import { createMultiMonitorTradingConfig } from '../../config/trading/index.js';
-import { createStartupGate } from '../../main/startup/gate.js';
-import { sleep } from '../../main/utils.js';
 import { createWarrantListCache } from '../../services/autoSymbolFinder/utils.js';
 import { createMarketDataClient } from '../../services/quoteClient/index.js';
 import { createSymbolRegistry } from '../../services/autoSymbolManager/utils.js';
 import { logger } from '../../utils/logger/index.js';
-import {
-  getHKDateKey,
-  isInContinuousHKSession,
-  isWithinAfternoonOpenProtection,
-  isWithinMorningOpenProtection,
-} from '../../utils/time/index.js';
+import { getHKDateKey, getRequiredHKDateKey } from '../../utils/time/index.js';
 import { formatError } from '../../utils/error/index.js';
-import { createTradingDayInfoResolver } from '../rebuild.js';
-import { resolveGatePolicies, resolveGatePolicySources, resolveRunMode } from '../startupModes.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
+import { createTradingDayInfoResolver } from '../lifecycle/rebuild.js';
+import type { CreatePreGateRuntimeDeps } from './types.js';
 import type { AppEnvironmentParams, PreGateRuntime } from '../types.js';
 
+const DEFAULT_CREATE_PRE_GATE_RUNTIME_DEPS: CreatePreGateRuntimeDeps = {
+  createSdkConfigFromAuth,
+  createMarketDataClient,
+};
+
 /**
- * 创建 pre-gate 阶段运行时对象。
+ * 创建 pre-gate runtime 工厂。
  *
- * @param params 当前环境变量
- * @returns 已完成 startup gate 等待的 pre-gate runtime
+ * @param deps pre-gate 创建链路中的可注入依赖
+ * @returns pre-gate runtime 创建函数
  */
-export async function createPreGateRuntime(params: AppEnvironmentParams): Promise<PreGateRuntime> {
-  const { env } = params;
-  const tradingConfig = createMultiMonitorTradingConfig({ env });
+export function createPreGateRuntimeFactory(
+  deps: CreatePreGateRuntimeDeps,
+): (params: AppEnvironmentParams) => Promise<PreGateRuntime> {
+  const {
+    createSdkConfigFromAuth: buildSdkConfigFromAuth,
+    createMarketDataClient: buildMarketDataClient,
+  } = deps;
 
-  const symbolRegistry = createSymbolRegistry(tradingConfig.monitors);
-  const warrantListCache = createWarrantListCache();
-  const warrantListCacheConfig = {
-    cache: warrantListCache,
-    ttlMs: AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS,
-    nowMs: () => Date.now(),
-  };
+  return async function createPreGateRuntime(
+    params: AppEnvironmentParams,
+  ): Promise<PreGateRuntime> {
+    const { env } = params;
+    const tradingConfig = createMultiMonitorTradingConfig({ env });
+    await validateAllConfig({ env, tradingConfig });
 
-  await validateAllConfig({ env, tradingConfig });
+    const symbolRegistry = createSymbolRegistry(tradingConfig.monitors);
+    const warrantListCache = createWarrantListCache();
+    const warrantListCacheConfig = {
+      cache: warrantListCache,
+      ttlMs: AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS,
+      nowMs: () => Date.now(),
+    };
 
-  const config = await createSdkConfigFromAuth({
-    env,
-    onOpenUrl: (url: string) => {
-      logger.info(`请在浏览器中完成 Longbridge OAuth 授权：${url}`);
-    },
-  });
-  const marketDataClient = await createMarketDataClient({ config });
-  const runMode = resolveRunMode(env);
-  const gatePolicies = resolveGatePolicies(env);
-  const gatePolicySources = resolveGatePolicySources(env);
-  const resolveTradingDayInfo = createTradingDayInfoResolver({
-    marketDataClient,
-    getHKDateKey,
-    onResolveError: (err: unknown) => {
-      logger.warn('无法获取交易日信息，按非交易日处理并等待重试', formatError(err));
-    },
-  });
-  const startupGate = createStartupGate({
-    now: () => new Date(),
-    sleep,
-    resolveTradingDayInfo,
-    isInSession: isInContinuousHKSession,
-    isInMorningOpenProtection: isWithinMorningOpenProtection,
-    isInAfternoonOpenProtection: isWithinAfternoonOpenProtection,
-    openProtection: tradingConfig.global.openProtection,
-    intervalMs: TRADING.INTERVAL_MS,
-    logger,
-  });
-  logger.info(
-    `startup gate 策略=${gatePolicies.startupGate}（source=${gatePolicySources.startupGateSource}）; runtime gate 策略=${gatePolicies.runtimeGate}（source=${gatePolicySources.runtimeGateSource}）`,
-  );
-  const startupTradingDayInfo = await startupGate.wait({ mode: gatePolicies.startupGate });
+    const config = await buildSdkConfigFromAuth({
+      env,
+      onOpenUrl: (url: string) => {
+        logger.info(`请在浏览器中完成 Longbridge OAuth 授权：${url}`);
+      },
+    });
+    const marketDataClient = await buildMarketDataClient({ config });
+    const resolveTradingDayInfo = createTradingDayInfoResolver({
+      marketDataClient,
+      getHKDateKey,
+      onResolveError: (err: unknown) => {
+        logger.warn('启动交易日信息解析失败，运行期将继续解析', formatError(err));
+      },
+    });
+    const startupTime = new Date();
+    const startupDateKey = getRequiredHKDateKey(startupTime);
+    let startupTradingDayInfo: PreGateRuntime['startupTradingDayInfo'];
+    try {
+      startupTradingDayInfo = {
+        dateKey: startupDateKey,
+        info: await resolveTradingDayInfo(startupTime),
+      };
+    } catch (error) {
+      if (!isExternalApiRequestError(error)) {
+        throw error;
+      }
 
-  return {
-    config,
-    tradingConfig,
-    symbolRegistry,
-    warrantListCache,
-    warrantListCacheConfig,
-    marketDataClient,
-    runMode,
-    gatePolicies,
-    startupTradingDayInfo,
-    startupGate,
+      startupTradingDayInfo = null;
+    }
+
+    return {
+      config,
+      tradingConfig,
+      symbolRegistry,
+      warrantListCache,
+      warrantListCacheConfig,
+      marketDataClient,
+      startupTradingDayInfo,
+    };
   };
 }
+
+export const createPreGateRuntime = createPreGateRuntimeFactory(
+  DEFAULT_CREATE_PRE_GATE_RUNTIME_DEPS,
+);

@@ -8,13 +8,18 @@
  */
 import { describe, it, expect } from 'bun:test';
 import { TIME } from '../../../src/constants/index.js';
+import {
+  captureSeatActivationCarryover,
+  clearSeatActivationCarryover,
+} from '../../../src/main/lifecycle/seatActivationCarryover.js';
 import { createRebuildTradingDayState } from '../../../src/main/lifecycle/rebuildTradingDayState.js';
 import { listHKDateKeysBetween } from '../../../src/main/lifecycle/utils.js';
 import type { RebuildTradingDayStateDeps } from '../../../src/main/lifecycle/types.js';
+import type { MultiMonitorTradingConfig } from '../../../src/types/config.js';
 import type { MonitorContext } from '../../../src/types/state.js';
-import type { SymbolRegistry } from '../../../src/types/seat.js';
+import type { SeatState, SymbolRegistry } from '../../../src/types/seat.js';
 import type { Quote } from '../../../src/types/quote.js';
-import { getHKDateKey } from '../../../src/utils/time/index.js';
+import { getHKDateKey, getRequiredHKDateKey } from '../../../src/utils/time/index.js';
 import type {
   MarketDataClient,
   OrderRecord,
@@ -22,6 +27,7 @@ import type {
   Trader,
   TradingDaysResult,
 } from '../../../src/types/services.js';
+import { createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
 
 const emptyQuotesMap = new Map<string, Quote | null>();
 const emptyOrders: ReadonlyArray<RawOrderFromAPI> = [];
@@ -45,7 +51,7 @@ function createSymbolRegistry(
   seatStatus: 'ACTIVE' | 'EMPTY',
   symbol: string = 'BULL.HK',
 ): SymbolRegistry {
-  const readySeatState =
+  let readySeatState: SeatState =
     seatStatus === 'ACTIVE'
       ? {
           ...emptySeatState,
@@ -57,8 +63,28 @@ function createSymbolRegistry(
     getSeatState: () => readySeatState,
     getSeatVersion: () => 1,
     resolveSeatBySymbol: () => null,
-    updateSeatState: () => readySeatState,
+    updateSeatState: (
+      _monitorSymbol: string,
+      _direction: 'LONG' | 'SHORT',
+      nextState: SeatState,
+    ) => {
+      readySeatState = nextState;
+      return readySeatState;
+    },
+    updateSeatStateWithVersionBump: (
+      _monitorSymbol: string,
+      _direction: 'LONG' | 'SHORT',
+      nextState: SeatState,
+    ) => {
+      readySeatState = nextState;
+      return { seatState: readySeatState, seatVersion: 2 };
+    },
     bumpSeatVersion: () => 1,
+    onSeatStateChanged: () => () => {},
+    onSeatVersionChanged: () => () => {},
+    onSeatTruthChanged: () => {
+      throw new Error('rebuildTradingDayState test must not subscribe to seat truth events');
+    },
   };
 }
 
@@ -109,6 +135,13 @@ function createMonitorContext(params: {
   } as unknown as MonitorContext;
 }
 
+function createCarryoverTradingConfig(): MultiMonitorTradingConfig {
+  return {
+    monitors: [{ monitorSymbol: 'HSI.HK' } as unknown as MultiMonitorTradingConfig['monitors'][0]],
+    global: {} as MultiMonitorTradingConfig['global'],
+  };
+}
+
 function createDefaultMarketDataClient(
   tradingDayCalls: Array<{ startDate: Date; endDate: Date }>,
 ): MarketDataClient {
@@ -140,7 +173,7 @@ function createRebuildDeps(
     dailyLossTracker: {
       getLossOffset: () => 0,
     } as unknown as RebuildTradingDayStateDeps['dailyLossTracker'],
-    displayAccountAndPositions: async () => {},
+    displayAccountAndPositions: () => {},
     ...overrides,
   };
 }
@@ -164,7 +197,7 @@ describe('createRebuildTradingDayState', () => {
           recoverCalled = true;
         },
       } as unknown as Trader,
-      displayAccountAndPositions: async () => {
+      displayAccountAndPositions: () => {
         displayCalled = true;
       },
       monitorContexts,
@@ -283,8 +316,8 @@ describe('createRebuildTradingDayState', () => {
     await rebuild({ allOrders: emptyOrders, quotesMap: emptyQuotesMap, now });
     expect(tradingDayCalls.length).toBeGreaterThan(1);
     for (const call of tradingDayCalls) {
-      const startMonthKey = getHKDateKey(call.startDate).slice(0, 7);
-      const endMonthKey = getHKDateKey(call.endDate).slice(0, 7);
+      const startMonthKey = getRequiredHKDateKey(call.startDate).slice(0, 7);
+      const endMonthKey = getRequiredHKDateKey(call.endDate).slice(0, 7);
       expect(startMonthKey).toBe(endMonthKey);
     }
   });
@@ -373,7 +406,7 @@ describe('createRebuildTradingDayState', () => {
 
   it('displayAccountAndPositions 抛错时同样抛出带前缀的错误', async () => {
     const deps = createRebuildDeps({
-      displayAccountAndPositions: async () => {
+      displayAccountAndPositions: () => {
         throw new Error('display fail');
       },
     });
@@ -381,5 +414,177 @@ describe('createRebuildTradingDayState', () => {
     expect(rebuild({ allOrders: emptyOrders, quotesMap: emptyQuotesMap })).rejects.toThrow(
       /\[Lifecycle\] 重建交易日状态失败/,
     );
+  });
+
+  it('open rebuild 恢复出同一 symbol 时保留前一交易日的 lastSeatActivatedAt', async () => {
+    const carriedActivatedAt = Date.parse('2026-02-16T07:59:00.000Z');
+    const rebuildNow = new Date('2026-02-17T01:31:00.000Z');
+    const registry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        ...emptySeatState,
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSeatActivatedAt: carriedActivatedAt,
+      },
+      shortSeat: emptySeatState,
+    });
+    captureSeatActivationCarryover({
+      tradingConfig: createCarryoverTradingConfig(),
+      symbolRegistry: registry,
+    });
+
+    registry.updateSeatState('HSI.HK', 'LONG', {
+      ...emptySeatState,
+      symbol: 'OLD_BULL.HK',
+      status: 'ACTIVATING',
+      lastSeatActivatedAt: null,
+    });
+
+    const monitorContexts = new Map<string, MonitorContext>([
+      [
+        'HSI.HK',
+        createMonitorContext({
+          symbolRegistry: registry,
+        }),
+      ],
+    ]);
+    const rebuild = createRebuildTradingDayState(
+      createRebuildDeps({
+        symbolRegistry: registry,
+        monitorContexts,
+      }),
+    );
+
+    await rebuild({
+      allOrders: emptyOrders,
+      quotesMap: emptyQuotesMap,
+      now: rebuildNow,
+    });
+
+    expect(registry.getSeatState('HSI.HK', 'LONG').lastSeatActivatedAt).toBe(carriedActivatedAt);
+    clearSeatActivationCarryover(registry);
+  });
+
+  it('open rebuild 恢复出新 symbol 时重置为本次重建激活时间', async () => {
+    const carriedActivatedAt = Date.parse('2026-02-16T07:59:00.000Z');
+    const rebuildNow = new Date('2026-02-17T01:31:00.000Z');
+    const registry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        ...emptySeatState,
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSeatActivatedAt: carriedActivatedAt,
+      },
+      shortSeat: emptySeatState,
+    });
+    captureSeatActivationCarryover({
+      tradingConfig: createCarryoverTradingConfig(),
+      symbolRegistry: registry,
+    });
+
+    registry.updateSeatState('HSI.HK', 'LONG', {
+      ...emptySeatState,
+      symbol: 'NEW_BULL.HK',
+      status: 'ACTIVATING',
+      lastSeatActivatedAt: null,
+    });
+
+    const monitorContexts = new Map<string, MonitorContext>([
+      [
+        'HSI.HK',
+        createMonitorContext({
+          symbolRegistry: registry,
+        }),
+      ],
+    ]);
+    const rebuild = createRebuildTradingDayState(
+      createRebuildDeps({
+        symbolRegistry: registry,
+        monitorContexts,
+      }),
+    );
+
+    await rebuild({
+      allOrders: emptyOrders,
+      quotesMap: emptyQuotesMap,
+      now: rebuildNow,
+    });
+
+    expect(registry.getSeatState('HSI.HK', 'LONG').lastSeatActivatedAt).toBe(rebuildNow.getTime());
+    expect(registry.getSeatState('HSI.HK', 'LONG').lastSeatActivatedAt).not.toBe(
+      carriedActivatedAt,
+    );
+
+    clearSeatActivationCarryover(registry);
+  });
+
+  it('跨多个非交易日等待 open rebuild 时仍保留旧 carryover，后续同 symbol rebuild 继续使用原激活时间', async () => {
+    const carriedActivatedAt = Date.parse('2026-02-16T07:59:00.000Z');
+    const rebuildNow = new Date('2026-02-18T01:31:00.000Z');
+    const registry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        ...emptySeatState,
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSeatActivatedAt: carriedActivatedAt,
+      },
+      shortSeat: emptySeatState,
+    });
+    const tradingConfig = createCarryoverTradingConfig();
+    captureSeatActivationCarryover({
+      tradingConfig,
+      symbolRegistry: registry,
+    });
+
+    registry.updateSeatState('HSI.HK', 'LONG', {
+      ...emptySeatState,
+      status: 'EMPTY',
+      symbol: null,
+      lastSeatActivatedAt: null,
+    });
+
+    captureSeatActivationCarryover({
+      tradingConfig,
+      symbolRegistry: registry,
+    });
+
+    captureSeatActivationCarryover({
+      tradingConfig,
+      symbolRegistry: registry,
+    });
+
+    registry.updateSeatState('HSI.HK', 'LONG', {
+      ...emptySeatState,
+      symbol: 'OLD_BULL.HK',
+      status: 'ACTIVATING',
+      lastSeatActivatedAt: null,
+    });
+
+    const monitorContexts = new Map<string, MonitorContext>([
+      [
+        'HSI.HK',
+        createMonitorContext({
+          symbolRegistry: registry,
+        }),
+      ],
+    ]);
+    const rebuild = createRebuildTradingDayState(
+      createRebuildDeps({
+        symbolRegistry: registry,
+        monitorContexts,
+      }),
+    );
+
+    await rebuild({
+      allOrders: emptyOrders,
+      quotesMap: emptyQuotesMap,
+      now: rebuildNow,
+    });
+
+    expect(registry.getSeatState('HSI.HK', 'LONG').lastSeatActivatedAt).toBe(carriedActivatedAt);
+    clearSeatActivationCarryover(registry);
   });
 });

@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { Decimal, type OrderType } from 'longbridge';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import {
@@ -67,17 +66,6 @@ export function hasProtectiveLiquidationRemark(remark: string | null | undefined
   }
 
   return remark.endsWith(TRADING.PROTECTIVE_LIQUIDATION_REMARK_SUFFIX);
-}
-
-/**
- * 构造交易日志文件路径：<logRootDir>/trades/YYYY-MM-DD.json
- * @param logRootDir 日志根目录（由运行时环境解析）
- * @param date 日志对应的日期
- * @returns 完整的日志文件绝对路径
- */
-export function buildTradeLogPath(logRootDir: string, date: Date): string {
-  const dayKey = date.toISOString().split('T')[0];
-  return path.join(logRootDir, 'trades', `${dayKey}.json`);
 }
 
 /**

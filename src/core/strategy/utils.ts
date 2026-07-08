@@ -57,6 +57,12 @@ function readSignalIndicatorValue(state: IndicatorState, indicatorKey: string): 
   return null;
 }
 
+/**
+ * 判断某个条件引用的指标在当前快照中是否具备可评估值。
+ *
+ * @param params 快照与指标键
+ * @returns 指标存在有效数值时返回 true，否则 false
+ */
 function isConditionIndicatorValueAvailable(params: {
   readonly state: IndicatorSnapshot;
   readonly indicatorKey: string;

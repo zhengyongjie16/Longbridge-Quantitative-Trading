@@ -11,11 +11,15 @@
  * - 席位在统一开盘重建流水线（loadTradingDayRuntimeSnapshot）中重建，此处为空操作
  */
 import { logger } from '../../../utils/logger/index.js';
-import { resolveMonitorContextSeatSnapshot } from '../../../utils/utils.js';
+import { resolveMonitorContextSeatSnapshot } from '../../../utils/seat/snapshots.js';
 import type { MonitorContext } from '../../../types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { SeatState, SymbolRegistry } from '../../../types/seat.js';
 import type { CacheDomain, LifecycleContext } from '../types.js';
+import {
+  captureSeatActivationCarryover,
+  clearSeatActivationCarryover,
+} from '../seatActivationCarryover.js';
 import type { SeatDomainDeps } from './types.js';
 
 /** 基于旧席位状态构造空席位，保留 lastSwitchAt / lastSearchAt 时间戳并重置 lastSeatActivatedAt */
@@ -41,12 +45,11 @@ function clearAllSeatBindings(
   for (const monitorConfig of tradingConfig.monitors) {
     for (const direction of ['LONG', 'SHORT'] as const) {
       const previous = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, direction);
-      symbolRegistry.updateSeatState(
+      symbolRegistry.updateSeatStateWithVersionBump(
         monitorConfig.monitorSymbol,
         direction,
         buildEmptySeatState(previous),
       );
-      symbolRegistry.bumpSeatVersion(monitorConfig.monitorSymbol, direction);
       changed += 1;
     }
   }
@@ -79,7 +82,16 @@ function syncMonitorSeatSnapshots(
 export function createSeatDomain(deps: SeatDomainDeps): CacheDomain {
   const { tradingConfig, symbolRegistry, monitorContexts, warrantListCache } = deps;
   return {
-    midnightClear(_ctx: LifecycleContext): void {
+    midnightClear(ctx: LifecycleContext): void {
+      if (ctx.invalidateSeatActivationCarryover === true) {
+        clearSeatActivationCarryover(symbolRegistry);
+      } else {
+        captureSeatActivationCarryover({
+          tradingConfig,
+          symbolRegistry,
+        });
+      }
+
       for (const monitorContext of monitorContexts.values()) {
         monitorContext.autoSymbolManager.resetAllState();
       }

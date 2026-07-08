@@ -120,7 +120,7 @@ export type LiquidationCooldownConfig =
  * 单个监控标的的完整配置。
  * 类型用途：单监控标的的交易标的、风控参数、信号配置与延迟验证等，作为 MonitorContext.config、RiskCheckContext.config 等类型。
  * 数据来源：配置解析（环境变量/配置文件）。
- * 使用范围：主循环、MonitorContext、信号处理、风控等；全项目可引用。
+ * 使用范围：MonitorContext、信号处理、风控等；全项目可引用。
  */
 export type MonitorConfig = {
   /** 原始环境变量索引（对应 _1, _2 等后缀） */
@@ -179,7 +179,7 @@ export type MonitorConfig = {
  * 使用范围：主程序、doomsdayProtection、orderMonitor 等；全项目可引用。
  */
 export type GlobalConfig = {
-  /** 末日保护开关（收盘前清仓） */
+  /** 末日保护开关（买入截止 + 清仓接管） */
   readonly doomsdayProtection: boolean;
 
   /** 调试模式 */
@@ -239,7 +239,7 @@ export type GlobalConfig = {
 
 /**
  * 多标的交易配置。
- * 类型用途：系统完整配置根类型，包含所有监控标的列表与全局配置，作为启动与主循环的配置入参。
+ * 类型用途：系统完整配置根类型，包含所有监控标的列表与全局配置，作为启动与运行期配置入参。
  * 数据来源：配置解析（环境变量/配置文件）。
  * 使用范围：启动、主程序、gate 等；全项目可引用。
  */

@@ -4,11 +4,10 @@
  * 核心职责：
  * - 基于历史订单与持仓推断席位标的，恢复上次运行状态
  * - 对启用自动寻标的空席位执行运行时恢复寻标
- * - 提供席位绑定状态查询与席位标的代码收集工具
+ * - 在恢复完成后回写当前席位快照，供后续运行时订阅使用
  */
 import type { SeatSymbolSnapshotEntry, SymbolRegistry } from '../../types/seat.js';
 import type {
-  CollectSeatSymbolsParams,
   PreparedSeats,
   PrepareSeatsForRuntimeDeps,
   RuntimeRecoverySearchParams,
@@ -21,13 +20,16 @@ import {
   resolveDirectionalAutoSearchPolicy,
 } from '../../services/autoSymbolFinder/policyResolver.js';
 import { hasSeatSymbol } from '../../utils/seat/guards.js';
+import { collectBoundSeatSymbols } from '../../utils/seat/symbols.js';
 import {
+  isSeatFrozenToday,
   resolveNextSearchFailureState,
   resolveSeatOnStartup,
 } from '../../services/autoSymbolManager/utils.js';
-import { getLatestTradedSymbol } from '../../core/orderRecorder/orderOwnershipParser.js';
+import { getLatestTradedSymbol } from '../../core/orderRecorder/index.js';
 import { AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY } from '../../constants/index.js';
 import { getHKDateKey } from '../../utils/time/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 
 /**
  * 基于订单与持仓生成席位快照，用于恢复运行时席位标的。
@@ -83,58 +85,6 @@ function resolveSeatSnapshot(input: SeatSnapshotInput): SeatSnapshot {
 }
 
 /**
- * 获取指定监控标的和方向的已绑定席位标的代码。
- *
- * @param symbolRegistry 席位注册表
- * @param monitorSymbol 监控标的代码
- * @param direction 方向（LONG 或 SHORT）
- * @returns 席位已绑定 symbol 时返回标的代码，否则返回 null
- */
-export function resolveBoundSeatSymbol(
-  symbolRegistry: SymbolRegistry,
-  monitorSymbol: string,
-  direction: 'LONG' | 'SHORT',
-): string | null {
-  const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-  return hasSeatSymbol(seatState) ? seatState.symbol : null;
-}
-
-/**
- * 收集所有监控标的当前已绑定席位的标的代码列表，用于订阅行情。
- *
- * @param params 包含 monitors、symbolRegistry
- * @returns 已绑定席位的 monitorSymbol + direction + symbol 条目数组
- */
-function collectSeatSymbols({
-  monitors,
-  symbolRegistry,
-}: CollectSeatSymbolsParams): ReadonlyArray<SeatSymbolSnapshotEntry> {
-  const entries: SeatSymbolSnapshotEntry[] = [];
-
-  for (const monitor of monitors) {
-    const longSymbol = resolveBoundSeatSymbol(symbolRegistry, monitor.monitorSymbol, 'LONG');
-    if (longSymbol) {
-      entries.push({
-        monitorSymbol: monitor.monitorSymbol,
-        direction: 'LONG',
-        symbol: longSymbol,
-      });
-    }
-
-    const shortSymbol = resolveBoundSeatSymbol(symbolRegistry, monitor.monitorSymbol, 'SHORT');
-    if (shortSymbol) {
-      entries.push({
-        monitorSymbol: monitor.monitorSymbol,
-        direction: 'SHORT',
-        symbol: shortSymbol,
-      });
-    }
-  }
-
-  return entries;
-}
-
-/**
  * 恢复全部席位：
  * - 先恢复历史标的
  * - 对启用自动寻标的席位执行寻标
@@ -154,7 +104,7 @@ export async function prepareSeatsForRuntime(
     now,
     logger,
     getTradingMinutesSinceOpen,
-    isWithinMorningOpenProtection,
+    resolveCanAutoSearchNow,
     warrantListCacheConfig,
   } = deps;
   const snapshot = resolveSeatSnapshot({
@@ -173,6 +123,7 @@ export async function prepareSeatsForRuntime(
     direction: 'LONG' | 'SHORT',
     symbol: string | null,
   ): void {
+    const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
     symbolRegistry.updateSeatState(monitorSymbol, direction, {
       symbol,
       status: symbol ? 'ACTIVATING' : 'EMPTY',
@@ -180,8 +131,8 @@ export async function prepareSeatsForRuntime(
       lastSearchAt: null,
       lastSeatActivatedAt: null,
       callPrice: null,
-      searchFailCountToday: 0,
-      frozenTradingDayKey: null,
+      searchFailCountToday: symbol ? 0 : currentSeat.searchFailCountToday,
+      frozenTradingDayKey: symbol ? null : currentSeat.frozenTradingDayKey,
     });
   }
 
@@ -290,7 +241,7 @@ export async function prepareSeatsForRuntime(
     return best.symbol;
   }
 
-  function handleSearchException(
+  function resetSearchingSeatAfterException(
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
     currentTime: Date,
@@ -300,18 +251,6 @@ export async function prepareSeatsForRuntime(
       return;
     }
 
-    const hkDateKey = getHKDateKey(currentTime);
-    const { nextFailCount, frozenTradingDayKey, shouldFreeze } = resolveNextSearchFailureState({
-      currentSeat: stuckSeat,
-      hkDateKey,
-      maxSearchFailuresPerDay: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
-    });
-    if (shouldFreeze) {
-      logger.warn(
-        `[席位恢复] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
-      );
-    }
-
     symbolRegistry.updateSeatState(monitorSymbol, direction, {
       symbol: null,
       status: 'EMPTY',
@@ -319,8 +258,8 @@ export async function prepareSeatsForRuntime(
       lastSearchAt: currentTime.getTime(),
       lastSeatActivatedAt: stuckSeat.lastSeatActivatedAt ?? null,
       callPrice: null,
-      searchFailCountToday: nextFailCount,
-      frozenTradingDayKey,
+      searchFailCountToday: stuckSeat.searchFailCountToday,
+      frozenTradingDayKey: stuckSeat.frozenTradingDayKey,
     });
   }
 
@@ -333,7 +272,11 @@ export async function prepareSeatsForRuntime(
       return true;
     }
 
-    if (openDelayMinutes > 0 && isWithinMorningOpenProtection(currentTime, openDelayMinutes)) {
+    if (isSeatFrozenToday(seatState)) {
+      return true;
+    }
+
+    if (!resolveCanAutoSearchNow({ currentTime, openDelayMinutes })) {
       return true;
     }
 
@@ -368,10 +311,14 @@ export async function prepareSeatsForRuntime(
             );
           }
         } catch (err) {
-          handleSearchException(monitorConfig.monitorSymbol, direction, currentTime);
-          logger.error(
-            `[席位恢复] ${monitorConfig.monitorSymbol} ${direction} 寻标异常: ${String(err)}`,
-          );
+          resetSearchingSeatAfterException(monitorConfig.monitorSymbol, direction, currentTime);
+          if (isExternalApiRequestError(err)) {
+            logger.warn(
+              `[席位恢复] ${monitorConfig.monitorSymbol} ${direction} 寻标 API 请求失败，等待恢复链路重试: ${err.message}`,
+            );
+          }
+
+          throw err;
         }
       }
     }
@@ -380,7 +327,7 @@ export async function prepareSeatsForRuntime(
   await trySearchEmptySeats();
 
   return {
-    seatSymbols: collectSeatSymbols({
+    seatSymbols: collectBoundSeatSymbols({
       monitors: tradingConfig.monitors,
       symbolRegistry,
     }),

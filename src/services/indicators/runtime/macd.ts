@@ -3,17 +3,8 @@
  *
  * 指标参数：DIF=EMA12-EMA26，DEA=EMA9(DIF)，MACD柱=2*(DIF-DEA)
  */
-import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
-import { macdObjectPool } from '../../../utils/objectPool/index.js';
-import {
-  logDebug,
-  isValidMACD,
-  toNumber,
-  initEmaStreamState,
-  feedEmaStreamState,
-} from './utils.js';
+import { initEmaStreamState, feedEmaStreamState, roundToFixed3 } from './utils.js';
 import type { MACDIndicator } from '../../../types/quote.js';
-import type { CandleData } from '../../../types/data.js';
 import type { MacdStreamState } from './types.js';
 
 /**
@@ -133,51 +124,9 @@ export function readMacdValue(state: MacdStreamState): MACDIndicator | null {
     return null;
   }
 
-  const macdObj = macdObjectPool.acquire();
-  macdObj.dif = state.lastDif;
-  macdObj.dea = state.lastSignal;
-  macdObj.macd = macdValue;
-  if (isValidMACD(macdObj)) {
-    return macdObj;
-  }
-
-  macdObjectPool.release(macdObj);
-  return null;
-}
-
-/**
- * 计算 MACD（移动平均收敛散度指标）
- * @param candles K线数据数组
- * @param fastPeriod 快线周期，默认12
- * @param slowPeriod 慢线周期，默认26
- * @param signalPeriod 信号线周期，默认9
- * @returns MACD对象 {dif, dea, macd}，如果无法计算则返回null
- */
-export function calculateMACD(
-  candles: ReadonlyArray<CandleData>,
-  fastPeriod: number = 12,
-  slowPeriod: number = 26,
-  signalPeriod: number = 9,
-): MACDIndicator | null {
-  if (candles.length < slowPeriod + signalPeriod) {
-    return null;
-  }
-
-  try {
-    const state = createMacdState(fastPeriod, slowPeriod, signalPeriod);
-
-    for (const candle of candles) {
-      const close = toNumber(candle.close);
-      if (!isValidPositiveNumber(close)) {
-        continue;
-      }
-
-      commitMacdClose(state, close);
-    }
-
-    return readMacdValue(state);
-  } catch (err) {
-    logDebug('MACD计算失败', err);
-    return null;
-  }
+  return {
+    dif: roundToFixed3(state.lastDif),
+    dea: roundToFixed3(state.lastSignal),
+    macd: roundToFixed3(macdValue),
+  };
 }

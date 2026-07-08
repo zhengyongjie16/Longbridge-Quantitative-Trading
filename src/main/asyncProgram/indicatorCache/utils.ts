@@ -1,125 +1,150 @@
+import { getIndicatorValue, parseIndicatorPeriod } from '../../../utils/indicatorHelpers/index.js';
 import type { IndicatorSnapshot } from '../../../types/quote.js';
-import type { IndicatorCacheEntry, _RingBuffer } from './types.js';
+import type { VerificationIndicator } from '../../../types/indicatorProfile.js';
+import type {
+  IndicatorCacheEntry,
+  VerificationSamplePoint,
+  VerificationSampleValues,
+  _SampleQueue,
+} from './types.js';
 
 /**
- * 创建环形缓冲区
- * @param capacity 缓冲区容量（最大条目数）
- * @returns 初始化后的空环形缓冲区
+ * 创建时间窗口样本队列。
+ *
+ * @returns 初始化后的空样本队列
  */
-export function createRingBuffer(capacity: number): _RingBuffer {
+export function createSampleQueue(): _SampleQueue {
   return {
-    entries: Array.from<IndicatorCacheEntry | null>({ length: capacity }).fill(null),
-    head: 0,
-    size: 0,
-    capacity,
+    entries: [],
   };
 }
 
 /**
- * 向环形缓冲区推送数据
+ * 向时间窗口样本队列追加数据，并裁剪保留窗口外的旧样本。
  *
- * 在 head 位置写入新条目，然后移动 head 指针。
- * 若缓冲区已满，会覆盖最旧的数据。
- *
- * @param buffer 目标环形缓冲区
+ * @param queue 目标样本队列
  * @param entry 待写入的缓存条目
+ * @param retentionWindowMs 样本保留时间窗口（毫秒）
  * @returns 无返回值
  */
-export function pushToBuffer(buffer: _RingBuffer, entry: IndicatorCacheEntry): void {
-  buffer.entries[buffer.head] = entry;
-  buffer.head = (buffer.head + 1) % buffer.capacity;
-  if (buffer.size < buffer.capacity) {
-    buffer.size++;
+export function pushToQueue(
+  queue: _SampleQueue,
+  entry: IndicatorCacheEntry,
+  retentionWindowMs: number,
+): void {
+  queue.entries.push(entry);
+
+  const minTimestamp = entry.timestamp - retentionWindowMs;
+  let firstRetainedIndex = 0;
+
+  for (const [index, currentEntry] of queue.entries.entries()) {
+    if (currentEntry.timestamp >= minTimestamp) {
+      firstRetainedIndex = index;
+      break;
+    }
+
+    firstRetainedIndex = index + 1;
+  }
+
+  if (firstRetainedIndex > 0) {
+    queue.entries.splice(0, firstRetainedIndex);
   }
 }
 
 /**
- * 在环形缓冲区中查找容忍度内最接近目标时间的条目
+ * 在时间窗口样本队列中查找最接近目标时间的条目。
  *
- * 直接遍历缓冲区避免先物化完整数组，减少临时分配。
- *
- * @param buffer 目标环形缓冲区
+ * @param queue 目标样本队列
  * @param targetTime 目标时间戳（毫秒）
- * @param toleranceMs 允许的最大时间偏差（毫秒）
- * @returns 容忍度内最接近目标时间的条目，无匹配时返回 null
+ * @returns 最接近目标时间的条目，无可用样本时返回 null
  */
 export function findClosestEntry(
-  buffer: _RingBuffer,
+  queue: _SampleQueue,
   targetTime: number,
-  toleranceMs: number,
 ): IndicatorCacheEntry | null {
-  if (buffer.size === 0) {
+  const firstEntry = queue.entries[0];
+  if (firstEntry === undefined) {
     return null;
   }
 
-  let closestEntry: IndicatorCacheEntry | null = null;
-  let minDiff = Infinity;
+  let closestEntry: IndicatorCacheEntry = firstEntry;
+  let minDiff = Math.abs(closestEntry.timestamp - targetTime);
 
-  const updateClosestEntry = (entry: IndicatorCacheEntry | null | undefined): void => {
-    if (entry === null || entry === undefined) {
-      return;
+  for (const [index, entry] of queue.entries.entries()) {
+    if (index === 0) {
+      continue;
     }
 
     const diff = Math.abs(entry.timestamp - targetTime);
-    if (diff <= toleranceMs && diff < minDiff) {
+
+    if (diff < minDiff || (diff === minDiff && entry.timestamp > closestEntry.timestamp)) {
       minDiff = diff;
       closestEntry = entry;
     }
-  };
-
-  if (buffer.size < buffer.capacity) {
-    for (let index = 0; index < buffer.size; index += 1) {
-      updateClosestEntry(buffer.entries[index]);
-    }
-
-    return closestEntry;
-  }
-
-  for (let index = buffer.head; index < buffer.capacity; index += 1) {
-    updateClosestEntry(buffer.entries[index]);
-  }
-
-  for (let index = 0; index < buffer.head; index += 1) {
-    updateClosestEntry(buffer.entries[index]);
   }
 
   return closestEntry;
 }
 
 /**
- * 克隆指标快照
+ * 把完整指标快照投影为延迟验证最小样本。
  *
- * 创建 IndicatorSnapshot 的深拷贝，确保所有嵌套对象（kdj、macd、rsi、ema、psy）
- * 都是独立的副本，不受外部对象池操作的影响。
- *
- * 此函数用于解决对象生命周期管理问题：
- * - 主循环中的 snapshot 使用对象池管理 kdj/macd
- * - IndicatorCache 需要长期保存数据（至少 15-25 秒）供延迟验证查询
- * - 如果不克隆，主循环释放对象池对象后，IndicatorCache 中的数据会被破坏
- *
- * @param snapshot 原始指标快照
- * @returns 独立的快照副本
+ * @param snapshot 最新指标快照
+ * @param verificationIndicators 当前 monitor 需要保留的延迟验证指标集合
+ * @returns 仅包含延迟验证所需指标的三态样本值映射
  */
-export function cloneIndicatorSnapshot(snapshot: IndicatorSnapshot): IndicatorSnapshot {
-  const { kdj, macd, rsi, ema, psy } = snapshot;
+export function projectVerificationSampleValues(
+  snapshot: IndicatorSnapshot,
+  verificationIndicators: ReadonlyArray<VerificationIndicator>,
+): VerificationSampleValues {
+  const values: Partial<Record<VerificationIndicator, VerificationSamplePoint>> = {};
 
-  // 构建基础快照（不包含可选的 symbol）
-  const cloned: IndicatorSnapshot = {
-    price: snapshot.price,
-    changePercent: snapshot.changePercent,
-    mfi: snapshot.mfi,
-    adx: snapshot.adx,
-    kdj: kdj ? { k: kdj.k, d: kdj.d, j: kdj.j } : null,
-    macd: macd ? { macd: macd.macd, dif: macd.dif, dea: macd.dea } : null,
-    rsi: rsi ? { ...rsi } : null,
-    ema: ema ? { ...ema } : null,
-    psy: psy ? { ...psy } : null,
-  };
+  for (const indicator of verificationIndicators) {
+    const value = getIndicatorValue(snapshot, indicator);
+    if (value !== null) {
+      values[indicator] = {
+        kind: 'value',
+        value,
+      };
+      continue;
+    }
 
-  // 仅当 symbol 存在时才添加（满足 exactOptionalPropertyTypes）
-  if (snapshot.symbol !== undefined) {
-    return { ...cloned, symbol: snapshot.symbol };
+    values[indicator] = isIndicatorPresentInSnapshot(snapshot, indicator)
+      ? { kind: 'invalid' }
+      : { kind: 'missing' };
   }
 
-  return cloned;
+  return values;
+}
+
+/**
+ * 判断快照是否包含指定验证指标字段。
+ *
+ * @param snapshot 指标快照
+ * @param indicator 指标名称
+ * @returns 指标字段存在返回 true，否则返回 false
+ */
+function isIndicatorPresentInSnapshot(
+  snapshot: IndicatorSnapshot,
+  indicator: VerificationIndicator,
+): boolean {
+  if (indicator === 'ADX') {
+    return snapshot.adx !== null;
+  }
+
+  if (indicator === 'K' || indicator === 'D' || indicator === 'J') {
+    return snapshot.kdj !== null;
+  }
+
+  if (indicator === 'MACD' || indicator === 'DIF' || indicator === 'DEA') {
+    return snapshot.macd !== null;
+  }
+
+  if (indicator.startsWith('EMA:')) {
+    const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'EMA:' });
+    return period !== null && snapshot.ema?.[period] !== undefined;
+  }
+
+  const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'PSY:' });
+  return period !== null && snapshot.psy?.[period] !== undefined;
 }

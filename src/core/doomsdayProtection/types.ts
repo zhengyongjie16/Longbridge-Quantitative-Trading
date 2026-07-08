@@ -1,7 +1,7 @@
 import type { Position } from '../../types/account.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type { MonitorContext, LastState } from '../../types/state.js';
-import type { SignalType } from '../../types/signal.js';
+import type { SellSignalAction } from '../../types/signal.js';
 import type { Trader, MarketDataClient } from '../../types/services.js';
 
 /**
@@ -13,10 +13,11 @@ import type { Trader, MarketDataClient } from '../../types/services.js';
 export type ClearanceSignalParams = {
   readonly symbol: string;
   readonly symbolName: string | null;
-  readonly action: SignalType;
+  readonly action: SellSignalAction;
   readonly price: number | null;
   readonly lotSize: number | null;
   readonly positionType: 'long' | 'short';
+  readonly seatVersion: number;
 };
 
 /**
@@ -34,6 +35,7 @@ export type DoomsdayClearanceContext = {
   readonly trader: Trader;
   readonly marketDataClient: MarketDataClient;
   readonly lastState: LastState;
+  readonly onPositionsCommitted?: () => Promise<void>;
 };
 
 /**
@@ -45,6 +47,7 @@ export type DoomsdayClearanceContext = {
 export type DoomsdayClearanceResult = {
   readonly executed: boolean;
   readonly signalCount: number;
+  readonly nextRetryAtMs: number | null;
 };
 
 /**
@@ -70,22 +73,23 @@ export type CancelPendingBuyOrdersContext = {
 export type CancelPendingBuyOrdersResult = {
   readonly executed: boolean;
   readonly cancelRequestAcceptedCount: number;
+  readonly nextRetryAtMs: number | null;
 };
 
 /**
  * 末日保护程序接口。
- * 类型用途：依赖注入的服务接口，在收盘前执行保护性操作（拒绝买入、撤单、清仓）。
+ * 类型用途：依赖注入的服务接口，在末日保护窗口内执行保护性操作（拒绝买入、撤单、清仓）。
  * 数据来源：如适用。
  * 使用范围：主程序持有并调用；仅 doomsdayProtection 模块实现。
  */
 export interface DoomsdayProtection {
   /**
-   * 检查是否应该拒绝买入（收盘前15分钟）
+   * 检查买入截止窗口当前是否生效
    * @param currentTime 当前时间
    * @param isHalfDay 是否是半日交易日
-   * @returns true表示应该拒绝买入
+   * @returns true 表示当前处于买入截止窗口
    */
-  shouldRejectBuy: (currentTime: Date, isHalfDay: boolean) => boolean;
+  isBuyCutoffWindowActive: (currentTime: Date, isHalfDay: boolean) => boolean;
 
   /**
    * 执行末日保护清仓流程
@@ -96,7 +100,7 @@ export interface DoomsdayProtection {
   executeClearance: (context: DoomsdayClearanceContext) => Promise<DoomsdayClearanceResult>;
 
   /**
-   * 撤销所有未成交的买入订单（收盘前15分钟）
+   * 撤销所有未成交的买入订单（买入截止窗口）
    * @param context 撤单上下文
    * @returns 撤单结果
    */

@@ -14,11 +14,8 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import {
-  formatSymbolDisplayFromQuote,
-  getLongDirectionName,
-  getShortDirectionName,
-} from '../utils.js';
+import { formatSymbolDisplayFromQuote } from '../utils.js';
+import { LONG_DIRECTION_NAME, SHORT_DIRECTION_NAME } from '../../constants/index.js';
 import type { Quote } from '../../types/quote.js';
 import type {
   OrderRecord,
@@ -26,7 +23,7 @@ import type {
   SellableOrderResult,
   SellableOrderSelectParams,
 } from '../../types/services.js';
-import type { OrderStorage, OrderStorageDeps } from './types.js';
+import type { OrderStorage } from './types.js';
 import { calculateOrderStatistics, calculateTotalQuantity, isOrderTimedOut } from './utils.js';
 import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
@@ -48,10 +45,9 @@ function resolvePendingSellStatus(
 /**
  * 创建订单存储管理器（纯内存，无异步）
  * 管理本地订单增删改查、待成交卖单追踪与可卖订单策略筛选，供 orderRecorder 与风控使用。
- * @param _deps 可选依赖，当前未使用
  * @returns OrderStorage 接口实例
  */
-export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage => {
+export const createOrderStorage = (): OrderStorage => {
   // 使用 Map 存储订单，key 为 symbol，提供 O(1) 查找性能
   const longBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
   const shortBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
@@ -152,9 +148,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     executedTimeMs: number,
   ): void => {
     const executedTime = isValidPositiveNumber(executedTimeMs) ? executedTimeMs : Date.now();
-    const list = [...getBuyOrdersList(symbol, isLongSymbol)];
-
-    list.push({
+    const nextRecord: OrderRecord = {
       orderId: createLocalOrderId('LOCAL', executedTime),
       symbol,
       executedPrice,
@@ -162,20 +156,21 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       executedTime,
       submittedAt: undefined,
       updatedAt: undefined,
-    });
+    };
+    const list = getBuyOrdersList(symbol, isLongSymbol);
+    setBuyOrdersList(symbol, [...list, nextRecord], isLongSymbol);
 
-    setBuyOrdersList(symbol, list, isLongSymbol);
-
-    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+    const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
     logger.info(
       `[现存订单记录] 本地新增买入记录：${positionType} ${symbol} 价格=${executedPrice.toFixed(3)} 数量=${executedQuantity}`,
     );
   };
 
   /**
-   * 卖出后更新订单列表
+   * 卖出后更新订单列表。
    * - 卖出数量 >= 总数量：清空记录
-   * - 否则保留成交价 >= 卖出价的订单
+   * - 若传入 relatedBuyOrderIds：按关联买单精确扣减
+   * - 否则回退为低价优先整笔消除策略扣减
    *
    * @param symbol 标的代码
    * @param executedPrice 成交价格
@@ -211,7 +206,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     }
 
     const totalQuantity = calculateTotalQuantity(list);
-    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+    const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
 
     // 如果卖出数量大于等于当前记录的总数量，视为全部卖出，清空记录
     if (executedQuantity >= totalQuantity) {
@@ -222,7 +217,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       return;
     }
 
-    const relatedBuyOrderIdSet = new Set(relatedBuyOrderIds ?? []);
+    const relatedBuyOrderIdSet = new Set(relatedBuyOrderIds);
     if (relatedBuyOrderIdSet.size > 0) {
       const filtered = list.filter((order) => !relatedBuyOrderIdSet.has(order.orderId));
       setBuyOrdersList(symbol, filtered, isLongSymbol);
@@ -248,7 +243,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
   /** 清空指定标的的买入订单记录（用于保护性清仓） */
   const clearBuyOrders = (symbol: string, isLongSymbol: boolean, quote?: Quote | null): void => {
-    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+    const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
     setBuyOrdersList(symbol, [], isLongSymbol);
 
     // 使用 formatSymbolDisplayFromQuote 格式化标的显示

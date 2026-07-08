@@ -2,53 +2,141 @@
  * 自动寻标任务处理器
  *
  * 核心职责：
- * - 处理 AUTO_SYMBOL_TICK 寻标 tick 任务
- * - 处理 AUTO_SYMBOL_SWITCH_DISTANCE 距回收价触发的换标检查任务
+ * - 处理 AUTO_SYMBOL_TICK 周期换标 due 任务
  * - 执行前校验席位快照，防止旧任务在换标后被错误执行
  */
 import { logger } from '../../../../utils/logger/index.js';
-import type { LastState } from '../../../../types/state.js';
-import type { RefreshGate } from '../../../../utils/types.js';
+import type {
+  AdvancePendingSwitchResult,
+  StartSwitchOnDistanceResult,
+  SwitchDriveResult,
+} from '../../../../types/monitorContextPorts.js';
+import type {
+  PeriodicSwitchRouteBaseline,
+  PeriodicSwitchWakeupRuntime,
+} from '../../../periodicSwitchWakeupRuntime/types.js';
+import type { SwitchWakeupRuntime } from '../../../monitorQuoteEventRuntime/types.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
-  AutoSymbolSwitchDistanceTaskData,
   AutoSymbolTickTaskData,
   MonitorTaskContext,
   MonitorTaskDataMap,
   MonitorTaskStatus,
 } from '../types.js';
-import {
-  isSeatSnapshotValid,
-  resolveSeatSnapshotReadiness,
-  validateSeatSnapshotsAfterRefresh,
-} from '../helpers/seatSnapshot.js';
-import { hasSeatSymbol } from '../../../../utils/seat/guards.js';
+import { isSeatSnapshotValid } from '../helpers/seatSnapshot.js';
+
+function buildPeriodicBaseline(data: AutoSymbolTickTaskData): PeriodicSwitchRouteBaseline {
+  return {
+    monitorSymbol: data.monitorSymbol,
+    direction: data.direction,
+    symbol: data.symbol,
+    seatVersion: data.seatVersion,
+    lastSeatActivatedAt: data.lastSeatActivatedAt,
+  };
+}
+
+function handoffPeriodicWakeup(params: {
+  readonly context: MonitorTaskContext;
+  readonly data: AutoSymbolTickTaskData;
+  readonly periodicSwitchWakeupRuntime: Pick<
+    PeriodicSwitchWakeupRuntime,
+    'markWaitingEmpty' | 'clearWaitingEmpty' | 'replanRouteAfterTask'
+  >;
+}): void {
+  const baseline = buildPeriodicBaseline(params.data);
+  const pendingState = params.context.autoSymbolManager.getPeriodicSwitchPendingState(
+    params.data.direction,
+  );
+  if (pendingState.pending) {
+    params.periodicSwitchWakeupRuntime.markWaitingEmpty(baseline);
+    return;
+  }
+
+  params.periodicSwitchWakeupRuntime.clearWaitingEmpty(baseline);
+  params.periodicSwitchWakeupRuntime.replanRouteAfterTask({
+    ...baseline,
+    taskTimeMs: params.data.currentTimeMs,
+    status: 'processed',
+  });
+}
 
 /**
- * 创建自动寻标任务处理器（AUTO_SYMBOL_TICK、AUTO_SYMBOL_SWITCH_DISTANCE）。
- * 执行前校验席位快照，防止换标后执行旧任务；tick 触发寻标，距离检查触发换标决策。
+ * 创建周期换标任务处理器（AUTO_SYMBOL_TICK）。
+ * 执行前校验席位快照，防止换标后执行旧任务；该任务只触发周期换标 due 检查。
  *
- * @param deps 依赖注入，包含 getContextOrSkip、refreshGate、lastState、getCanProcessTask
- * @returns handleAutoSymbolTick 与 handleAutoSymbolSwitchDistance 两个处理函数
+ * @param deps 依赖注入，包含 getContextOrSkip、switchWakeupRuntime、getCanTradeNow
+ * @returns AUTO_SYMBOL_TICK 处理函数
  */
 export function createAutoSymbolHandlers({
   getContextOrSkip,
-  refreshGate,
-  lastState,
-  getCanProcessTask,
+  switchWakeupRuntime,
+  periodicSwitchWakeupRuntime,
+  getCanTradeNow,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
-  readonly refreshGate: RefreshGate;
-  readonly lastState: LastState;
-  readonly getCanProcessTask?: () => boolean;
+  readonly switchWakeupRuntime: Pick<SwitchWakeupRuntime, 'handoffPendingSwitch'>;
+  readonly periodicSwitchWakeupRuntime: Pick<
+    PeriodicSwitchWakeupRuntime,
+    'markWaitingEmpty' | 'clearWaitingEmpty' | 'replanRouteAfterTask'
+  >;
+  readonly getCanTradeNow: () => boolean;
 }): Readonly<{
   handleAutoSymbolTick: (
     task: MonitorTask<MonitorTaskDataMap, 'AUTO_SYMBOL_TICK'>,
   ) => Promise<MonitorTaskStatus>;
-  handleAutoSymbolSwitchDistance: (
-    task: MonitorTask<MonitorTaskDataMap, 'AUTO_SYMBOL_SWITCH_DISTANCE'>,
-  ) => Promise<MonitorTaskStatus>;
 }> {
+  function handoffPendingWakeup(params: {
+    readonly context: MonitorTaskContext;
+    readonly monitorSymbol: string;
+    readonly direction: 'LONG' | 'SHORT';
+    readonly result: SwitchDriveResult | StartSwitchOnDistanceResult | AdvancePendingSwitchResult;
+  }): void {
+    const { result } = params;
+
+    if ('kind' in result) {
+      if (result.kind !== 'WAIT') {
+        return;
+      }
+
+      switchWakeupRuntime.handoffPendingSwitch({
+        monitorSymbol: params.monitorSymbol,
+        direction: params.direction,
+        monitorContext: params.context,
+        driveResult: result,
+      });
+      return;
+    }
+
+    if ('started' in result) {
+      if (!result.started || result.driveResult.kind !== 'WAIT') {
+        return;
+      }
+
+      switchWakeupRuntime.handoffPendingSwitch({
+        monitorSymbol: params.monitorSymbol,
+        direction: params.direction,
+        monitorContext: params.context,
+        driveResult: result.driveResult,
+      });
+      return;
+    }
+
+    if (!result.advanced) {
+      return;
+    }
+
+    if (!result.stillPending || result.driveResult.kind !== 'WAIT') {
+      return;
+    }
+
+    switchWakeupRuntime.handoffPendingSwitch({
+      monitorSymbol: params.monitorSymbol,
+      direction: params.direction,
+      monitorContext: params.context,
+      driveResult: result.driveResult,
+    });
+  }
+
   async function handleAutoSymbolTick(
     task: MonitorTask<MonitorTaskDataMap, 'AUTO_SYMBOL_TICK'>,
   ): Promise<MonitorTaskStatus> {
@@ -61,7 +149,11 @@ export function createAutoSymbolHandlers({
     const isSnapshotValid = isSeatSnapshotValid(
       data.monitorSymbol,
       data.direction,
-      { seatVersion: data.seatVersion, symbol: data.symbol },
+      {
+        seatVersion: data.seatVersion,
+        symbol: data.symbol,
+        lastSeatActivatedAt: data.lastSeatActivatedAt,
+      },
       context,
     );
     if (!isSnapshotValid) {
@@ -71,101 +163,33 @@ export function createAutoSymbolHandlers({
       return 'skipped';
     }
 
-    if (getCanProcessTask && !getCanProcessTask()) {
-      logger.debug(
-        `[MonitorTaskProcessor] AUTO_SYMBOL_TICK 门禁关闭，跳过 type=${task.type} monitor=${task.monitorSymbol} direction=${data.direction} dedupe=${task.dedupeKey}`,
-      );
-      return 'skipped';
+    const canTradeNow = getCanTradeNow();
+    if (!canTradeNow) {
+      return 'blocked';
     }
 
-    await context.autoSymbolManager.maybeSearchOnTick({
+    const dueResult = await context.autoSymbolManager.evaluatePeriodicSwitchDue({
       direction: data.direction,
       currentTime: new Date(data.currentTimeMs),
-      canTradeNow: data.canTradeNow,
+      canTradeNow,
     });
-
-    await context.autoSymbolManager.maybeSwitchOnInterval({
+    handoffPendingWakeup({
+      context,
+      monitorSymbol: data.monitorSymbol,
       direction: data.direction,
-      currentTime: new Date(data.currentTimeMs),
-      canTradeNow: data.canTradeNow,
-      openProtectionActive: data.openProtectionActive,
+      result: dueResult,
     });
 
-    return 'processed';
-  }
-
-  async function handleAutoSymbolSwitchDistance(
-    task: MonitorTask<MonitorTaskDataMap, 'AUTO_SYMBOL_SWITCH_DISTANCE'>,
-  ): Promise<MonitorTaskStatus> {
-    const data: AutoSymbolSwitchDistanceTaskData = task.data;
-    const context = getContextOrSkip(data.monitorSymbol);
-    if (!context) {
-      return 'skipped';
-    }
-
-    const snapshotValidity = await validateSeatSnapshotsAfterRefresh({
-      monitorSymbol: data.monitorSymbol,
+    handoffPeriodicWakeup({
       context,
-      longSnapshot: data.seatSnapshots.long,
-      shortSnapshot: data.seatSnapshots.short,
-      refreshGate,
+      data,
+      periodicSwitchWakeupRuntime,
     });
-    if (!snapshotValidity) {
-      logger.debug(
-        `[MonitorTaskProcessor] AUTO_SYMBOL_SWITCH_DISTANCE 快照失效，跳过 type=${task.type} monitor=${task.monitorSymbol} dedupe=${task.dedupeKey}`,
-      );
-      return 'skipped';
-    }
-
-    if (getCanProcessTask && !getCanProcessTask()) {
-      logger.debug(
-        `[MonitorTaskProcessor] AUTO_SYMBOL_SWITCH_DISTANCE 门禁关闭，跳过 type=${task.type} monitor=${task.monitorSymbol} dedupe=${task.dedupeKey}`,
-      );
-      return 'skipped';
-    }
-
-    const seatReadiness = resolveSeatSnapshotReadiness({
-      monitorSymbol: data.monitorSymbol,
-      context,
-      snapshotValidity,
-      isSeatUsable: hasSeatSymbol,
-    });
-
-    if (seatReadiness.isLongReady) {
-      if (getCanProcessTask && !getCanProcessTask()) {
-        logger.debug(
-          `[MonitorTaskProcessor] AUTO_SYMBOL_SWITCH_DISTANCE LONG 门禁关闭，跳过 type=${task.type} monitor=${task.monitorSymbol} dedupe=${task.dedupeKey}`,
-        );
-        return 'skipped';
-      }
-
-      await context.autoSymbolManager.maybeSwitchOnDistance({
-        direction: 'LONG',
-        monitorPrice: data.monitorPrice,
-        positions: lastState.cachedPositions,
-      });
-    }
-
-    if (seatReadiness.isShortReady) {
-      if (getCanProcessTask && !getCanProcessTask()) {
-        logger.debug(
-          `[MonitorTaskProcessor] AUTO_SYMBOL_SWITCH_DISTANCE SHORT 门禁关闭，跳过 type=${task.type} monitor=${task.monitorSymbol} dedupe=${task.dedupeKey}`,
-        );
-        return 'skipped';
-      }
-
-      await context.autoSymbolManager.maybeSwitchOnDistance({
-        direction: 'SHORT',
-        monitorPrice: data.monitorPrice,
-        positions: lastState.cachedPositions,
-      });
-    }
 
     return 'processed';
   }
 
   return {
     handleAutoSymbolTick,
-    handleAutoSymbolSwitchDistance,
   };
 }

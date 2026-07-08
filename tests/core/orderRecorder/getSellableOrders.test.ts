@@ -10,7 +10,6 @@ import { createOrderStorage } from '../../../src/core/orderRecorder/orderStorage
 import type { OrderRecord } from '../../../src/types/services.js';
 import type { OrderStorage } from '../../../src/core/orderRecorder/types.js';
 
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun mock.module 同步注册
 mock.module('../../../src/utils/logger/index.js', () => ({
   logger: {
     info: () => {},

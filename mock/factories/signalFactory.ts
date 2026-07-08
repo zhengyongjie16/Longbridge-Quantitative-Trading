@@ -10,7 +10,9 @@ import type { SignalFactoryParams } from './types.js';
 /**
  * 按测试需求构造可定制字段的交易信号，未传字段使用默认值（如 reason、seatVersion、triggerTime）。
  */
-export function createSignal(params: SignalFactoryParams): Signal {
+export function createSignal<TAction extends SignalFactoryParams['action']>(
+  params: SignalFactoryParams & { readonly action: TAction },
+): Signal & { readonly action: TAction; readonly seatVersion: number } {
   return {
     symbol: params.symbol,
     symbolName: params.symbol,

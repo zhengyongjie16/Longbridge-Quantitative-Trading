@@ -7,11 +7,20 @@
  */
 import type { MonitorConfig } from '../../types/config.js';
 import type { Position } from '../../types/account.js';
-import type { SeatState, SeatStatus, SymbolRegistry } from '../../types/seat.js';
+import type {
+  SeatState,
+  SeatStatus,
+  SeatTruthChangedListener,
+  SymbolRegistry,
+} from '../../types/seat.js';
+import { formatError } from '../../utils/error/index.js';
+import { logger } from '../../utils/logger/index.js';
 import { isSeatActive, isSeatVersionMatch } from '../../utils/seat/guards.js';
 import type {
   SeatEntry,
+  SeatStateChangedListener,
   SeatUnavailableReason,
+  SeatVersionChangedListener,
   SignalSeatValidationResult,
   SymbolSeatEntry,
   ValidateSignalSeatParams,
@@ -108,6 +117,12 @@ export function describeSeatUnavailable(seatState: SeatState): string {
   return reason === null ? '席位不可用' : SEAT_UNAVAILABLE_REASON_MAP[reason];
 }
 
+/**
+ * 从交易动作推导席位方向。
+ *
+ * @param action 交易信号动作
+ * @returns LONG、SHORT；HOLD 返回 null，其余非法动作直接抛错
+ */
 function resolveSignalDirection(
   action: ValidateSignalSeatParams['signal']['action'],
 ): 'LONG' | 'SHORT' | null {
@@ -260,13 +275,25 @@ export function resolveSeatOnStartup({
 }
 
 /**
- * 创建席位状态对象（内部工厂函数）
+ * 断言席位状态满足基本不变量。
+ *
+ * @param seatState 待校验的席位状态
+ */
+function assertSeatStateInvariant(seatState: SeatState): void {
+  if ((seatState.status === 'ACTIVE' || seatState.status === 'ACTIVATING') && !seatState.symbol) {
+    throw new Error(`SymbolRegistry 席位状态无效：${seatState.status} 必须绑定标的`);
+  }
+}
+
+/**
+ * 创建席位状态对象（内部工厂函数）。
+ *
  * @param symbol 交易标的代码，null 表示未绑定
  * @param status 席位状态（EMPTY/SEARCHING/SWITCHING/ACTIVATING/ACTIVE）
- * @returns 初始化的席位状态对象
+ * @returns 初始化并通过不变量校验的席位状态对象
  */
 function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
-  return {
+  const seatState = {
     symbol,
     status,
     lastSwitchAt: null,
@@ -276,6 +303,8 @@ function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
     searchFailCountToday: 0,
     frozenTradingDayKey: null,
   };
+  assertSeatStateInvariant(seatState);
+  return seatState;
 }
 
 /**
@@ -288,7 +317,28 @@ function createSeatEntry(symbol: string | null, status: SeatStatus): SeatEntry {
   return {
     state: createSeatState(symbol, status),
     version: 1,
+    lastEventVersion: 1,
   };
+}
+
+/**
+ * 规范化席位状态写入对象。
+ * @param nextState 调用方传入的下一席位状态
+ * @returns 可写入注册表的完整席位状态
+ */
+function normalizeSeatState(nextState: SeatState): SeatState {
+  const normalizedState = {
+    symbol: nextState.symbol,
+    status: nextState.status,
+    lastSwitchAt: nextState.lastSwitchAt ?? null,
+    lastSearchAt: nextState.lastSearchAt ?? null,
+    lastSeatActivatedAt: nextState.lastSeatActivatedAt ?? null,
+    callPrice: nextState.callPrice ?? null,
+    searchFailCountToday: nextState.searchFailCountToday,
+    frozenTradingDayKey: nextState.frozenTradingDayKey,
+  };
+  assertSeatStateInvariant(normalizedState);
+  return normalizedState;
 }
 
 /**
@@ -319,6 +369,9 @@ function resolveSeatEntry(
  */
 export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): SymbolRegistry {
   const registry = new Map<string, SymbolSeatEntry>();
+  const listeners = new Set<SeatStateChangedListener>();
+  const versionListeners = new Set<SeatVersionChangedListener>();
+  const truthListeners = new Set<SeatTruthChangedListener>();
 
   for (const monitor of monitors) {
     const autoSearchEnabled = monitor.autoSearchConfig.autoSearchEnabled;
@@ -330,6 +383,48 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
         ? createSeatEntry(null, 'EMPTY')
         : createSeatEntry(monitor.shortSymbol, 'ACTIVE'),
     });
+  }
+
+  /**
+   * 广播席位状态变化事件。
+   * 事件由状态写入或原子状态版本更新发布，单独 bump 版本不发布状态变化事件。
+   */
+  function emitSeatStateChanged(event: Parameters<SeatStateChangedListener>[0]): void {
+    for (const listener of listeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        logger.error('SymbolRegistry 席位状态 listener 执行失败', formatError(error));
+      }
+    }
+  }
+
+  /**
+   * 广播席位版本变化事件。
+   * 事件由 bumpSeatVersion 或原子状态版本更新发布，表达 seatVersion 隔离边界变化。
+   */
+  function emitSeatVersionChanged(event: Parameters<SeatVersionChangedListener>[0]): void {
+    for (const listener of versionListeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        logger.error('SymbolRegistry 席位版本 listener 执行失败', formatError(error));
+      }
+    }
+  }
+
+  /**
+   * 广播席位 truth 变化事件。
+   * 事件在 public mutation 完整提交并完成细粒度事件发布后同步发出。
+   */
+  function emitSeatTruthChanged(event: Parameters<SeatTruthChangedListener>[0]): void {
+    for (const listener of truthListeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        logger.error('SymbolRegistry 席位 truth listener 执行失败', formatError(error));
+      }
+    }
   }
 
   return {
@@ -377,22 +472,81 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
       nextState: SeatState,
     ): SeatState {
       const seatEntry = resolveSeatEntry(registry, monitorSymbol, direction);
-      seatEntry.state = {
-        symbol: nextState.symbol,
-        status: nextState.status,
-        lastSwitchAt: nextState.lastSwitchAt ?? null,
-        lastSearchAt: nextState.lastSearchAt ?? null,
-        lastSeatActivatedAt: nextState.lastSeatActivatedAt ?? null,
-        callPrice: nextState.callPrice ?? null,
-        searchFailCountToday: nextState.searchFailCountToday,
-        frozenTradingDayKey: nextState.frozenTradingDayKey,
-      };
+      const previousState = seatEntry.state;
+      const previousVersion = seatEntry.lastEventVersion;
+      seatEntry.state = normalizeSeatState(nextState);
+      seatEntry.lastEventVersion = seatEntry.version;
+      emitSeatStateChanged({
+        monitorSymbol,
+        direction,
+        previousState,
+        nextState: seatEntry.state,
+        previousVersion,
+        nextVersion: seatEntry.version,
+      });
+      emitSeatTruthChanged({ monitorSymbol, direction });
       return seatEntry.state;
+    },
+    updateSeatStateWithVersionBump(
+      monitorSymbol: string,
+      direction: 'LONG' | 'SHORT',
+      nextState: SeatState,
+    ): { readonly seatState: SeatState; readonly seatVersion: number } {
+      const seatEntry = resolveSeatEntry(registry, monitorSymbol, direction);
+      const previousState = seatEntry.state;
+      const previousVersion = seatEntry.version;
+      const previousStateEventVersion = seatEntry.lastEventVersion;
+      seatEntry.state = normalizeSeatState(nextState);
+      seatEntry.version += 1;
+      seatEntry.lastEventVersion = seatEntry.version;
+      emitSeatVersionChanged({
+        monitorSymbol,
+        direction,
+        previousVersion,
+        nextVersion: seatEntry.version,
+      });
+
+      emitSeatStateChanged({
+        monitorSymbol,
+        direction,
+        previousState,
+        nextState: seatEntry.state,
+        previousVersion: previousStateEventVersion,
+        nextVersion: seatEntry.version,
+      });
+      emitSeatTruthChanged({ monitorSymbol, direction });
+      return { seatState: seatEntry.state, seatVersion: seatEntry.version };
     },
     bumpSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
       const seatEntry = resolveSeatEntry(registry, monitorSymbol, direction);
+      const previousVersion = seatEntry.version;
       seatEntry.version += 1;
+      emitSeatVersionChanged({
+        monitorSymbol,
+        direction,
+        previousVersion,
+        nextVersion: seatEntry.version,
+      });
+      emitSeatTruthChanged({ monitorSymbol, direction });
       return seatEntry.version;
+    },
+    onSeatStateChanged(listener: SeatStateChangedListener): () => void {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    onSeatVersionChanged(listener: SeatVersionChangedListener): () => void {
+      versionListeners.add(listener);
+      return () => {
+        versionListeners.delete(listener);
+      };
+    },
+    onSeatTruthChanged(listener: SeatTruthChangedListener): () => void {
+      truthListeners.add(listener);
+      return () => {
+        truthListeners.delete(listener);
+      };
     },
   };
 }

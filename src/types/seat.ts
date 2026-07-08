@@ -1,3 +1,5 @@
+import type { Unsubscribe } from './services.js';
+
 /**
  * 席位状态枚举。
  * 类型用途：表示做多/做空席位的生命周期（EMPTY 空席、SEARCHING 寻标中、SWITCHING 换标中、ACTIVATING 激活中、ACTIVE 可消费），用于 getSeatState/updateSeatState 等返回值及换标流程判断。
@@ -39,6 +41,74 @@ export type SeatState = {
 };
 
 /**
+ * 席位状态变化事件。
+ * 类型用途：表达 SymbolRegistry 权威席位状态在运行期发生的状态写入，供自动寻标、席位激活与订阅 runtime 消费。
+ * 数据来源：由 SymbolRegistry.updateSeatState 在状态写入完成后发布。
+ * 使用范围：事件驱动自动换标链路与 quote 订阅维护链路。
+ */
+export type SeatStateChangedEvent = Readonly<{
+  /** 监控标的代码 */
+  monitorSymbol: string;
+
+  /** 席位方向 */
+  direction: 'LONG' | 'SHORT';
+
+  /** 写入前席位状态 */
+  previousState: SeatState;
+
+  /** 写入后席位状态 */
+  nextState: SeatState;
+
+  /** 上一次已发布席位状态事件对应的 nextVersion */
+  previousVersion: number;
+
+  /** 写入完成后的当前版本号 */
+  nextVersion: number;
+}>;
+
+/**
+ * 席位版本变化事件。
+ * 类型用途：表达 SymbolRegistry 权威席位版本号发生变化，供依赖 seatVersion 隔离语义的 runtime 刷新派生状态。
+ * 数据来源：由 SymbolRegistry.bumpSeatVersion 或 updateSeatStateWithVersionBump 在版本递增完成后发布。
+ * 使用范围：TradingRiskEventRuntime 等需要响应 seatVersion 隔离边界变化的事件驱动链路。
+ */
+export type SeatVersionChangedEvent = Readonly<{
+  /** 监控标的代码 */
+  monitorSymbol: string;
+
+  /** 席位方向 */
+  direction: 'LONG' | 'SHORT';
+
+  /** 递增前版本号 */
+  previousVersion: number;
+
+  /** 递增后版本号 */
+  nextVersion: number;
+}>;
+
+/**
+ * 席位 truth 变化事件。
+ * 类型用途：表达 SymbolRegistry 已完成一次席位权威状态 mutation，监听方可同步读取最新 state/version 快照。
+ * 数据来源：由 SymbolRegistry 的 public mutation 在本次对应的状态或版本事件发布完成后发布。
+ * 使用范围：依赖完整席位 truth 重投影的事件驱动链路。
+ */
+type SeatTruthChangedEvent = Readonly<{
+  /** 监控标的代码 */
+  monitorSymbol: string;
+
+  /** 席位方向 */
+  direction: 'LONG' | 'SHORT';
+}>;
+
+/**
+ * 席位 truth 变化监听器。
+ * 类型用途：订阅 SymbolRegistry 每次 public mutation 完成后的统一 truth 变化信号。
+ * 数据来源：由 onSeatTruthChanged 注册并由 SymbolRegistry 内部同步调用。
+ * 使用范围：需要按 seat truth 完整变更重投影派生状态的模块。
+ */
+export type SeatTruthChangedListener = (event: SeatTruthChangedEvent) => void;
+
+/**
  * 标的注册表接口。
  * 类型用途：依赖注入用接口，统一维护各监控标的做多/做空席位状态与版本号，供 resolveSeatBySymbol、换标流程等调用。
  * 数据来源：内部实现（如 recovery/seatPreparation）维护；状态数据来自运行时更新。
@@ -66,31 +136,34 @@ export interface SymbolRegistry {
     nextState: SeatState,
   ) => SeatState;
 
+  /** 原子更新席位状态并递增席位版本号 */
+  updateSeatStateWithVersionBump: (
+    monitorSymbol: string,
+    direction: 'LONG' | 'SHORT',
+    nextState: SeatState,
+  ) => {
+    readonly seatState: SeatState;
+    readonly seatVersion: number;
+  };
+
   /** 递增席位版本号 */
   bumpSeatVersion: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => number;
+
+  /** 订阅席位状态变化事件 */
+  onSeatStateChanged: (listener: (event: SeatStateChangedEvent) => void) => Unsubscribe;
+
+  /** 订阅席位版本变化事件 */
+  onSeatVersionChanged: (listener: (event: SeatVersionChangedEvent) => void) => Unsubscribe;
+
+  /** 订阅席位 truth 变化事件 */
+  onSeatTruthChanged: (listener: SeatTruthChangedListener) => Unsubscribe;
 }
-
-/**
- * 运行模式。
- * 类型用途：区分生产/开发环境，影响日志级别、门禁等行为，作为启动与门禁逻辑的参数或配置。
- * 数据来源：配置（如环境变量）。
- * 使用范围：启动门禁、日志等；全项目可引用。
- */
-export type RunMode = 'prod' | 'dev';
-
-/**
- * 门禁模式。
- * 类型用途：控制启动与跨日流程中的门禁行为（strict 严格校验 / skip 跳过），作为 gate 等函数的参数。
- * 数据来源：配置或调用方传入。
- * 使用范围：startup/gate、跨日流程等；全项目可引用。
- */
-export type GateMode = 'strict' | 'skip';
 
 /**
  * 生命周期状态。
  * 类型用途：表示 7x24 跨日缓存治理的阶段性状态（ACTIVE / MIDNIGHT_CLEANING / MIDNIGHT_CLEANED / OPEN_REBUILDING / OPEN_REBUILD_FAILED），用于 LastState 与门禁判断。
  * 数据来源：lifecycle 模块内部状态机更新。
- * 使用范围：主循环、LastState、门禁、跨日流程等；全项目可引用。
+ * 使用范围：运行期状态、LastState、门禁、跨日流程等；全项目可引用。
  */
 export type LifecycleState =
   | 'ACTIVE'

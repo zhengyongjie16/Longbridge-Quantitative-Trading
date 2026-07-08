@@ -1,7 +1,10 @@
 import type { MonitorContext, LastState } from '../../../types/state.js';
-import type { MarketDataClient, Trader } from '../../../types/services.js';
-import type { RefreshGate } from '../../../utils/types.js';
-import type { Signal } from '../../../types/signal.js';
+import type {
+  MarketDataClient,
+  PostTradeConsistencyFreshnessPort,
+  Trader,
+} from '../../../types/services.js';
+import type { SellSignal } from '../../../types/signal.js';
 import type { TaskQueue, SellTaskType } from '../tradeTaskQueue/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 
@@ -13,7 +16,7 @@ import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
  */
 export type SellRetryState = {
   handle: ReturnType<typeof setTimeout> | null;
-  retrySignal: Signal | null;
+  retrySignal: SellSignal | null;
   attempts: number;
 };
 
@@ -42,8 +45,8 @@ export type SellProcessorDeps = {
   /** 获取全局状态的函数 */
   readonly getLastState: () => LastState;
 
-  /** 刷新门禁（等待缓存刷新） */
-  readonly refreshGate: RefreshGate;
+  /** 成交后一致性 freshness 等待端口（等待缓存刷新） */
+  readonly postTradeConsistencyRuntime: PostTradeConsistencyFreshnessPort;
 
   /** 一次性路径 quote retry 调度器 */
   readonly scheduleRetry?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
@@ -53,4 +56,7 @@ export type SellProcessorDeps = {
 
   /** 生命周期门禁：false 时跳过任务执行 */
   readonly getCanProcessTask?: () => boolean;
+
+  /** 非 API 程序错误进入 fatal 通道 */
+  readonly onFatalError?: (error: unknown) => void;
 };

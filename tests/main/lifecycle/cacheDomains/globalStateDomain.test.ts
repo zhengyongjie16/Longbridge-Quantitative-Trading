@@ -12,14 +12,9 @@ import { createAccountSnapshotDouble, createPositionDouble } from '../../../help
 function createMockMonitorState(monitorSymbol: string): MonitorState {
   return {
     monitorSymbol,
-    monitorPrice: 1,
-    longPrice: null,
-    shortPrice: null,
     signal: null,
     pendingDelayedSignals: [],
-    monitorValues: null,
     lastMonitorSnapshot: null,
-    lastCandlestickCacheVersion: null,
     incrementalIndicatorRuntime: null,
   };
 }
@@ -82,15 +77,66 @@ describe('createGlobalStateDomain', () => {
     const state = monitorStates.get('HSI.HK');
     expect(state).toBeDefined();
     if (state) {
-      expect(state.monitorPrice).toBe(null);
-      expect(state.longPrice).toBe(null);
       expect(state.signal).toBe(null);
       expect(state.pendingDelayedSignals).toHaveLength(0);
-      expect(state.monitorValues).toBe(null);
       expect(state.lastMonitorSnapshot).toBe(null);
     }
 
     expect(runOpenRebuildCalled).toBe(false);
+  });
+
+  it('midnightClear does not mutate detached snapshot objects after resetting monitor state', async () => {
+    const detachedSnapshot = {
+      price: 20_000,
+      changePercent: 0,
+      ema: { 7: 19_980 },
+      rsi: { 6: 52 },
+      psy: { 13: 58 },
+      mfi: 45,
+      kdj: { k: 51, d: 49, j: 55 },
+      macd: { macd: 10, dif: 3, dea: 2 },
+      adx: null,
+    };
+    const monitorStates = new Map<string, MonitorState>([
+      [
+        'HSI.HK',
+        {
+          ...createMockMonitorState('HSI.HK'),
+          lastMonitorSnapshot: detachedSnapshot,
+        },
+      ],
+    ]);
+    const lastState: LastState = {
+      canTrade: true,
+      isHalfDay: false,
+      openProtectionActive: false,
+      currentDayKey: null,
+      lifecycleState: 'ACTIVE',
+      pendingOpenRebuild: false,
+      targetTradingDayKey: null,
+      isTradingEnabled: true,
+      cachedAccount: createAccountSnapshotDouble(100000),
+      cachedPositions: [],
+      positionCache: { update: () => {}, get: () => null },
+      cachedTradingDayInfo: null,
+      monitorStates,
+      allTradingSymbols: new Set(),
+    };
+    const domain = createGlobalStateDomain({
+      lastState,
+      runTradingDayOpenRebuild: async () => {},
+    });
+
+    await domain.midnightClear({
+      now: new Date(),
+      runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
+    });
+
+    expect(detachedSnapshot.ema[7]).toBe(19_980);
+    expect(detachedSnapshot.rsi[6]).toBe(52);
+    expect(detachedSnapshot.psy[13]).toBe(58);
+    expect(detachedSnapshot.kdj).toEqual({ k: 51, d: 49, j: 55 });
+    expect(detachedSnapshot.macd).toEqual({ macd: 10, dif: 3, dea: 2 });
   });
 
   it('openRebuild 调用 runTradingDayOpenRebuild(ctx.now)', async () => {

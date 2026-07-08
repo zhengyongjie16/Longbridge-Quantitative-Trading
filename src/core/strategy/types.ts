@@ -72,7 +72,7 @@ export type ConditionGroupResult = {
 /**
  * 交易信号策略端口。
  * 类型用途：约束调用侧仅依赖 generateSignals 能力，避免装配层绑定具体策略实现命名。
- * 数据来源：由具体策略实现（如 HangSeng）提供。
+ * 数据来源：由具体策略实现提供。
  * 使用范围：MonitorContext、createMonitorContexts、signalPipeline 等调用链路使用。
  */
 export interface TradingSignalStrategy {

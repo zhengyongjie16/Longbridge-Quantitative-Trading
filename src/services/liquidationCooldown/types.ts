@@ -25,7 +25,7 @@ export type RecordCooldownParams = {
 /**
  * 记录保护性清仓触发的参数。
  * 类型用途：包含标的代码、方向、成交时间与触发上限，由 recordLiquidationTrigger 消费。
- * 数据来源：由 postTradeRefresher 在保护性清仓完成确认后传入。
+ * 数据来源：由成交后一致性运行时在保护性清仓完成确认后传入。
  * 使用范围：仅 liquidationCooldown 模块使用。
  */
 export type RecordLiquidationTriggerParams = {

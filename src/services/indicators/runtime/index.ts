@@ -2,12 +2,10 @@
  * indicators/runtime 指标运行时计算模块
  *
  * 职责：
- * - 提供旧全量构建函数（作为对拍 oracle）
  * - 提供增量 runtime 的 bootstrap / update / snapshot 构造能力
- * - 确保对象池对象仅在对外快照构造时创建，不在 runtime 内长期持有
+ * - 对外快照统一构造成普通值对象，不承载对象池生命周期
  */
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
-import { periodRecordPool } from '../../../utils/objectPool/index.js';
 import type { CandleData } from '../../../types/data.js';
 import type { IndicatorSnapshot } from '../../../types/quote.js';
 import type { IndicatorUsageProfile } from '../../../types/indicatorProfile.js';
@@ -57,37 +55,6 @@ function unwrapIndicatorRuntime(
   }
 
   return runtime as unknown as IndicatorRuntimeState<typeof indicatorRuntimeStateBrand>;
-}
-
-/**
- * 从 K 线长度与最后一根收盘价构造指纹字符串（格式 length_lastClose），供 getCandleFingerprint 使用。
- *
- * @param candles K 线数据数组（仅用 length）
- * @param lastClose 最后一根 K 线收盘价
- * @returns 指纹字符串
- */
-function buildDataFingerprint(candles: ReadonlyArray<CandleData>, lastClose: number): string {
-  return `${candles.length}_${lastClose}`;
-}
-
-/**
- * 从 K 线计算指纹，供旧路径判断是否可复用上一拍快照。
- *
- * @param candles K 线数据数组
- * @returns 指纹字符串（格式：length_lastClose），无效时返回 null
- */
-export function getCandleFingerprint(candles: ReadonlyArray<CandleData>): string | null {
-  if (candles.length === 0) {
-    return null;
-  }
-
-  const lastCandle = candles.at(-1);
-  const lastClose = lastCandle ? toNumber(lastCandle.close) : 0;
-  if (!isValidPositiveNumber(lastClose)) {
-    return null;
-  }
-
-  return buildDataFingerprint(candles, lastClose);
 }
 
 function createRecordFromPeriods<T>(params: {
@@ -150,7 +117,7 @@ function buildCommittedState(profile: IndicatorUsageProfile): IndicatorCommitted
       createState: (period) => createPsyState(period),
     }),
     mfiState: profile.requiredFamilies.mfi ? createMfiState(14) : null,
-    kdjState: profile.requiredFamilies.kdj ? createKdjState(9, 5) : null,
+    kdjState: profile.requiredFamilies.kdj ? createKdjState(9, 3) : null,
     macdState: profile.requiredFamilies.macd ? createMacdState(12, 26, 9) : null,
     adxState: profile.requiredFamilies.adx ? createAdxState(14) : null,
   };
@@ -219,13 +186,13 @@ function buildPeriodSnapshotRecord<T>(params: {
   readonly periods: ReadonlyArray<number>;
   readonly isValidPeriod: (period: unknown) => period is number;
   readonly states: Record<number, T>;
-  readonly readValue: (state: T, period: number) => number | null;
+  readonly readValue: (state: T) => number | null;
 }): Record<number, number> | null {
   if (params.periods.length === 0) {
     return null;
   }
 
-  const periodRecord = periodRecordPool.acquire();
+  const periodRecord: Record<number, number> = {};
   let hasValue = false;
   for (const period of params.periods) {
     if (!params.isValidPeriod(period) || !Number.isInteger(period)) {
@@ -237,7 +204,7 @@ function buildPeriodSnapshotRecord<T>(params: {
       continue;
     }
 
-    const value = params.readValue(state, period);
+    const value = params.readValue(state);
     if (value === null) {
       continue;
     }
@@ -246,20 +213,18 @@ function buildPeriodSnapshotRecord<T>(params: {
     hasValue = true;
   }
 
-  if (hasValue) {
-    return periodRecord;
+  if (!hasValue) {
+    return null;
   }
 
-  periodRecordPool.release(periodRecord);
-  return null;
+  return periodRecord;
 }
 
 function buildSnapshotFromCommitted(params: {
-  readonly symbol: string;
   readonly profile: IndicatorUsageProfile;
   readonly committed: IndicatorCommittedState;
 }): IndicatorSnapshot | null {
-  const { symbol, profile, committed } = params;
+  const { profile, committed } = params;
   const price = committed.lastValidClose;
   if (price === null) {
     return null;
@@ -306,7 +271,6 @@ function buildSnapshotFromCommitted(params: {
       : null;
 
   return {
-    symbol,
     price,
     changePercent,
     ema,
@@ -317,35 +281,6 @@ function buildSnapshotFromCommitted(params: {
     macd,
     adx,
   };
-}
-
-/**
- * 构建指标快照（旧全量路径，保留作为对拍 oracle）。
- *
- * @param symbol 标的代码
- * @param candles K线数据数组
- * @param indicatorProfile 指标画像
- * @returns 指标快照，无有效价格时返回 null
- */
-export function buildIndicatorSnapshot(
-  symbol: string,
-  candles: ReadonlyArray<CandleData>,
-  indicatorProfile: IndicatorUsageProfile,
-): IndicatorSnapshot | null {
-  if (candles.length === 0) {
-    return null;
-  }
-
-  const committed = buildCommittedState(indicatorProfile);
-  for (const candle of candles) {
-    commitCandleToCommittedState(committed, candle);
-  }
-
-  return buildSnapshotFromCommitted({
-    symbol,
-    profile: indicatorProfile,
-    committed,
-  });
 }
 
 function resolveActiveBar(params: {
@@ -391,16 +326,11 @@ export function bootstrapIndicatorRuntime(params: {
     commitCandleToCommittedState(committed, candle);
   }
 
-  const lastClosed = closedCandlesEnd > 0 ? cacheSnapshot.candles[closedCandlesEnd - 1] : undefined;
   return toIndicatorIncrementalRuntime(
     createIndicatorRuntimeState({
       symbol,
       profile: indicatorProfile,
       lastProcessedVersion: cacheSnapshot.version,
-      closedBarTimestamp:
-        lastClosed && typeof lastClosed.timestamp === 'number' ? lastClosed.timestamp : null,
-      activeBarTimestamp:
-        activeBar && typeof activeBar.timestamp === 'number' ? activeBar.timestamp : null,
       activeBarConfirmed: activeBar === null ? cacheSnapshot.lastBarConfirmed : false,
       activeBar,
       lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
@@ -432,7 +362,7 @@ function rebuildRuntimeFromSnapshot(params: {
  *
  * 该分支负责处理“上一拍还是活动 bar，本拍只看到了最终 shift 后快照”的场景：
  * 如果旧最后一根尚未确认，就先把它按 finalized previous bar 提交，再继续消费后续新增 candles，
- * 从而保证 confirmed 与 next bar 在同一主循环间隔内到达时，committed 状态仍与全量重算一致。
+ * 从而保证 confirmed 与 next bar 在同一事件处理轮次内到达时，committed 状态仍与全量重算一致。
  *
  * @param params 运行态与最新缓存快照
  * @returns 推进后的增量运行态；无法可靠推进时回退为重建或返回 null
@@ -455,19 +385,14 @@ function commitShiftedCandles(params: {
   }
 
   const nextCommitted = cloneCommittedState(runtime.committed);
-  let closedBarTimestamp = runtime.closedBarTimestamp;
   if (runtime.lastBarConfirmed === false) {
     const finalizedPrevious = cacheSnapshot.candles[previousIndex];
     if (finalizedPrevious) {
       commitCandleToCommittedState(nextCommitted, finalizedPrevious);
-      if (typeof finalizedPrevious.timestamp === 'number') {
-        closedBarTimestamp = finalizedPrevious.timestamp;
-      }
     }
   }
 
   let activeBar: CandleData | null = null;
-  let activeBarTimestamp: number | null = null;
   let activeBarConfirmed: boolean | null = cacheSnapshot.lastBarConfirmed;
   const lastIndex = cacheSnapshot.candles.length - 1;
   for (let index = previousIndex + 1; index < cacheSnapshot.candles.length; index += 1) {
@@ -479,26 +404,17 @@ function commitShiftedCandles(params: {
     const isLast = index === lastIndex;
     if (isLast && cacheSnapshot.lastBarConfirmed === false) {
       activeBar = candle;
-      activeBarTimestamp =
-        typeof candle.timestamp === 'number' && Number.isFinite(candle.timestamp)
-          ? candle.timestamp
-          : null;
       activeBarConfirmed = false;
       continue;
     }
 
     commitCandleToCommittedState(nextCommitted, candle);
-    if (typeof candle.timestamp === 'number' && Number.isFinite(candle.timestamp)) {
-      closedBarTimestamp = candle.timestamp;
-    }
   }
 
   return toIndicatorIncrementalRuntime(
     createIndicatorRuntimeState({
       ...runtime,
       lastProcessedVersion: cacheSnapshot.version,
-      closedBarTimestamp,
-      activeBarTimestamp,
       activeBarConfirmed,
       activeBar,
       lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
@@ -549,7 +465,6 @@ export function updateRuntimeForCandlestickSnapshot(params: {
         createIndicatorRuntimeState({
           ...runtimeState,
           lastProcessedVersion: cacheSnapshot.version,
-          activeBarTimestamp: nextLastTimestamp,
           activeBarConfirmed: false,
           activeBar: latestCandle,
           lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
@@ -565,8 +480,6 @@ export function updateRuntimeForCandlestickSnapshot(params: {
         createIndicatorRuntimeState({
           ...runtimeState,
           lastProcessedVersion: cacheSnapshot.version,
-          closedBarTimestamp: nextLastTimestamp,
-          activeBarTimestamp: null,
           activeBarConfirmed: true,
           activeBar: null,
           lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
@@ -603,14 +516,12 @@ export function buildSnapshotFromRuntime(
     const previewCommitted = cloneCommittedState(runtimeState.committed);
     commitCandleToCommittedState(previewCommitted, runtimeState.activeBar);
     return buildSnapshotFromCommitted({
-      symbol: runtimeState.symbol,
       profile: runtimeState.profile,
       committed: previewCommitted,
     });
   }
 
   return buildSnapshotFromCommitted({
-    symbol: runtimeState.symbol,
     profile: runtimeState.profile,
     committed: runtimeState.committed,
   });

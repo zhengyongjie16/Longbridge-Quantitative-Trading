@@ -5,13 +5,7 @@
  * - 验证保护性清仓端到端场景与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
-import {
-  OrderSide,
-  OrderStatus,
-  OrderType,
-  type PushOrderChanged,
-  type TradeContext,
-} from 'longbridge';
+import { OrderSide, OrderStatus, OrderType, TopicType, type TradeContext } from 'longbridge';
 import { createOrderMonitor } from '../../src/core/trader/orderMonitor/index.js';
 import type { OrderMonitorDeps } from '../../src/core/trader/types.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
@@ -26,17 +20,22 @@ import {
 
 describe('protective-liquidation integration', () => {
   it('records protective episode progress + local sell update after protective liquidation fill event', async () => {
-    let capturedHandler: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
-      throw new Error('order changed handler was not captured');
-    };
     let recordLocalSellCount = 0;
     let markSellFilledCount = 0;
-    let episodeProgressRecords = 0;
-    let staleMarks = 0;
+    const episodeProgressPayloads: Array<{
+      monitorSymbol: string;
+      direction: 'LONG' | 'SHORT';
+      symbol: string;
+      executedTimeMs: number;
+    }> = [];
+    const refreshNeeds: Array<{
+      readonly refreshAccount: boolean;
+      readonly refreshPositions: boolean;
+    }> = [];
 
     const tradeCtx = createTradeContextMock();
     const deps: OrderMonitorDeps = {
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -66,32 +65,21 @@ describe('protective-liquidation integration', () => {
         markOrderClosed: () => {},
         seedFromOrders: () => {},
         getHoldSymbols: () => new Set<string>(),
+        onOrderHoldSymbolsChanged: () => () => {},
         clear: () => {},
       },
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble({
-        recordProtectiveFillProgress: () => {
-          episodeProgressRecords += 1;
+        recordProtectiveFillProgress: (params) => {
+          episodeProgressPayloads.push(params);
         },
       }),
+      postTradeConsistencyRuntime: {
+        recordSettlementRefreshNeed: (need) => {
+          refreshNeeds.push(need);
+        },
+      },
       tradingConfig: createTradingConfig(),
       symbolRegistry: createSymbolRegistryDouble(),
-      refreshGate: {
-        markStale: () => {
-          staleMarks += 1;
-          return staleMarks;
-        },
-        markFresh: () => {},
-        waitForFresh: async () => {},
-        getStatus: () => ({
-          currentVersion: staleMarks,
-          staleVersion: staleMarks,
-        }),
-      },
-      testHooks: {
-        setHandleOrderChanged: (handler) => {
-          capturedHandler = handler;
-        },
-      },
       isExecutionAllowed: () => true,
     };
 
@@ -112,7 +100,8 @@ describe('protective-liquidation integration', () => {
       orderType: OrderType.MO,
     });
 
-    capturedHandler(
+    expect(tradeCtx.getSubscribedTopics().has(TopicType.Private)).toBe(true);
+    tradeCtx.emitOrderChanged(
       createPushOrderChanged({
         orderId: 'PL-001',
         symbol: 'BULL.HK',
@@ -125,14 +114,24 @@ describe('protective-liquidation integration', () => {
         executedPrice: 1,
       }),
     );
+    tradeCtx.flushAllEvents();
 
     expect(recordLocalSellCount).toBe(1);
     expect(markSellFilledCount).toBe(1);
-    expect(episodeProgressRecords).toBe(1);
-    expect(staleMarks).toBe(1);
+    expect(episodeProgressPayloads).toEqual([
+      {
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
+        symbol: 'BULL.HK',
+        executedTimeMs: expect.any(Number),
+      },
+    ]);
 
-    const pendingRefresh = monitor.getAndClearPendingRefreshSymbols();
-    expect(pendingRefresh).toHaveLength(1);
-    expect(pendingRefresh[0]?.symbol).toBe('BULL.HK');
+    expect(refreshNeeds).toEqual([
+      {
+        refreshAccount: true,
+        refreshPositions: true,
+      },
+    ]);
   });
 });

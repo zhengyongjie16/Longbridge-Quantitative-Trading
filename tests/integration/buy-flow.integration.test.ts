@@ -22,6 +22,7 @@ import {
   createSymbolRegistryDouble,
   createTraderDouble,
 } from '../helpers/testDoubles.js';
+import type { ExecutableSignal } from '../../src/types/signal.js';
 
 function withMockedNow<T>(nowMs: number, run: () => Promise<T>): Promise<T> {
   const originalNow = Date.now;
@@ -83,9 +84,9 @@ describe('buy-flow integration', () => {
     const tradingConfig = createTradingConfig();
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve({
+      ctx: {
         submitOrder: async () => ({}),
-      } as unknown as TradeContext),
+      } as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -105,11 +106,13 @@ describe('buy-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -142,7 +145,7 @@ describe('buy-flow integration', () => {
     const tradingConfig = createTradingConfig();
     const tradeCtx = createTradeContextMock();
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -162,11 +165,13 @@ describe('buy-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -197,6 +202,120 @@ describe('buy-flow integration', () => {
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
   });
 
+  it('skips stale seatVersion at final order execution gate', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    let trackedOrderCount = 0;
+    const orderExecutor = createOrderExecutor({
+      ctx: tradeCtx as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: () => {
+          trackedOrderCount += 1;
+        },
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
+        replaceOrderPrice: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
+        recoverOrderTrackingFromSnapshot: async () => {},
+        getPendingSellOrders: () => [],
+        clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
+      },
+      orderRecorder: createOrderRecorderDouble(),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble({ longVersion: 2 }),
+      isExecutionAllowed: () => true,
+    });
+
+    const staleSignal = {
+      ...createSignal({
+        symbol: 'BULL.HK',
+        action: 'BUYCALL',
+        triggerTimeMs: Date.now(),
+        price: 5,
+        lotSize: 100,
+        reason: 'stale-seat-version',
+      }),
+      seatVersion: 1,
+    };
+
+    const result = await orderExecutor.executeSignals([staleSignal]);
+
+    expect(result).toEqual({ submittedCount: 0, submittedOrderIds: [] });
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+    expect(trackedOrderCount).toBe(0);
+  });
+
+  it('rejects missing seatVersion at final order execution gate', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    let trackedOrderCount = 0;
+    const orderExecutor = createOrderExecutor({
+      ctx: tradeCtx as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: () => {
+          trackedOrderCount += 1;
+        },
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
+        replaceOrderPrice: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
+        recoverOrderTrackingFromSnapshot: async () => {},
+        getPendingSellOrders: () => [],
+        clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
+      },
+      orderRecorder: createOrderRecorderDouble(),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble({ longVersion: 1 }),
+      isExecutionAllowed: () => true,
+    });
+    const { seatVersion: omittedSeatVersion, ...missingSeatVersionSignal } = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: Date.now(),
+      price: 5,
+      lotSize: 100,
+      reason: 'missing-seat-version',
+    });
+    void omittedSeatVersion;
+
+    const invalidSignals = [missingSeatVersionSignal] as unknown as ReadonlyArray<ExecutableSignal>;
+    const result = await orderExecutor.executeSignals(invalidSignals);
+
+    expect(result).toEqual({ submittedCount: 0, submittedOrderIds: [] });
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+    expect(trackedOrderCount).toBe(0);
+  });
+
   it('runs risk pipeline -> order execution and submits notional-based buy quantity', async () => {
     const tradingConfig = createTradingConfig();
     const signalProcessor = createSignalProcessor({
@@ -214,7 +333,7 @@ describe('buy-flow integration', () => {
     const tradeCtx = createTradeContextMock();
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -234,11 +353,13 @@ describe('buy-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -295,7 +416,7 @@ describe('buy-flow integration', () => {
     const tradeCtx = createTradeContextMock();
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -315,11 +436,13 @@ describe('buy-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -327,7 +450,7 @@ describe('buy-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const signal = createSignal({
+    let signal = createSignal({
       symbol: 'BULL.HK',
       action: 'BUYCALL',
       triggerTimeMs: Date.now(),
@@ -335,7 +458,7 @@ describe('buy-flow integration', () => {
       lotSize: 100,
       reason: 'integration-buy-explicit-quantity',
     });
-    signal.quantity = 200;
+    signal = { ...signal, quantity: 200 };
 
     const result = await orderExecutor.executeSignals([signal]);
 
@@ -356,7 +479,7 @@ describe('buy-flow integration', () => {
     const tradeCtx = createTradeContextMock();
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -376,11 +499,13 @@ describe('buy-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -388,7 +513,7 @@ describe('buy-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const signal = createSignal({
+    let signal = createSignal({
       symbol: 'BULL.HK',
       action: 'BUYCALL',
       triggerTimeMs: Date.now(),
@@ -396,7 +521,7 @@ describe('buy-flow integration', () => {
       lotSize: 100,
       reason: 'integration-buy-invalid-explicit-quantity',
     });
-    signal.quantity = 250;
+    signal = { ...signal, quantity: 250 };
 
     const result = await orderExecutor.executeSignals([signal]);
 
@@ -410,7 +535,7 @@ describe('buy-flow integration', () => {
     const tradingConfig = createTradingConfig();
     const tradeCtx = createTradeContextMock({ now: () => fixedNow });
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -428,11 +553,13 @@ describe('buy-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -473,11 +600,11 @@ describe('buy-flow integration', () => {
     const tradeCtx = createTradeContextMock({ now: () => fixedNow });
     tradeCtx.setFailureRule('submitOrder', {
       failAtCalls: [1],
-      errorMessage: 'submit failed once',
+      errorMessage: 'service unavailable',
     });
 
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -495,11 +622,13 @@ describe('buy-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -522,10 +651,20 @@ describe('buy-flow integration', () => {
     });
 
     await withMockedNow(fixedNow, async () => {
-      const failedResult = await orderExecutor.executeSignals([failedSignal]);
-      expect(failedResult.submittedCount).toBe(0);
+      let submitError: unknown = null;
+      try {
+        await orderExecutor.executeSignals([failedSignal]);
+      } catch (error) {
+        submitError = error;
+      }
+
+      expect(submitError).toBeInstanceOf(Error);
+      expect(submitError).toMatchObject({
+        name: 'ExternalApiRequestError',
+        operation: 'TradeContext.submitOrder',
+      });
       expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
-      expect(tradeCtx.getCalls('submitOrder')[0]?.error?.message).toBe('submit failed once');
+      expect(tradeCtx.getCalls('submitOrder')[0]?.error?.message).toBe('service unavailable');
     });
 
     const nextCheck = await withMockedNow(fixedNow, async () =>
@@ -553,7 +692,7 @@ describe('buy-flow integration', () => {
     const successNow = 3_000_000;
     const successTradeCtx = createTradeContextMock({ now: () => successNow });
     const successOrderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(successTradeCtx as unknown as TradeContext),
+      ctx: successTradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -571,11 +710,13 @@ describe('buy-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -635,7 +776,7 @@ describe('buy-flow integration', () => {
           }),
         );
         expect(blockedResult).toHaveLength(0);
-        expect(blockedSignal.reason).toContain('交易频率限制');
+        expect(blockedSignal.reason).toBe('should-be-frequency-blocked');
       },
     );
 
@@ -643,11 +784,11 @@ describe('buy-flow integration', () => {
     const failedTradeCtx = createTradeContextMock({ now: () => failedNow });
     failedTradeCtx.setFailureRule('submitOrder', {
       failAtCalls: [1],
-      errorMessage: 'submit failed in end-to-end path',
+      errorMessage: 'service unavailable',
     });
 
     const failedOrderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(failedTradeCtx as unknown as TradeContext),
+      ctx: failedTradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -665,11 +806,13 @@ describe('buy-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -704,12 +847,20 @@ describe('buy-flow integration', () => {
         }),
       );
       expect(checkedSignals).toHaveLength(1);
-      const executeResult = await failedOrderExecutor.executeSignals(checkedSignals);
-      expect(executeResult.submittedCount).toBe(0);
+      let submitError: unknown = null;
+      try {
+        await failedOrderExecutor.executeSignals(checkedSignals);
+      } catch (error) {
+        submitError = error;
+      }
+
+      expect(submitError).toBeInstanceOf(Error);
+      expect(submitError).toMatchObject({
+        name: 'ExternalApiRequestError',
+        operation: 'TradeContext.submitOrder',
+      });
       expect(failedTradeCtx.getCalls('submitOrder')).toHaveLength(1);
-      expect(failedTradeCtx.getCalls('submitOrder')[0]?.error?.message).toBe(
-        'submit failed in end-to-end path',
-      );
+      expect(failedTradeCtx.getCalls('submitOrder')[0]?.error?.message).toBe('service unavailable');
     });
 
     const secondAllowedSignal = createSignal({
@@ -733,7 +884,7 @@ describe('buy-flow integration', () => {
           }),
         );
         expect(allowedResult).toHaveLength(0);
-        expect(secondAllowedSignal.reason).toContain('交易频率限制');
+        expect(secondAllowedSignal.reason).toBe('should-pass-frequency-check-after-failed-submit');
       },
     );
   });

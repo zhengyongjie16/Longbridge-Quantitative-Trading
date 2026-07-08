@@ -6,14 +6,11 @@
  * - 统一收集家族开关、周期集合与展示计划
  * - 约束延迟验证支持集，避免运行时处理不支持的指标
  */
-import { STRATEGY_ACTIONS } from '../../../constants/index.js';
 import { parseIndicatorPeriod } from '../../../utils/indicatorHelpers/index.js';
 import type { SignalConfigSet, VerificationConfig } from '../../../types/config.js';
 import type {
   IndicatorUsageProfile,
   ProfileIndicator,
-  SignalIndicator,
-  StrategyAction,
   VerificationIndicator,
 } from '../../../types/indicatorProfile.js';
 import type { IndicatorCollector } from './types.js';
@@ -32,7 +29,7 @@ import {
  * @param indicator 待追加指标
  * @returns void
  */
-function appendUniqueIndicator<T extends ProfileIndicator | SignalIndicator>(
+function appendUniqueIndicator<T extends ProfileIndicator | VerificationIndicator>(
   indicators: T[],
   indicator: T,
 ): void {
@@ -110,33 +107,26 @@ function collectIndicatorUsage(indicator: ProfileIndicator, collector: Indicator
 }
 
 /**
- * 将原始指标列表编译为信号条件支持的指标列表，同时累计运行时所需的家族与周期集合。
+ * 解析并收集信号条件指标；无效指标或不属于信号支持集的指标都会直接报错。
  *
- * @param sourceIndicators 原始指标字符串列表
+ * @param indicatorName 原始信号条件指标名称
  * @param collector 指标收集器
- * @returns 去重后的标准化指标列表
+ * @returns void
  */
-function compileSignalIndicatorList(
-  sourceIndicators: ReadonlyArray<string>,
+function collectSignalConditionIndicator(
+  indicatorName: string,
   collector: IndicatorCollector,
-): ReadonlyArray<SignalIndicator> {
-  const compiledIndicators: SignalIndicator[] = [];
-
-  for (const indicatorName of sourceIndicators) {
-    const parsedIndicator = parseProfileIndicator(indicatorName);
-    if (!parsedIndicator) {
-      continue;
-    }
-
-    if (!isSupportedSignalIndicator(parsedIndicator)) {
-      throw new Error(`[配置错误] 信号条件不支持指标: ${indicatorName}`);
-    }
-
-    collectIndicatorUsage(parsedIndicator, collector);
-    appendUniqueIndicator(compiledIndicators, parsedIndicator);
+): void {
+  const parsedIndicator = parseProfileIndicator(indicatorName);
+  if (!parsedIndicator) {
+    throw new Error(`[配置错误] 信号条件指标无效: ${indicatorName}`);
   }
 
-  return compiledIndicators;
+  if (!isSupportedSignalIndicator(parsedIndicator)) {
+    throw new Error(`[配置错误] 信号条件不支持指标: ${indicatorName}`);
+  }
+
+  collectIndicatorUsage(parsedIndicator, collector);
 }
 
 /**
@@ -170,42 +160,6 @@ function compileVerificationIndicatorList(
 }
 
 /**
- * 收集某个 action 配置中出现的原始指标名称，用于后续编译。
- *
- * @param signalConfig 信号配置
- * @param action 策略动作
- * @returns 原始指标名称列表
- */
-function collectActionSourceIndicators(
-  signalConfig: SignalConfigSet,
-  action: StrategyAction,
-): ReadonlyArray<string> {
-  let actionConfig: SignalConfigSet['buycall'];
-  if (action === 'BUYCALL') {
-    actionConfig = signalConfig.buycall;
-  } else if (action === 'SELLCALL') {
-    actionConfig = signalConfig.sellcall;
-  } else if (action === 'BUYPUT') {
-    actionConfig = signalConfig.buyput;
-  } else {
-    actionConfig = signalConfig.sellput;
-  }
-
-  if (!actionConfig?.conditionGroups) {
-    return [];
-  }
-
-  const indicators: string[] = [];
-  for (const group of actionConfig.conditionGroups) {
-    for (const condition of group.conditions) {
-      indicators.push(condition.indicator);
-    }
-  }
-
-  return indicators;
-}
-
-/**
  * 编译监控标的指标画像，统一输出运行时按需计算与展示所需的完整 profile。
  *
  * @param params 编译入参（信号配置 + 延迟验证配置）
@@ -229,16 +183,17 @@ export function compileIndicatorUsageProfile(params: {
     },
   };
 
-  const actionSignalIndicators: Record<StrategyAction, ReadonlyArray<SignalIndicator>> = {
-    BUYCALL: [],
-    SELLCALL: [],
-    BUYPUT: [],
-    SELLPUT: [],
-  };
-
-  for (const action of STRATEGY_ACTIONS) {
-    const actionSourceIndicators = collectActionSourceIndicators(params.signalConfig, action);
-    actionSignalIndicators[action] = compileSignalIndicatorList(actionSourceIndicators, collector);
+  // 从 signalConfig 收集运行时指标需求（MFI、RSI:n 等仅存在于信号路径的指标族与周期）
+  const signalActionKeys = ['buycall', 'sellcall', 'buyput', 'sellput'] as const;
+  for (const key of signalActionKeys) {
+    const actionConfig = params.signalConfig[key];
+    if (actionConfig?.conditionGroups) {
+      for (const group of actionConfig.conditionGroups) {
+        for (const condition of group.conditions) {
+          collectSignalConditionIndicator(condition.indicator, collector);
+        }
+      }
+    }
   }
 
   const buyVerificationIndicators = compileVerificationIndicatorList(
@@ -262,7 +217,6 @@ export function compileIndicatorUsageProfile(params: {
       ema: toSortedPeriods(collector.requiredPeriods.ema),
       psy: toSortedPeriods(collector.requiredPeriods.psy),
     },
-    actionSignalIndicators,
     verificationIndicatorsBySide: {
       buy: buyVerificationIndicators,
       sell: sellVerificationIndicators,

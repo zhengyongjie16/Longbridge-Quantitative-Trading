@@ -56,7 +56,7 @@ export async function prewarmTradingCalendarSnapshotForRebuild(
     return;
   }
 
-  const nextSnapshot = new Map<string, TradingDayInfo>(lastState.tradingCalendarSnapshot ?? []);
+  const nextSnapshot = new Map<string, TradingDayInfo>(lastState.tradingCalendarSnapshot);
   const missingDateKeys = demandDateKeys.filter((dateKey) => !nextSnapshot.has(dateKey));
   if (missingDateKeys.length > 0) {
     await (marketDataClient.getTradingDays
@@ -73,8 +73,8 @@ export async function prewarmTradingCalendarSnapshotForRebuild(
   }
 
   const nowDateKey = getHKDateKey(now);
-  if (nowDateKey && lastState.cachedTradingDayInfo) {
-    nextSnapshot.set(nowDateKey, lastState.cachedTradingDayInfo);
+  if (nowDateKey && lastState.cachedTradingDayInfo?.dateKey === nowDateKey) {
+    nextSnapshot.set(nowDateKey, lastState.cachedTradingDayInfo.info);
   }
 
   lastState.tradingCalendarSnapshot = nextSnapshot;

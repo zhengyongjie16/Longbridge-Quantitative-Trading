@@ -32,7 +32,7 @@ export type OrderStateCheckResult =
     }
   | {
       readonly kind: 'QUERY_FAILED';
-      readonly reason: 'NOT_FOUND' | 'API_ERROR';
+      readonly reason: 'NOT_FOUND';
       readonly errorCode: string | null;
       readonly message: string;
     };

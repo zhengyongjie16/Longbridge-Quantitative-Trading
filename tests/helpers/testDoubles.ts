@@ -12,15 +12,13 @@ import type { Signal, SignalType } from '../../src/types/signal.js';
 import type {
   DisplayIndicatorItem,
   IndicatorUsageProfile,
-  SignalIndicator,
-  StrategyAction,
 } from '../../src/types/indicatorProfile.js';
 import type { MonitorContext, MonitorState } from '../../src/types/state.js';
 import type {
   OrderRecorder,
   MarketDataClient,
+  MarketQuoteContext,
   PendingOrder,
-  PendingRefreshSymbol,
   PositionCache,
   RiskChecker,
   RiskCheckResult,
@@ -30,8 +28,13 @@ import type {
   WarrantRefreshResult,
   CandlestickCacheSnapshot,
 } from '../../src/types/services.js';
-import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
-import type { Candlestick, Config, Period, QuoteContext, TradeContext } from 'longbridge';
+import type {
+  SymbolRegistry,
+  SeatState,
+  SeatStateChangedEvent,
+  SeatVersionChangedEvent,
+} from '../../src/types/seat.js';
+import type { Candlestick, Config, Period, TradeContext } from 'longbridge';
 import type { TradingSignalStrategy } from '../../src/core/strategy/types.js';
 import type {
   DoomsdayProtection,
@@ -56,9 +59,17 @@ import type {
   DelayedSignalVerifierPort,
 } from '../../src/types/monitorContextPorts.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../../src/core/trader/protectiveLiquidationEpisodeTracker/types.js';
+import type { QuoteSubscriptionRuntime } from '../../src/main/quoteSubscriptionRuntime/types.js';
+import type { TradingGateEventRuntime } from '../../src/main/tradingGateEventRuntime/types.js';
+import type { AutoSearchWakeupRuntime } from '../../src/main/autoSearchWakeupRuntime/types.js';
+import type { PeriodicSwitchWakeupRuntime } from '../../src/main/periodicSwitchWakeupRuntime/types.js';
+import type { SeatActivationDispatcher } from '../../src/main/seatActivationDispatcher/types.js';
+import type { SeatRuntimeCleanupDispatcher } from '../../src/main/seatRuntimeCleanupDispatcher/types.js';
 import { toMockDecimal } from '../../mock/longbridge/decimal.js';
 import { createQuoteContextMock } from '../../mock/longbridge/quoteContextMock.js';
 import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
+
+type TestSeatTruthChangedEvent = Parameters<Parameters<SymbolRegistry['onSeatTruthChanged']>[0]>[0];
 
 /**
  * 构建测试用 K 线缓存快照。
@@ -134,7 +145,7 @@ function normalizeCandlestickData(
  * Longbridge Config 为原生绑定对象，单测只需满足依赖注入边界，不需要真实认证能力。
  */
 export function createSdkConfigDouble(): Config {
-  return {} as unknown as Config;
+  return { refreshAccessToken: () => Promise.resolve('') };
 }
 
 /**
@@ -210,21 +221,23 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
 
   const base: Trader = {
     orderRecorder: baseOrderRecorder,
-    getAccountSnapshot: async () => null,
+    getAccountSnapshot: async () => createAccountSnapshotDouble(100_000),
     getStockPositions: async () => [],
     getPendingOrders: async (): Promise<PendingOrder[]> => [],
     seedOrderHoldSymbols: () => {},
     getOrderHoldSymbols: () => new Set<string>(),
+    onOrderHoldSymbolsChanged: () => () => {},
     cancelOrder: async () => ({
       kind: 'CANCEL_CONFIRMED',
       closedReason: 'CANCELED',
       source: 'API',
       relatedBuyOrderIds: null,
     }),
-    monitorAndManageOrders: async () => {},
-    getAndClearPendingRefreshSymbols: (): ReadonlyArray<PendingRefreshSymbol> => [],
+    startOrderMonitorRuntime: () => {},
+    stopOrderMonitorRuntimeAndDrain: async () => {},
     hasPendingProtectiveLiquidationOrders: () => false,
     initializeOrderMonitor: async () => {},
+    onOrderStateChanged: () => () => {},
     canTradeNow: (): { readonly canTrade: boolean } => ({ canTrade: true }),
     fetchAllOrdersFromAPI: async () => [],
     resetRuntimeState: () => {},
@@ -324,7 +337,7 @@ export function createUnrealizedLossMonitorDouble(
   overrides: Partial<UnrealizedLossMonitor> = {},
 ): UnrealizedLossMonitor {
   const base: UnrealizedLossMonitor = {
-    monitorUnrealizedLoss: async () => {},
+    monitorDirectionalUnrealizedLoss: async () => {},
   };
 
   return {
@@ -366,10 +379,30 @@ export function createAutoSymbolManagerDouble(
   overrides: Partial<AutoSymbolManagerPort> = {},
 ): AutoSymbolManagerPort {
   const base: AutoSymbolManagerPort = {
-    maybeSearchOnTick: async () => {},
-    maybeSwitchOnInterval: async () => {},
-    maybeSwitchOnDistance: async () => {},
+    maybeSearchOnEvent: async () => {},
+    evaluatePeriodicSwitchDue: async () => ({
+      kind: 'NOOP',
+    }),
+    startSwitchOnDistance: async (params) => ({
+      started: false,
+      direction: params.direction,
+      driveResult: {
+        kind: 'NOOP',
+      },
+    }),
+    advancePendingSwitch: async (params) => ({
+      advanced: false,
+      direction: params.direction,
+      stillPending: false,
+      driveResult: {
+        kind: 'NOOP',
+      },
+    }),
     hasPendingSwitch: () => false,
+    getPeriodicSwitchPendingState: () => ({
+      pending: false,
+      pendingSinceMs: null,
+    }),
     resetAllState: () => {},
   };
 
@@ -380,18 +413,155 @@ export function createAutoSymbolManagerDouble(
 }
 
 /**
- * 将 QuoteContext mock 收口为测试可用的 QuoteContext。
+ * 创建 QuoteSubscriptionRuntime 测试替身。
  *
- * Longbridge SDK 的 QuoteContext 类型比当前 mock 暴露的子集更宽；
- * 这里集中收口断言，避免在各测试用例中散落无说明的类型断言。
+ * 默认只维护空异步端口，用于需要显式传入订阅 owner 的装配测试。
+ */
+export function createQuoteSubscriptionRuntimeDouble(
+  overrides: Partial<QuoteSubscriptionRuntime> = {},
+): QuoteSubscriptionRuntime {
+  const base: QuoteSubscriptionRuntime = {
+    reconcileFromCurrentTruth: async () => {},
+    reconcilePositionHoldFromCurrentTruth: async () => {},
+    start: () => {},
+    stopAndDrain: async () => {},
+    retainSymbols: async () => () => {},
+    releaseRetain: async () => {},
+    waitForAdmission: async () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 TradingGateEventRuntime 测试替身。
+ *
+ * 默认发布与订阅均为空实现，供 time wakeup evaluation 与 app wiring 测试注入。
+ */
+export function createTradingGateEventRuntimeDouble(
+  overrides: Partial<TradingGateEventRuntime> = {},
+): TradingGateEventRuntime {
+  const base: TradingGateEventRuntime = {
+    emitGateStateChanged: () => {},
+    onGateStateChanged: () => () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 AutoSearchWakeupRuntime 测试替身。
+ *
+ * 默认无副作用，供 lifecycle 与 cleanup 测试验证调用顺序。
+ */
+export function createAutoSearchWakeupRuntimeDouble(
+  overrides: Partial<AutoSearchWakeupRuntime> = {},
+): AutoSearchWakeupRuntime {
+  const base: AutoSearchWakeupRuntime = {
+    start: () => {},
+    stopAndDrain: async () => {},
+    drainFatalError: () => new Promise<never>(() => {}),
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 PeriodicSwitchWakeupRuntime 测试替身。
+ *
+ * 默认无副作用，供 app、lifecycle 与 monitor task 测试验证调用顺序。
+ */
+export function createPeriodicSwitchWakeupRuntimeDouble(
+  overrides: Partial<PeriodicSwitchWakeupRuntime> = {},
+): PeriodicSwitchWakeupRuntime {
+  const base: PeriodicSwitchWakeupRuntime = {
+    start: () => {},
+    stopAndDrain: async () => {},
+    markWaitingEmpty: () => {},
+    clearWaitingEmpty: () => {},
+    replanRouteAfterTask: () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 SeatActivationDispatcher 测试替身。
+ *
+ * 默认无副作用，供 lifecycle 与 cleanup 测试验证调用顺序。
+ */
+export function createSeatActivationDispatcherDouble(
+  overrides: Partial<SeatActivationDispatcher> = {},
+): SeatActivationDispatcher {
+  const base: SeatActivationDispatcher = {
+    start: () => {},
+    stop: () => {},
+    dispatchCurrentActivatingSeats: () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 SeatRuntimeCleanupDispatcher 测试替身。
+ *
+ * 默认无副作用，供 lifecycle 与 cleanup 测试验证调用顺序。
+ */
+export function createSeatRuntimeCleanupDispatcherDouble(
+  overrides: Partial<SeatRuntimeCleanupDispatcher> = {},
+): SeatRuntimeCleanupDispatcher {
+  const base: SeatRuntimeCleanupDispatcher = {
+    start: () => {},
+    stop: () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 将 QuoteContext mock 收口为测试可用的 MarketQuoteContext。
+ *
+ * 当前业务只直接依赖 warrantQuote / warrantList 两类轮证查询能力；
+ * 这里统一返回仓库内的最小真实契约，避免在测试中散落更宽的 SDK 类型断言。
  *
  * @param quoteContextMock 行情上下文 mock；未传时自动创建
- * @returns 可供依赖注入边界消费的 QuoteContext
+ * @returns 可供依赖注入边界消费的 MarketQuoteContext
  */
 export function createQuoteContextDouble(
   quoteContextMock: ReturnType<typeof createQuoteContextMock> = createQuoteContextMock(),
-): QuoteContext {
-  return quoteContextMock as unknown as QuoteContext;
+): MarketQuoteContext {
+  return {
+    warrantQuote: (symbols) => quoteContextMock.warrantQuote([...symbols]),
+    warrantList: async (request) =>
+      quoteContextMock.warrantList(
+        request.symbol,
+        request.sortBy,
+        request.sortOrder,
+        [...request.types],
+        request.issuerIds ? [...request.issuerIds] : request.issuerIds,
+        request.expiryFilters ? [...request.expiryFilters] : request.expiryFilters,
+        request.inOutBoundsTypes ? [...request.inOutBoundsTypes] : request.inOutBoundsTypes,
+        request.status ? [...request.status] : request.status,
+      ),
+  };
 }
 
 /**
@@ -420,6 +590,9 @@ export function createMarketDataClientDouble(
   const quoteContext = createQuoteContextDouble();
   const candlestickCache = new Map<string, ReadonlyArray<CandleData>>();
   const candlestickVersions = new Map<string, number>();
+  const baseOnQuoteUpdated: NonNullable<MarketDataClient['onQuoteUpdated']> = () => () => {};
+
+  const baseOnCandlestickUpdated: MarketDataClient['onCandlestickUpdated'] = () => () => {};
 
   function makeCandlestickKey(symbol: string, period: Period): string {
     return `${symbol}:${period}`;
@@ -463,18 +636,10 @@ export function createMarketDataClientDouble(
     getQuotes: async () => new Map(),
     subscribeSymbols: async () => {},
     unsubscribeSymbols: async () => {},
+    onQuoteUpdated: baseOnQuoteUpdated,
+    onCandlestickUpdated: baseOnCandlestickUpdated,
     subscribeCandlesticks: async (symbol, period, tradeSessions) =>
       seedCandlestickCacheFromOverride(symbol, period, tradeSessions),
-    getRealtimeCandlesticks: async (symbol: string, period: Period, count: number) => {
-      const key = makeCandlestickKey(symbol, period);
-      const candles = candlestickCache.get(key);
-      if (!candles || candles.length === 0) {
-        return [];
-      }
-
-      const startIndex = Math.max(candles.length - count, 0);
-      return normalizeCandlestickData(candles.slice(startIndex)) as unknown as Candlestick[];
-    },
     getCandlestickSnapshot: (symbol, period) => getCandlestickCacheSnapshot(symbol, period),
     isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
     resetRuntimeSubscriptionsAndCaches: async () => {},
@@ -485,9 +650,10 @@ export function createMarketDataClientDouble(
     getQuotes: overrides.getQuotes ?? base.getQuotes,
     subscribeSymbols: overrides.subscribeSymbols ?? base.subscribeSymbols,
     unsubscribeSymbols: overrides.unsubscribeSymbols ?? base.unsubscribeSymbols,
+    onQuoteUpdated: overrides.onQuoteUpdated ?? baseOnQuoteUpdated,
+    onCandlestickUpdated: overrides.onCandlestickUpdated ?? baseOnCandlestickUpdated,
     subscribeCandlesticks: async (symbol, period, tradeSessions) =>
       seedCandlestickCacheFromOverride(symbol, period, tradeSessions),
-    getRealtimeCandlesticks: overrides.getRealtimeCandlesticks ?? base.getRealtimeCandlesticks,
     getCandlestickSnapshot: overrides.getCandlestickSnapshot ?? base.getCandlestickSnapshot,
     isTradingDay: overrides.isTradingDay ?? base.isTradingDay,
     ...((overrides.getTradingDays ?? base.getTradingDays) === undefined
@@ -535,18 +701,20 @@ export function createDoomsdayProtectionDouble(
   overrides: Partial<DoomsdayProtection> = {},
 ): DoomsdayProtection {
   const base: DoomsdayProtection = {
-    shouldRejectBuy: () => false,
+    isBuyCutoffWindowActive: () => false,
     executeClearance: async (
       _context: DoomsdayClearanceContext,
     ): Promise<DoomsdayClearanceResult> => ({
       executed: false,
       signalCount: 0,
+      nextRetryAtMs: null,
     }),
     cancelPendingBuyOrders: async (
       _context: CancelPendingBuyOrdersContext,
     ): Promise<CancelPendingBuyOrdersResult> => ({
       executed: false,
       cancelRequestAcceptedCount: 0,
+      nextRetryAtMs: null,
     }),
   };
 
@@ -608,6 +776,14 @@ export function createProtectiveLiquidationEpisodeTrackerDouble(
   };
 }
 
+type SymbolRegistryDouble = SymbolRegistry &
+  Readonly<{
+    getSeatStateChangedListenerCount: () => number;
+    getSeatVersionChangedListenerCount: () => number;
+    getSeatTruthChangedListenerCount: () => number;
+    getSeatStateListenerErrors: () => ReadonlyArray<unknown>;
+  }>;
+
 /**
  * 创建 SymbolRegistry 测试替身。
  *
@@ -619,7 +795,7 @@ export function createSymbolRegistryDouble(params?: {
   readonly shortSeat?: SeatState;
   readonly longVersion?: number;
   readonly shortVersion?: number;
-}): SymbolRegistry {
+}): SymbolRegistryDouble {
   const monitorSymbol = params?.monitorSymbol ?? 'HSI.HK';
   let longSeat = params?.longSeat ?? {
     symbol: 'BULL.HK',
@@ -641,6 +817,82 @@ export function createSymbolRegistryDouble(params?: {
   };
   let longVersion = params?.longVersion ?? 1;
   let shortVersion = params?.shortVersion ?? 1;
+  let longLastEventVersion = longVersion;
+  let shortLastEventVersion = shortVersion;
+  const seatStateChangedListeners = new Set<(event: SeatStateChangedEvent) => void>();
+  const seatVersionChangedListeners = new Set<(event: SeatVersionChangedEvent) => void>();
+  const seatTruthChangedListeners = new Set<(event: TestSeatTruthChangedEvent) => void>();
+  const seatStateListenerErrors: unknown[] = [];
+
+  function emitSeatStateChanged(event: SeatStateChangedEvent): unknown[] {
+    const errors: unknown[] = [];
+    for (const listener of seatStateChangedListeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        errors.push(error);
+        seatStateListenerErrors.push(error);
+      }
+    }
+
+    return errors;
+  }
+
+  function emitSeatVersionChanged(event: SeatVersionChangedEvent): unknown[] {
+    const errors: unknown[] = [];
+    for (const listener of seatVersionChangedListeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+
+    return errors;
+  }
+
+  function emitSeatTruthChanged(event: TestSeatTruthChangedEvent): unknown[] {
+    const errors: unknown[] = [];
+    for (const listener of seatTruthChangedListeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+
+    return errors;
+  }
+
+  function throwIfListenerErrors(errors: ReadonlyArray<unknown>): void {
+    if (errors.length > 0) {
+      throw new AggregateError(errors, 'SymbolRegistry listener 执行失败');
+    }
+  }
+
+  function assertSeatStateInvariant(seatState: SeatState): void {
+    if ((seatState.status === 'ACTIVE' || seatState.status === 'ACTIVATING') && !seatState.symbol) {
+      throw new Error(`SymbolRegistry 席位状态无效：${seatState.status} 必须绑定标的`);
+    }
+  }
+
+  function normalizeSeatState(nextState: SeatState): SeatState {
+    const normalizedState = {
+      symbol: nextState.symbol,
+      status: nextState.status,
+      lastSwitchAt: nextState.lastSwitchAt ?? null,
+      lastSearchAt: nextState.lastSearchAt ?? null,
+      lastSeatActivatedAt: nextState.lastSeatActivatedAt ?? null,
+      callPrice: nextState.callPrice ?? null,
+      searchFailCountToday: nextState.searchFailCountToday,
+      frozenTradingDayKey: nextState.frozenTradingDayKey,
+    };
+    assertSeatStateInvariant(normalizedState);
+    return normalizedState;
+  }
+
+  assertSeatStateInvariant(longSeat);
+  assertSeatStateInvariant(shortSeat);
 
   return {
     getSeatState(_monitorSymbol: string, direction: 'LONG' | 'SHORT'): SeatState {
@@ -675,34 +927,160 @@ export function createSymbolRegistryDouble(params?: {
       direction: 'LONG' | 'SHORT',
       nextState: SeatState,
     ): SeatState {
-      const normalizedNextState = {
-        symbol: nextState.symbol,
-        status: nextState.status,
-        lastSwitchAt: nextState.lastSwitchAt ?? null,
-        lastSearchAt: nextState.lastSearchAt ?? null,
-        lastSeatActivatedAt: nextState.lastSeatActivatedAt ?? null,
-        callPrice: nextState.callPrice ?? null,
-        searchFailCountToday: nextState.searchFailCountToday,
-        frozenTradingDayKey: nextState.frozenTradingDayKey,
-      };
+      const normalizedNextState = normalizeSeatState(nextState);
 
       if (direction === 'LONG') {
+        const previousState = longSeat;
+        const previousVersion = longLastEventVersion;
         longSeat = normalizedNextState;
+        longLastEventVersion = longVersion;
+        const listenerErrors = [
+          ...emitSeatStateChanged({
+            monitorSymbol: _monitorSymbol,
+            direction,
+            previousState,
+            nextState: longSeat,
+            previousVersion,
+            nextVersion: longVersion,
+          }),
+          ...emitSeatTruthChanged({ monitorSymbol: _monitorSymbol, direction }),
+        ];
+        throwIfListenerErrors(listenerErrors);
         return longSeat;
       }
 
+      const previousState = shortSeat;
+      const previousVersion = shortLastEventVersion;
       shortSeat = normalizedNextState;
+      shortLastEventVersion = shortVersion;
+      const listenerErrors = [
+        ...emitSeatStateChanged({
+          monitorSymbol: _monitorSymbol,
+          direction,
+          previousState,
+          nextState: shortSeat,
+          previousVersion,
+          nextVersion: shortVersion,
+        }),
+        ...emitSeatTruthChanged({ monitorSymbol: _monitorSymbol, direction }),
+      ];
+      throwIfListenerErrors(listenerErrors);
       return shortSeat;
+    },
+    updateSeatStateWithVersionBump(
+      _monitorSymbol: string,
+      direction: 'LONG' | 'SHORT',
+      nextState: SeatState,
+    ): { readonly seatState: SeatState; readonly seatVersion: number } {
+      const normalizedNextState = normalizeSeatState(nextState);
+
+      if (direction === 'LONG') {
+        const previousState = longSeat;
+        const previousVersion = longVersion;
+        const previousStateEventVersion = longLastEventVersion;
+        longSeat = normalizedNextState;
+        longVersion += 1;
+        longLastEventVersion = longVersion;
+        const listenerErrors = [
+          ...emitSeatVersionChanged({
+            monitorSymbol: _monitorSymbol,
+            direction,
+            previousVersion,
+            nextVersion: longVersion,
+          }),
+          ...emitSeatStateChanged({
+            monitorSymbol: _monitorSymbol,
+            direction,
+            previousState,
+            nextState: longSeat,
+            previousVersion: previousStateEventVersion,
+            nextVersion: longVersion,
+          }),
+          ...emitSeatTruthChanged({ monitorSymbol: _monitorSymbol, direction }),
+        ];
+        throwIfListenerErrors(listenerErrors);
+        return { seatState: longSeat, seatVersion: longVersion };
+      }
+
+      const previousState = shortSeat;
+      const previousVersion = shortVersion;
+      const previousStateEventVersion = shortLastEventVersion;
+      shortSeat = normalizedNextState;
+      shortVersion += 1;
+      shortLastEventVersion = shortVersion;
+      const listenerErrors = [
+        ...emitSeatVersionChanged({
+          monitorSymbol: _monitorSymbol,
+          direction,
+          previousVersion,
+          nextVersion: shortVersion,
+        }),
+        ...emitSeatStateChanged({
+          monitorSymbol: _monitorSymbol,
+          direction,
+          previousState,
+          nextState: shortSeat,
+          previousVersion: previousStateEventVersion,
+          nextVersion: shortVersion,
+        }),
+        ...emitSeatTruthChanged({ monitorSymbol: _monitorSymbol, direction }),
+      ];
+      throwIfListenerErrors(listenerErrors);
+      return { seatState: shortSeat, seatVersion: shortVersion };
     },
     bumpSeatVersion(_monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
       if (direction === 'LONG') {
+        const previousVersion = longVersion;
         longVersion += 1;
+        const listenerErrors = [
+          ...emitSeatVersionChanged({
+            monitorSymbol: _monitorSymbol,
+            direction,
+            previousVersion,
+            nextVersion: longVersion,
+          }),
+          ...emitSeatTruthChanged({ monitorSymbol: _monitorSymbol, direction }),
+        ];
+        throwIfListenerErrors(listenerErrors);
         return longVersion;
       }
 
+      const previousVersion = shortVersion;
       shortVersion += 1;
+      const listenerErrors = [
+        ...emitSeatVersionChanged({
+          monitorSymbol: _monitorSymbol,
+          direction,
+          previousVersion,
+          nextVersion: shortVersion,
+        }),
+        ...emitSeatTruthChanged({ monitorSymbol: _monitorSymbol, direction }),
+      ];
+      throwIfListenerErrors(listenerErrors);
       return shortVersion;
     },
+    onSeatStateChanged: (listener) => {
+      seatStateChangedListeners.add(listener);
+      return () => {
+        seatStateChangedListeners.delete(listener);
+      };
+    },
+    onSeatVersionChanged: (listener) => {
+      seatVersionChangedListeners.add(listener);
+      return () => {
+        seatVersionChangedListeners.delete(listener);
+      };
+    },
+    onSeatTruthChanged: (listener) => {
+      seatTruthChangedListeners.add(listener);
+      return () => {
+        seatTruthChangedListeners.delete(listener);
+      };
+    },
+    getSeatStateChangedListenerCount: () => seatStateChangedListeners.size,
+    getSeatVersionChangedListenerCount: () => seatVersionChangedListeners.size,
+    getSeatTruthChangedListenerCount: () => seatTruthChangedListeners.size,
+    getSeatStateListenerErrors: () => [...seatStateListenerErrors],
   };
 }
 
@@ -785,7 +1163,6 @@ export function createMonitorConfigDouble(overrides: Partial<MonitorConfig> = {}
 export function createIndicatorUsageProfileDouble(overrides?: {
   readonly requiredFamilies?: Partial<IndicatorUsageProfile['requiredFamilies']>;
   readonly requiredPeriods?: Partial<IndicatorUsageProfile['requiredPeriods']>;
-  readonly actionSignalIndicators?: Partial<Record<StrategyAction, ReadonlyArray<SignalIndicator>>>;
   readonly verificationIndicatorsBySide?: Partial<
     IndicatorUsageProfile['verificationIndicatorsBySide']
   >;
@@ -801,20 +1178,6 @@ export function createIndicatorUsageProfileDouble(overrides?: {
     rsi: overrides?.requiredPeriods?.rsi ?? [6],
     ema: overrides?.requiredPeriods?.ema ?? [7],
     psy: overrides?.requiredPeriods?.psy ?? [13],
-  };
-
-  const defaultActionIndicators: Record<StrategyAction, ReadonlyArray<SignalIndicator>> = {
-    BUYCALL: ['RSI:6', 'MFI', 'K', 'D', 'J'],
-    SELLCALL: ['RSI:6', 'MFI', 'K', 'D', 'J'],
-    BUYPUT: ['RSI:6', 'MFI', 'K', 'D', 'J'],
-    SELLPUT: ['RSI:6', 'MFI', 'K', 'D', 'J'],
-  };
-
-  const actionSignalIndicators: Record<StrategyAction, ReadonlyArray<SignalIndicator>> = {
-    BUYCALL: overrides?.actionSignalIndicators?.BUYCALL ?? defaultActionIndicators.BUYCALL,
-    SELLCALL: overrides?.actionSignalIndicators?.SELLCALL ?? defaultActionIndicators.SELLCALL,
-    BUYPUT: overrides?.actionSignalIndicators?.BUYPUT ?? defaultActionIndicators.BUYPUT,
-    SELLPUT: overrides?.actionSignalIndicators?.SELLPUT ?? defaultActionIndicators.SELLPUT,
   };
 
   const verificationIndicatorsBySide: IndicatorUsageProfile['verificationIndicatorsBySide'] = {
@@ -837,7 +1200,6 @@ export function createIndicatorUsageProfileDouble(overrides?: {
   return {
     requiredFamilies,
     requiredPeriods,
-    actionSignalIndicators,
     verificationIndicatorsBySide,
     displayPlan: overrides?.displayPlan ?? defaultDisplayPlan,
   };
@@ -851,14 +1213,9 @@ export function createIndicatorUsageProfileDouble(overrides?: {
 function createMonitorStateDouble(monitorSymbol: string = 'HSI.HK'): MonitorState {
   return {
     monitorSymbol,
-    monitorPrice: null,
-    longPrice: null,
-    shortPrice: null,
     signal: null,
     pendingDelayedSignals: [],
-    monitorValues: null,
     lastMonitorSnapshot: null,
-    lastCandlestickCacheVersion: null,
     incrementalIndicatorRuntime: null,
   };
 }
@@ -914,7 +1271,10 @@ export function createMonitorContextDouble(
  *
  * 默认给定席位版本与触发时间，便于流水线直接消费。
  */
-export function createSignalDouble(action: SignalType, symbol: string): Signal {
+export function createSignalDouble<TAction extends SignalType>(
+  action: TAction,
+  symbol: string,
+): Signal & { readonly action: TAction; readonly seatVersion: number } {
   return {
     action,
     symbol,

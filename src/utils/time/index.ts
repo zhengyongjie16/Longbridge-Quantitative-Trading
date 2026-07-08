@@ -3,7 +3,7 @@ import type {
   TradingCalendarDayInfo,
   TradingDurationBetweenParams,
 } from '../../types/tradingCalendar.js';
-import type { HKTime, SessionRange } from './types.js';
+import type { HKTime, SessionRange, TradingDurationDueAtParams } from './types.js';
 
 /**
  * 解析香港时间各组成部分，供不同格式化函数复用。
@@ -78,6 +78,11 @@ export function getHKTime(date: Date | null | undefined): HKTime | null {
   };
 }
 
+function buildHKDateKey(date: Date): string {
+  const { year, month, day } = getHongKongDateTimeParts(date);
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * 获取港股日期键（UTC+8，YYYY-MM-DD）。
  * 默认行为：date 为 null/undefined 时返回 null。
@@ -85,15 +90,22 @@ export function getHKTime(date: Date | null | undefined): HKTime | null {
  * @param date 时间对象
  * @returns YYYY-MM-DD 格式日期键，无效时返回 null
  */
-export function getHKDateKey(date: Date): string;
-export function getHKDateKey(date: Date | null | undefined): string | null;
 export function getHKDateKey(date: Date | null | undefined): string | null {
   if (!date) {
     return null;
   }
 
-  const { year, month, day } = getHongKongDateTimeParts(date);
-  return `${year}-${month}-${day}`;
+  return buildHKDateKey(date);
+}
+
+/**
+ * 获取非空 Date 的港股日期键（UTC+8，YYYY-MM-DD）。
+ *
+ * @param date 已确认非空的时间对象
+ * @returns YYYY-MM-DD 格式日期键
+ */
+export function getRequiredHKDateKey(date: Date): string {
+  return buildHKDateKey(date);
 }
 
 /**
@@ -128,17 +140,14 @@ export function isInContinuousHKSession(
 }
 
 /**
- * 判断是否在早盘开盘保护时段（仅早盘有效）。
+ * 判断是否在早盘开盘后指定分钟窗口内（仅早盘有效）。
  * 默认行为：date 无效或 minutes 非正返回 false；下午时段不生效。
  *
  * @param date 时间对象（UTC）
- * @param minutes 保护时长（分钟）
- * @returns 在早盘开盘保护窗口内为 true，否则为 false
+ * @param minutes 窗口时长（分钟）
+ * @returns 在早盘开盘窗口内为 true，否则为 false
  */
-export function isWithinMorningOpenProtection(
-  date: Date | null | undefined,
-  minutes: number,
-): boolean {
+export function isWithinMorningOpenWindow(date: Date | null | undefined, minutes: number): boolean {
   if (!date || !Number.isFinite(minutes) || minutes <= 0) {
     return false;
   }
@@ -258,7 +267,7 @@ export function calculateTradingDurationMsBetween(params: TradingDurationBetween
 
   while (cursorMs < endMs) {
     const cursorDate = new Date(cursorMs);
-    const dayKey = getHKDateKey(cursorDate);
+    const dayKey = getRequiredHKDateKey(cursorDate);
     const dayStartUtcMs = resolveHKDayStartUtcMs(dayKey);
     if (dayStartUtcMs === null) {
       break;
@@ -279,6 +288,56 @@ export function calculateTradingDurationMsBetween(params: TradingDurationBetween
   }
 
   return totalMs;
+}
+
+/**
+ * 从起点按交易时段累计时长反推到期时间。
+ *
+ * @param params 起点、目标累计交易时长与交易日历快照
+ * @returns 到期 UTC 毫秒时间戳；快照不足以覆盖目标时返回 null
+ */
+export function calculateTradingDurationDueAtMs(params: TradingDurationDueAtParams): number | null {
+  const { startMs, targetDurationMs, calendarSnapshot } = params;
+  if (!Number.isFinite(startMs) || !Number.isFinite(targetDurationMs) || targetDurationMs <= 0) {
+    return null;
+  }
+
+  let remainingMs = targetDurationMs;
+  let cursorMs = startMs;
+
+  for (;;) {
+    const dayKey = getHKDateKey(new Date(cursorMs));
+    if (dayKey === null) {
+      return null;
+    }
+
+    const dayStartUtcMs = resolveHKDayStartUtcMs(dayKey);
+    const dayInfo = calendarSnapshot.get(dayKey);
+    if (dayStartUtcMs === null || dayInfo === undefined) {
+      return null;
+    }
+
+    const dayEndUtcMs = dayStartUtcMs + TIME.MILLISECONDS_PER_DAY;
+    if (dayInfo.isTradingDay) {
+      const sessionRanges = resolveSessionRangesByDay(dayStartUtcMs, dayInfo);
+      for (const session of sessionRanges) {
+        const segmentStartMs = Math.max(cursorMs, session.startMs);
+        if (segmentStartMs >= session.endMs) {
+          continue;
+        }
+
+        const sessionAvailableMs = session.endMs - segmentStartMs;
+        if (remainingMs <= sessionAvailableMs) {
+          return segmentStartMs + remainingMs;
+        }
+
+        remainingMs -= sessionAvailableMs;
+        cursorMs = session.endMs;
+      }
+    }
+
+    cursorMs = dayEndUtcMs;
+  }
 }
 
 /**

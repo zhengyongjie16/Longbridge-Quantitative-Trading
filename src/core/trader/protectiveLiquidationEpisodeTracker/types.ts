@@ -15,13 +15,14 @@ export type ProtectiveLiquidationDirection = 'LONG' | 'SHORT';
 type RecordProtectiveFillProgressParams = Readonly<{
   monitorSymbol: string;
   direction: ProtectiveLiquidationDirection;
+  symbol: string;
   executedTimeMs: number;
 }>;
 
 /**
  * 保护性清仓完成确认参数。
  * 类型用途：在持仓刷新后基于“空仓 + 无未完成保护性卖单”判定事件完成。
- * 数据来源：postTradeRefresher。
+ * 数据来源：成交后一致性运行时。
  * 使用范围：protectiveLiquidationEpisodeTracker。
  */
 type CompleteIfEligibleParams = Readonly<{
@@ -35,7 +36,7 @@ type CompleteIfEligibleParams = Readonly<{
  * 保护性清仓完成事件。
  * 类型用途：向上游发布“当前事件完成且边界可推进”的单次事件。
  * 数据来源：protectiveLiquidationEpisodeTracker.completeIfEligible。
- * 使用范围：postTradeRefresher、dailyLossTracker、liquidationCooldownTracker。
+ * 使用范围：成交后一致性运行时、dailyLossTracker、liquidationCooldownTracker。
  */
 export type ProtectiveLiquidationCompletedEvent = Readonly<{
   monitorSymbol: string;
@@ -64,18 +65,20 @@ type RestoreCompletedBoundaryParams = Readonly<{
 type RestoreInProgressEpisodeParams = Readonly<{
   monitorSymbol: string;
   direction: ProtectiveLiquidationDirection;
+  symbol: string;
   latestExecutedTimeMs: number;
 }>;
 
 /**
  * 进行中的保护性清仓事件快照。
- * 类型用途：供 postTradeRefresher 扫描完成判定。
+ * 类型用途：供成交后一致性运行时扫描完成判定。
  * 数据来源：protectiveLiquidationEpisodeTracker 运行态。
- * 使用范围：postTradeRefresher。
+ * 使用范围：成交后一致性运行时。
  */
 export type InProgressProtectiveEpisode = Readonly<{
   monitorSymbol: string;
   direction: ProtectiveLiquidationDirection;
+  symbol: string;
   latestExecutedTimeMs: number;
 }>;
 
@@ -83,7 +86,7 @@ export type InProgressProtectiveEpisode = Readonly<{
  * 保护性清仓事件跟踪器接口。
  * 类型用途：集中管理保护性清仓进行中事件和已完成边界，保证单次事件只完成一次。
  * 数据来源：createProtectiveLiquidationEpisodeTracker 工厂创建。
- * 使用范围：orderMonitor、postTradeRefresher、lifecycle 恢复链路。
+ * 使用范围：orderMonitor、成交后一致性运行时、lifecycle 恢复链路。
  */
 export interface ProtectiveLiquidationEpisodeTracker {
   recordProtectiveFillProgress: (params: RecordProtectiveFillProgressParams) => void;

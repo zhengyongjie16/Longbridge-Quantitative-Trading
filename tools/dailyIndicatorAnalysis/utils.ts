@@ -1,10 +1,13 @@
 import type { Candlestick } from 'longbridge';
 import { decimalToNumber } from '../../src/utils/helpers/index.js';
 import { toHongKongTimeLog } from '../../src/utils/time/index.js';
-import { calculateEMA } from '../../src/services/indicators/runtime/ema.js';
-import { calculateKDJ } from '../../src/services/indicators/runtime/kdj.js';
-import { calculateMFI } from '../../src/services/indicators/runtime/mfi.js';
-import { calculateRSI } from '../../src/services/indicators/runtime/rsi.js';
+import {
+  calculateEMA,
+  calculateEfficiencyRatio,
+  calculateKDJ,
+  calculateMFI,
+  calculateRSI,
+} from './indicatorCalculators.js';
 import type { CandleData } from '../../src/types/data.js';
 import { formatFiniteNumber } from '../utils.js';
 import type {
@@ -670,6 +673,7 @@ export function computeMinuteRows(
       changePercent,
       volume: parsed.volume,
       ema5: calculateEMA(highCandles, options.ema5Period),
+      er10: calculateEfficiencyRatio(highCandles, options.er10Period),
       rsi6: calculateRSI(highCandles, options.rsiPeriod),
       kdj: calculateKDJ(highCandles, options.kdjPeriod),
       mfi: calculateMFI(highCandles, options.mfiPeriod),
@@ -687,6 +691,7 @@ export function computeMinuteRows(
       changePercent,
       volume: parsed.volume,
       ema5: calculateEMA(lowCandles, options.ema5Period),
+      er10: calculateEfficiencyRatio(lowCandles, options.er10Period),
       rsi6: calculateRSI(lowCandles, options.rsiPeriod),
       kdj: calculateKDJ(lowCandles, options.kdjPeriod),
       mfi: calculateMFI(lowCandles, options.mfiPeriod),

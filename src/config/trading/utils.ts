@@ -26,10 +26,7 @@ import type { BoundedNumberConfig, MinimumNumberConfig } from './types.js';
  * @param envKey 环境变量键名
  * @returns 解析后的信号配置，无效时返回 null
  */
-export function parseSignalConfigFromEnv(
-  env: NodeJS.ProcessEnv,
-  envKey: string,
-): SignalConfig | null {
+function parseSignalConfigFromEnv(env: NodeJS.ProcessEnv, envKey: string): SignalConfig | null {
   const configStr = getStringConfig(env, envKey);
   if (!configStr) {
     return null;
@@ -49,7 +46,7 @@ export function parseSignalConfigFromEnv(
  * @param options 包含 env、envKey、defaultValue、min、max 的配置对象
  * @returns 未配置或非法时返回 defaultValue；可解析但低于 min 时收敛到 min；高于 max 时收敛到 max
  */
-export function parseBoundedNumberConfig({
+function parseBoundedNumberConfig({
   env,
   envKey,
   defaultValue,
@@ -107,7 +104,7 @@ export function parseFailFastBoundedNumberConfig({
  * @param options 包含 env、envKey、defaultValue、min 的配置对象
  * @returns 大于等于 min 的合法数值
  */
-export function parseFailFastMinimumNumberConfig({
+function parseFailFastMinimumNumberConfig({
   env,
   envKey,
   defaultValue,
@@ -135,7 +132,7 @@ export function parseFailFastMinimumNumberConfig({
  * @param minValue 允许的最小原始数值
  * @returns 百分比值或 null
  */
-export function getPercentValueConfig(
+function getPercentValueConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
   minValue: number = 0,
@@ -148,7 +145,7 @@ export function getPercentValueConfig(
  * @param orderType OpenAPI 订单类型
  * @returns 内部订单类型配置
  */
-export function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
+function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
   return OPEN_API_ORDER_TYPE_TO_CONFIG[orderType] ?? 'ELO';
 }
 

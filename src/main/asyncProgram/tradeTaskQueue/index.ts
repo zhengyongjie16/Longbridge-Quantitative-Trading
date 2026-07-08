@@ -21,8 +21,22 @@ import type { Task, TaskQueue, TaskAddedCallback, BuyTaskType, SellTaskType } fr
  * @returns TaskQueue<TType> 任务队列实例
  */
 function createTaskQueue<TType extends string>(): TaskQueue<TType> {
-  const queue: Task<TType>[] = [];
+  let items: Task<TType>[] = [];
+  let headIndex = 0;
   const callbacks: TaskAddedCallback[] = [];
+
+  function compactQueue(): void {
+    if (headIndex === 0) {
+      return;
+    }
+
+    if (headIndex < 64 && headIndex * 2 < items.length) {
+      return;
+    }
+
+    items = items.slice(headIndex);
+    headIndex = 0;
+  }
 
   return {
     push(task: Omit<Task<TType>, 'id' | 'createdAt'>): void {
@@ -33,46 +47,69 @@ function createTaskQueue<TType extends string>(): TaskQueue<TType> {
         monitorSymbol: task.monitorSymbol,
         createdAt: Date.now(),
       };
-      queue.push(fullTask);
+      items.push(fullTask);
       notifyTaskAddedCallbacks(callbacks);
     },
 
     pop(): Task<TType> | null {
-      return queue.shift() ?? null;
+      if (headIndex >= items.length) {
+        items = [];
+        headIndex = 0;
+        return null;
+      }
+
+      const task = items[headIndex] ?? null;
+      headIndex += 1;
+      compactQueue();
+      return task;
     },
 
     isEmpty(): boolean {
-      return queue.length === 0;
+      return headIndex >= items.length;
     },
 
     removeTasks(
       predicate: (task: Task<TType>) => boolean,
       onRemove?: (task: Task<TType>) => void,
     ): number {
-      const originalLength = queue.length;
-      for (let i = queue.length - 1; i >= 0; i -= 1) {
-        const task = queue[i];
-        if (!task) {
+      const nextItems: Task<TType>[] = [];
+      const removedTasks: Task<TType>[] = [];
+
+      for (let index = headIndex; index < items.length; index += 1) {
+        const task = items[index];
+        if (task === undefined) {
           continue;
         }
 
         if (predicate(task)) {
+          removedTasks.push(task);
+          continue;
+        }
+
+        nextItems.push(task);
+      }
+
+      for (let index = removedTasks.length - 1; index >= 0; index -= 1) {
+        const task = removedTasks[index];
+        if (task !== undefined) {
           onRemove?.(task);
-          queue.splice(i, 1);
         }
       }
 
-      return originalLength - queue.length;
+      items = nextItems;
+      headIndex = 0;
+      return removedTasks.length;
     },
 
     clearAll(onRemove?: (task: Task<TType>) => void): number {
-      const count = queue.length;
-      for (const task of queue) {
+      const activeItems = items.slice(headIndex);
+      for (const task of activeItems) {
         onRemove?.(task);
       }
 
-      queue.length = 0;
-      return count;
+      items = [];
+      headIndex = 0;
+      return activeItems.length;
     },
 
     onTaskAdded(callback: TaskAddedCallback): () => void {

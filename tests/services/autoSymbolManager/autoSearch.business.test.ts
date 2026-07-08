@@ -77,13 +77,13 @@ describe('autoSymbolManager autoSearch business flow', () => {
           callPrice: 20_500,
         };
       },
-      isWithinMorningOpenProtection: () => false,
+      isWithinMorningAutoSearchOpenDelay: () => false,
       searchCooldownMs: 10_000,
       getHKDateKey,
       maxSearchFailuresPerDay: 3,
       logger: createLoggerStub(),
     });
-    await autoSearch.maybeSearchOnTick({
+    await autoSearch.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,
@@ -138,13 +138,13 @@ describe('autoSymbolManager autoSearch business flow', () => {
         findCalls += 1;
         return null;
       },
-      isWithinMorningOpenProtection: () => false,
+      isWithinMorningAutoSearchOpenDelay: () => false,
       searchCooldownMs: 10_000,
       getHKDateKey,
       maxSearchFailuresPerDay: 3,
       logger: createLoggerStub(),
     });
-    await autoSearch.maybeSearchOnTick({
+    await autoSearch.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,
@@ -198,13 +198,13 @@ describe('autoSymbolManager autoSearch business flow', () => {
         findCalls += 1;
         return null;
       },
-      isWithinMorningOpenProtection: () => false,
+      isWithinMorningAutoSearchOpenDelay: () => false,
       searchCooldownMs: 10_000,
       getHKDateKey,
       maxSearchFailuresPerDay: 3,
       logger: createLoggerStub(),
     });
-    await autoSearch.maybeSearchOnTick({
+    await autoSearch.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: now,
       canTradeNow: true,
@@ -258,13 +258,13 @@ describe('autoSymbolManager autoSearch business flow', () => {
           distanceDeltaToThreshold: 0.0001,
         });
       },
-      isWithinMorningOpenProtection: () => false,
+      isWithinMorningAutoSearchOpenDelay: () => false,
       searchCooldownMs: 10_000,
       getHKDateKey,
       maxSearchFailuresPerDay: 3,
       logger: createLoggerStub(),
     });
-    await autoSearch.maybeSearchOnTick({
+    await autoSearch.maybeSearchOnEvent({
       direction: 'SHORT',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,

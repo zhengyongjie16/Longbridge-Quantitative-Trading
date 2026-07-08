@@ -13,7 +13,6 @@ import type { IndicatorUsageProfile } from '../../../../src/types/indicatorProfi
 import type { CandlestickCacheSnapshot } from '../../../../src/types/services.js';
 import {
   bootstrapIndicatorRuntime,
-  buildIndicatorSnapshot,
   buildSnapshotFromRuntime,
   updateRuntimeForCandlestickSnapshot,
 } from '../../../../src/services/indicators/runtime/index.js';
@@ -81,12 +80,33 @@ function createCacheSnapshot(params: {
   };
 }
 
+function buildIndicatorSnapshot(
+  candles: ReadonlyArray<CandleData>,
+  profile: IndicatorUsageProfile,
+) {
+  const runtime = bootstrapIndicatorRuntime({
+    symbol: 'HSI.HK',
+    cacheSnapshot: createCacheSnapshot({
+      candles,
+      version: 1,
+      lastBarConfirmed: true,
+    }),
+    indicatorProfile: profile,
+  });
+
+  if (runtime === null) {
+    return null;
+  }
+
+  return buildSnapshotFromRuntime(runtime);
+}
+
 function expectRuntimeSnapshotEqualsFull(params: {
   readonly profile: IndicatorUsageProfile;
   readonly runtimeSnapshot: ReturnType<typeof buildSnapshotFromRuntime>;
   readonly candles: ReadonlyArray<CandleData>;
 }): void {
-  const fullSnapshot = buildIndicatorSnapshot('HSI.HK', params.candles, params.profile);
+  const fullSnapshot = buildIndicatorSnapshot(params.candles, params.profile);
   expect(params.runtimeSnapshot).toEqual(fullSnapshot);
 }
 
@@ -186,7 +206,7 @@ describe('indicators/runtime incremental business flow', () => {
     }
 
     const runtimeSnapshot = buildSnapshotFromRuntime(runtime);
-    const fullSnapshot = buildIndicatorSnapshot('HSI.HK', candles, profile);
+    const fullSnapshot = buildIndicatorSnapshot(candles, profile);
     expect(runtimeSnapshot).toEqual(fullSnapshot);
     expect(runtimeSnapshot?.rsi?.[6]).toBe(fullSnapshot?.rsi?.[6]);
     expect(runtimeSnapshot?.mfi).toBe(fullSnapshot?.mfi);

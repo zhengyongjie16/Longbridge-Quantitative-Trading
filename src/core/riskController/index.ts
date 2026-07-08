@@ -111,9 +111,8 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     readonly positions: ReadonlyArray<Position> | null;
     readonly signal: Signal | null;
     readonly orderNotional: number;
-    readonly currentPrice?: number | null;
   }): RiskCheckResult {
-    const { account, positions, signal, orderNotional, currentPrice = null } = params;
+    const { account, positions, signal, orderNotional } = params;
 
     // HOLD 信号不需要检查
     if (!signal || signal.action === 'HOLD') {
@@ -169,12 +168,7 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     }
 
     // 检查单标的最大持仓市值限制
-    const positionCheckResult = positionLimitChecker.checkLimit(
-      signal,
-      positions,
-      orderNotional,
-      currentPrice,
-    );
+    const positionCheckResult = positionLimitChecker.checkLimit(signal, positions, orderNotional);
     if (!positionCheckResult.allowed) {
       return positionCheckResult;
     }

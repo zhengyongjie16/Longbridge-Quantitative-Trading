@@ -12,18 +12,16 @@ import type {
   PushCandlestickEvent,
   PushOrderChanged,
   PushQuoteEvent,
+  QuoteContext,
   ReplaceOrderOptions,
-  SortOrderType,
   StockPositionsResponse,
   SubType,
   SubmitOrderOptions,
   SubmitOrderResponse,
   TopicType,
   TradeSessions,
-  WarrantInfo,
   WarrantQuote,
   WarrantStatus,
-  WarrantSortBy,
   WarrantType,
 } from 'longbridge';
 
@@ -41,7 +39,6 @@ export type MockMethodName =
   | 'realtimeQuote'
   | 'subscribeCandlesticks'
   | 'unsubscribeCandlesticks'
-  | 'realtimeCandlesticks'
   | 'tradingDays'
   | 'warrantQuote'
   | 'warrantList'
@@ -165,11 +162,6 @@ export interface QuoteContextContract extends MockInvocationLog, MockFailureCont
     tradeSessions?: TradeSessions,
   ) => Promise<ReadonlyArray<unknown>>;
   unsubscribeCandlesticks: (symbol: string, period: Period) => Promise<void>;
-  realtimeCandlesticks: (
-    symbol: string,
-    period: Period,
-    count: number,
-  ) => Promise<ReadonlyArray<unknown>>;
   tradingDays: (
     market: Market,
     begin: unknown,
@@ -179,12 +171,7 @@ export interface QuoteContextContract extends MockInvocationLog, MockFailureCont
     readonly halfTradingDays: ReadonlyArray<unknown>;
   }>;
   warrantQuote: (symbols: ReadonlyArray<string>) => Promise<ReadonlyArray<WarrantQuote>>;
-  warrantList: (
-    symbol: string,
-    sortBy: WarrantSortBy,
-    sortOrder: SortOrderType,
-    types: ReadonlyArray<WarrantType>,
-  ) => Promise<ReadonlyArray<WarrantInfo>>;
+  warrantList: QuoteContext['warrantList'];
   setOnQuote: (callback: (err: Error | null, event: PushQuoteEvent) => void) => void;
   setOnCandlestick: (callback: (err: Error | null, event: PushCandlestickEvent) => void) => void;
 }

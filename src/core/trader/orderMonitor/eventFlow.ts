@@ -2,7 +2,7 @@
  * orderMonitor 事件流模块
  *
  * 职责：
- * - 处理 BOOTSTRAPPING / ACTIVE 两阶段订单推送
+ * - 处理 STOPPED / BOOTSTRAPPING / ACTIVE 三阶段订单推送
  * - 将已确认终态订单统一交给 settlementFlow 结算
  * - 在部分成交时维护 pendingSell 部分成交状态
  */
@@ -32,7 +32,7 @@ function resolveNullableDecimalNumber(value: Parameters<typeof decimalToNumber>[
  * @returns 事件流接口
  */
 export function createEventFlow(deps: EventFlowDeps): EventFlow {
-  const { runtime, orderRecorder, settleOrder, cacheBootstrappingEvent } = deps;
+  const { runtime, orderRecorder, settleOrder, cacheBootstrappingEvent, triggerRoute } = deps;
 
   /**
    * 处理 ACTIVE 状态下的订单推送。
@@ -81,6 +81,7 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
 
     const closedReason = resolveOrderClosedReasonFromStatus(event.status);
     if (closedReason === null) {
+      triggerRoute(trackedOrder.symbol, 'ORDER_EVENT');
       return;
     }
 
@@ -93,8 +94,9 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
         executedTimeMs: resolveUpdatedAtMs(event.updatedAt),
       };
 
+      triggerRoute(trackedOrder.symbol, 'ORDER_EVENT');
       logger.info(
-        `[订单监控] 卖出订单 ${orderId} 超时撤单后收到终态=${event.status}，下一轮主循环继续评估市价转换`,
+        `[订单监控] 卖出订单 ${orderId} 超时撤单后收到终态=${event.status}，已写入终态快照并显式唤醒 route`,
       );
       return;
     }
@@ -110,6 +112,12 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
     resetOrderReplaceRuntimeState(runtime, orderId);
     if (!result.handled) {
       logger.warn(`[订单监控] 订单 ${orderId} 终态=${event.status} 已到达，但结算未执行`);
+      return;
+    }
+
+    const remainingOrderIds = runtime.trackedOrderIdsBySymbol.get(trackedOrder.symbol);
+    if (remainingOrderIds !== undefined && remainingOrderIds.size > 0) {
+      triggerRoute(trackedOrder.symbol, 'ORDER_EVENT');
     }
   }
 
@@ -120,12 +128,25 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
    * @returns 无返回值
    */
   function handleOrderChanged(event: PushOrderChanged): void {
-    if (runtime.runtimeState === 'BOOTSTRAPPING') {
-      cacheBootstrappingEvent(event);
-      return;
-    }
+    switch (runtime.runtimeState) {
+      case 'STOPPED': {
+        return;
+      }
 
-    handleOrderChangedWhenActive(event);
+      case 'BOOTSTRAPPING': {
+        cacheBootstrappingEvent(event);
+        return;
+      }
+
+      case 'ACTIVE': {
+        handleOrderChangedWhenActive(event);
+        return;
+      }
+
+      default: {
+        return;
+      }
+    }
   }
 
   return {

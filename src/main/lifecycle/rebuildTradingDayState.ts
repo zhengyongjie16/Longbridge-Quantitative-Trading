@@ -22,10 +22,15 @@ import type { Quote } from '../../types/quote.js';
 import type { SymbolRegistry } from '../../types/seat.js';
 import type { MarketDataClient, RawOrderFromAPI } from '../../types/services.js';
 import type { DailyLossTracker } from '../../types/risk.js';
-import { resolveMonitorContextRuntimeSnapshot } from '../../utils/utils.js';
+import { resolveMonitorContextRuntimeSnapshot } from '../../utils/seat/snapshots.js';
 import type { RebuildTradingDayStateDeps, RebuildTradingDayStateParams } from './types.js';
+import {
+  clearSeatActivationCarryover,
+  resolveSeatActivationCarryover,
+} from './seatActivationCarryover.js';
 import { prewarmTradingCalendarSnapshotForRebuild } from './tradingCalendarPrewarmer.js';
 import { formatError } from '../../utils/error/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
 
 /**
  * 将席位状态和行情数据同步到单个 MonitorContext。
@@ -212,6 +217,7 @@ async function rebuildUnrealizedLossCache(
  */
 function activateRebuiltSeats(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
+  symbolRegistry: SymbolRegistry,
   nowMs: number,
 ): void {
   for (const monitorContext of monitorContexts.values()) {
@@ -225,7 +231,13 @@ function activateRebuiltSeats(
       monitorContext.symbolRegistry.updateSeatState(monitorSymbol, direction, {
         ...seatState,
         status: 'ACTIVE',
-        lastSeatActivatedAt: nowMs,
+        lastSeatActivatedAt:
+          resolveSeatActivationCarryover({
+            symbolRegistry,
+            monitorSymbol,
+            direction,
+            symbol: seatState.symbol,
+          }) ?? nowMs,
       });
     }
   }
@@ -271,11 +283,16 @@ export function createRebuildTradingDayState(
       });
       await rebuildWarrantRiskCache(marketDataClient, monitorContexts, quotesMap);
       await rebuildUnrealizedLossCache(monitorContexts, dailyLossTracker, quotesMap);
-      activateRebuiltSeats(monitorContexts, now.getTime());
+      activateRebuiltSeats(monitorContexts, symbolRegistry, now.getTime());
       syncAllMonitorContexts(monitorContexts, symbolRegistry, quotesMap);
       await trader.recoverOrderTrackingFromSnapshot(allOrders);
-      await displayAccountAndPositions({ lastState, quotesMap });
+      displayAccountAndPositions({ lastState, quotesMap });
+      clearSeatActivationCarryover(symbolRegistry);
     } catch (err) {
+      if (isExternalApiRequestError(err)) {
+        throw err;
+      }
+
       throw new Error(`[Lifecycle] 重建交易日状态失败: ${formatError(err)}`, { cause: err });
     }
   };

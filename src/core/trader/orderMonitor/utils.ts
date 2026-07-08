@@ -1,4 +1,4 @@
-import { OrderSide, OrderStatus, type Decimal } from 'longbridge';
+import { OrderStatus, type Decimal } from 'longbridge';
 import type { GlobalConfig } from '../../../types/config.js';
 import type { OrderClosedReason } from '../../../types/trader.js';
 import type { OrderMonitorConfig, TrackedOrder } from '../types.js';
@@ -7,6 +7,8 @@ import {
   ORDER_CLOSED_ERROR_CODE_SET,
   ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS,
   ORDER_PRICE_DIFF_THRESHOLD,
+  ORDER_API_RETRYABLE_MESSAGE_HINTS,
+  ORDER_API_TRANSIENT_STATUS_CODE_SET,
   PENDING_ORDER_STATUSES,
   REPLACE_TEMP_BLOCKED_BY_STATUS_ERROR_CODE_SET,
   REPLACE_UNSUPPORTED_BY_TYPE_ERROR_CODE_SET,
@@ -19,24 +21,6 @@ import type {
 import { isRecord } from '../../../utils/helpers/index.js';
 import { toDecimal } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
-
-/**
- * 根据订单方向和席位方向解析信号动作。
- *
- * @param side 订单方向
- * @param isLongSymbol 是否为做多标的
- * @returns 对应的信号动作
- */
-export function resolveSignalAction(
-  side: OrderSide,
-  isLongSymbol: boolean,
-): 'BUYCALL' | 'BUYPUT' | 'SELLCALL' | 'SELLPUT' {
-  if (side === OrderSide.Buy) {
-    return isLongSymbol ? 'BUYCALL' : 'BUYPUT';
-  }
-
-  return isLongSymbol ? 'SELLCALL' : 'SELLPUT';
-}
 
 /**
  * 构建订单监控配置（秒转毫秒）。
@@ -61,26 +45,36 @@ export function buildOrderMonitorConfig(globalConfig: GlobalConfig): OrderMonito
 }
 
 /**
+ * 将时间字段解析为毫秒时间戳。
+ *
+ * @param value 时间字段
+ * @returns 毫秒时间戳，无法解析时返回 null
+ */
+function resolveTimeMs(value: unknown): number | null {
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  return null;
+}
+
+/**
  * 解析 updatedAt 为毫秒时间戳。
  *
  * @param updatedAt 更新时间字段
  * @returns 毫秒时间戳，无法解析时返回 null
  */
 export function resolveUpdatedAtMs(updatedAt: unknown): number | null {
-  if (updatedAt instanceof Date) {
-    return updatedAt.getTime();
-  }
-
-  if (typeof updatedAt === 'number') {
-    return updatedAt;
-  }
-
-  if (typeof updatedAt === 'string' && updatedAt.trim()) {
-    const parsed = Date.parse(updatedAt);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }
-
-  return null;
+  return resolveTimeMs(updatedAt);
 }
 
 /**
@@ -90,27 +84,14 @@ export function resolveUpdatedAtMs(updatedAt: unknown): number | null {
  * @returns 毫秒时间戳，无法解析时返回 null
  */
 export function resolveSubmittedAtMs(submittedAt: unknown): number | null {
-  if (submittedAt instanceof Date) {
-    return submittedAt.getTime();
-  }
-
-  if (typeof submittedAt === 'number') {
-    return submittedAt;
-  }
-
-  if (typeof submittedAt === 'string' && submittedAt.trim()) {
-    const parsed = Date.parse(submittedAt);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }
-
-  return null;
+  return resolveTimeMs(submittedAt);
 }
 
 /**
  * 判断订单状态是否已关闭。
  *
  * @param status 订单状态
- * @returns true 表示成交/撤销/拒绝
+ * @returns true 表示订单处于关闭态（成交/撤销/拒绝/过期/部分撤单）
  */
 export function isClosedStatus(status: OrderStatus): boolean {
   return (
@@ -122,6 +103,12 @@ export function isClosedStatus(status: OrderStatus): boolean {
   );
 }
 
+/**
+ * 从订单状态解析关闭原因。
+ *
+ * @param status 订单状态
+ * @returns 对应的关闭原因；非关闭态返回 null
+ */
 export function resolveOrderClosedReasonFromStatus(status: OrderStatus): OrderClosedReason | null {
   if (status === OrderStatus.Filled) {
     return 'FILLED';
@@ -142,6 +129,12 @@ export function resolveOrderClosedReasonFromStatus(status: OrderStatus): OrderCl
   return null;
 }
 
+/**
+ * 判断改单能力是否处于“仅等待 WS 终态恢复”的临时模式。
+ *
+ * @param order 订单的改单能力与阻塞截止时间
+ * @returns true 表示当前仅允许等待 WS 推进，不应主动再次发改单
+ */
 export function isWaitWsOnlyReplaceMode(
   order: Pick<TrackedOrder, 'replaceCapability' | 'replaceBlockedUntilAt'>,
 ): boolean {
@@ -322,31 +315,125 @@ export function extractErrorMessage(err: unknown): string {
   return String(err);
 }
 
+/**
+ * 判断错误是否属于“订单已关闭”类业务错误。
+ *
+ * @param err 任意错误对象
+ * @returns true 表示错误码可确定归类为订单已关闭
+ */
 export function isOrderClosedBusinessError(err: unknown): boolean {
   const code = extractErrorCode(err);
   return code !== null && isOrderClosedErrorCode(code);
 }
 
 /**
- * 判断是否为可重试撤单失败。
+ * 从对象字段中提取 HTTP 状态码。
+ *
+ * @param value 任意对象值
+ * @returns 三位状态码，提取失败返回 null
+ */
+function extractStatusCodeFromRecord(value: Record<string, unknown>): string | null {
+  const statusKeys = ['status', 'statusCode', 'httpStatus'] as const;
+  for (const key of statusKeys) {
+    const rawValue = value[key];
+    if (typeof rawValue === 'string' && /^\d{3}$/.test(rawValue.trim())) {
+      return rawValue.trim();
+    }
+
+    if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+      const normalized = String(Math.trunc(rawValue));
+      if (/^\d{3}$/.test(normalized)) {
+        return normalized;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 从错误消息中提取显式 HTTP 状态码。
+ *
+ * @param message 错误消息文本
+ * @returns 三位状态码，提取失败返回 null
+ */
+function extractStatusCodeFromMessage(message: string): string | null {
+  const patterns = [/\bstatus(?:code)?[=:]\s*(\d{3})\b/i, /\bhttp\s+(\d{3})\b/i] as const;
+  for (const pattern of patterns) {
+    const match = pattern.exec(message);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 从错误对象中提取订单 API 状态码。
+ *
+ * @param err 错误对象
+ * @param depth 递归深度（内部使用）
+ * @returns 三位状态码，提取失败返回 null
+ */
+function extractOrderApiStatusCode(err: unknown, depth: number = 0): string | null {
+  if (depth > 2 || !isRecord(err)) {
+    return null;
+  }
+
+  const directStatusCode = extractStatusCodeFromRecord(err);
+  if (directStatusCode !== null) {
+    return directStatusCode;
+  }
+
+  const nestedKeys = ['cause', 'error'];
+  for (const key of nestedKeys) {
+    const nested = err[key];
+    if (isRecord(nested)) {
+      const nestedStatusCode = extractOrderApiStatusCode(nested, depth + 1);
+      if (nestedStatusCode !== null) {
+        return nestedStatusCode;
+      }
+    }
+  }
+
+  const message = err['message'];
+  if (typeof message !== 'string') {
+    return null;
+  }
+
+  return extractStatusCodeFromMessage(message);
+}
+
+/**
+ * 判断是否为可重试订单 API 请求失败。
  *
  * @param err 错误对象
  * @returns true 表示可重试
  */
-export function isRetryableCancelError(err: unknown): boolean {
+export function isRetryableOrderApiError(err: unknown): boolean {
+  const statusCode = extractOrderApiStatusCode(err);
+  if (statusCode !== null && ORDER_API_TRANSIENT_STATUS_CODE_SET.has(statusCode)) {
+    return true;
+  }
+
+  const errorCode = extractErrorCode(err);
+  if (errorCode !== null) {
+    return ORDER_API_TRANSIENT_STATUS_CODE_SET.has(errorCode);
+  }
+
   const message = extractErrorMessage(err).toLowerCase();
-  const retryableHints = [
-    'network',
-    'timeout',
-    'timed out',
-    'temporarily unavailable',
-    'connection',
-    'econnreset',
-    'etimedout',
-    '429',
-    'rate limit',
-  ];
-  return retryableHints.some((hint) => message.includes(hint));
+  return ORDER_API_RETRYABLE_MESSAGE_HINTS.some((hint) => message.includes(hint));
+}
+
+/**
+ * 判断是否为可重试订单 mutation 请求失败。
+ *
+ * @param err 错误对象
+ * @returns true 表示可重试
+ */
+export function isRetryableOrderMutationError(err: unknown): boolean {
+  return isRetryableOrderApiError(err);
 }
 
 /**

@@ -2,115 +2,308 @@
  * 信号运行时缓存域单元测试
  *
  * 覆盖：midnightClear 停止并排空处理器、清空队列并释放信号、取消延迟信号、
- * clearPending、indicatorCache.clearAll；
- * openRebuild 重启处理器并 markFresh
+ * 调用 postTradeConsistencyRuntime.midnightClear、indicatorCache.clearAll；
+ * openRebuild 按 runtime owner 顺序恢复处理器并完成 rebuild baseline
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { createSignalRuntimeDomain } from '../../../../src/main/lifecycle/cacheDomains/signalRuntimeDomain.js';
 import type { SignalRuntimeDomainDeps } from '../../../../src/main/lifecycle/cacheDomains/types.js';
+import type {
+  MonitorTaskDataMap,
+  MonitorTaskProcessor,
+} from '../../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { MonitorTaskQueue } from '../../../../src/main/asyncProgram/monitorTaskQueue/types.js';
+import type { Processor } from '../../../../src/main/asyncProgram/types.js';
+import type {
+  BuyTaskType,
+  SellTaskType,
+  TaskQueue,
+  TaskSignal,
+} from '../../../../src/main/asyncProgram/tradeTaskQueue/types.js';
 import type { Signal } from '../../../../src/types/signal.js';
+import type { OrderedMethod } from '../types.js';
+import {
+  createDelayedSignalVerifierDouble,
+  createMonitorContextDouble,
+} from '../../../helpers/testDoubles.js';
 
-function createMockProcessor() {
-  const calls: string[] = [];
+function createSignalDouble<TAction extends Signal['action']>(
+  action: TAction,
+): Signal & { readonly action: TAction; readonly seatVersion: number } {
   return {
-    calls: calls as ReadonlyArray<string>,
+    symbol: 'HSI.HK',
+    symbolName: 'HSI',
+    action,
+    seatVersion: 1,
+  };
+}
+
+function createOrderedRuntime(name: string, globalCalls: string[]) {
+  const calls: string[] = [];
+
+  const record = (method: OrderedMethod): void => {
+    const entry = `${name}.${method}`;
+    calls.push(entry);
+    globalCalls.push(entry);
+  };
+
+  return {
+    calls,
     stopAndDrain: async () => {
-      calls.push('stopAndDrain');
+      record('stopAndDrain');
     },
     restart: () => {
-      calls.push('restart');
+      record('restart');
     },
     start: () => {
-      calls.push('start');
+      record('start');
     },
     clearPending: () => {
-      calls.push('clearPending');
+      record('clearPending');
     },
   };
 }
 
+function createOrderedProcessor(name: string, globalCalls: string[]): Processor {
+  return {
+    start: () => {
+      globalCalls.push(`${name}.start`);
+    },
+    stop: () => {},
+    stopAndDrain: async () => {
+      globalCalls.push(`${name}.stopAndDrain`);
+    },
+    restart: () => {
+      globalCalls.push(`${name}.restart`);
+    },
+  };
+}
+
+function createTaskQueueDouble<TType extends string>(
+  signals: ReadonlyArray<TaskSignal<TType>>,
+  onClear: () => void,
+): TaskQueue<TType> {
+  return {
+    push: () => {},
+    pop: () => null,
+    isEmpty: () => signals.length === 0,
+    removeTasks: () => 0,
+    clearAll: (onRemove) => {
+      onClear();
+      for (const signal of signals) {
+        onRemove?.({
+          id: `${signal.symbol}-${signal.action}`,
+          type: 'TEST' as TType,
+          data: signal,
+          monitorSymbol: signal.symbol,
+          createdAt: 0,
+        });
+      }
+
+      return signals.length;
+    },
+    onTaskAdded: () => () => {},
+  };
+}
+
+function createMonitorTaskQueueDouble(onClear: () => void): MonitorTaskQueue<MonitorTaskDataMap> {
+  return {
+    scheduleLatest: () => {},
+    pop: () => null,
+    isEmpty: () => true,
+    removeTasks: () => 0,
+    clearAll: () => {
+      onClear();
+      return 0;
+    },
+    onTaskAdded: () => () => {},
+  };
+}
+
 describe('createSignalRuntimeDomain', () => {
-  it('midnightClear 依次停止排空各处理器、清空队列并 releaseSignal、取消延迟信号、清理缓存', async () => {
-    const buyProcessor = createMockProcessor();
-    const sellProcessor = createMockProcessor();
-    const monitorTaskProcessor = createMockProcessor();
-    const orderMonitorWorker = createMockProcessor();
-    const postTradeRefresher = createMockProcessor();
-    let releaseSignalCount = 0;
-    let clearAllBuy = 0;
-    let clearAllSell = 0;
-    let clearAllMonitor = 0;
+  it('midnightClear 按全局顺序依次停止 runtime 与处理器，再执行后续清理步骤', async () => {
+    const globalCalls: string[] = [];
+    const buyProcessor = createOrderedProcessor('buyProcessor', globalCalls);
+    const sellProcessor = createOrderedProcessor('sellProcessor', globalCalls);
+    const monitorTaskProcessor = createOrderedProcessor(
+      'monitorTaskProcessor',
+      globalCalls,
+    ) as MonitorTaskProcessor;
+    const tradingRiskEventRuntime = createOrderedRuntime('tradingRiskEventRuntime', globalCalls);
+    const monitorQuoteEventRuntime = createOrderedRuntime('monitorQuoteEventRuntime', globalCalls);
+    const monitorDisplayRuntime = createOrderedRuntime('monitorDisplayRuntime', globalCalls);
+    const tradingQuoteDisplayRuntime = createOrderedRuntime(
+      'tradingQuoteDisplayRuntime',
+      globalCalls,
+    );
+    const switchWakeupRuntime = createOrderedRuntime('switchWakeupRuntime', globalCalls);
     let cancelAllCount = 0;
-    let indicatorClearAllCount = 0;
 
-    const buyTaskQueue = {
-      clearAll: (onRemove?: (task: { data: Signal }) => void) => {
-        clearAllBuy += 1;
-        if (onRemove) {
-          onRemove({ data: {} as Signal });
-          onRemove({ data: {} as Signal });
-        }
-
-        return 2;
+    const buyTaskQueue = createTaskQueueDouble<BuyTaskType>(
+      [createSignalDouble('BUYCALL'), createSignalDouble('BUYPUT')],
+      () => {
+        globalCalls.push('buyTaskQueue.clearAll');
       },
-    };
-    const sellTaskQueue = {
-      clearAll: (onRemove?: (task: { data: Signal }) => void) => {
-        clearAllSell += 1;
-        if (onRemove) {
-          onRemove({ data: {} as Signal });
-        }
-
-        return 1;
+    );
+    const sellTaskQueue = createTaskQueueDouble<SellTaskType>(
+      [createSignalDouble('SELLCALL')],
+      () => {
+        globalCalls.push('sellTaskQueue.clearAll');
       },
-    };
-    const monitorTaskQueue = {
-      clearAll: () => {
-        clearAllMonitor += 1;
-        return 0;
-      },
-    };
+    );
+    const monitorTaskQueue = createMonitorTaskQueueDouble(() => {
+      globalCalls.push('monitorTaskQueue.clearAll');
+    });
     const monitorContexts = new Map([
       [
         'HSI.HK',
-        {
-          delayedSignalVerifier: {
+        createMonitorContextDouble({
+          delayedSignalVerifier: createDelayedSignalVerifierDouble({
             cancelAll: () => {
               cancelAllCount += 1;
+              globalCalls.push('delayedSignalVerifier.cancelAll');
               return 3;
             },
-          },
-        },
+          }),
+        }),
       ],
-    ]) as unknown as SignalRuntimeDomainDeps['monitorContexts'];
-    const indicatorCache = {
-      clearAll: () => {
-        indicatorClearAllCount += 1;
+    ]);
+    const postTradeConsistencyRuntime: SignalRuntimeDomainDeps['postTradeConsistencyRuntime'] = {
+      abortWaiting: () => {
+        globalCalls.push('postTradeConsistencyRuntime.abortWaiting');
+      },
+      resetAbort: () => {
+        globalCalls.push('postTradeConsistencyRuntime.resetAbort');
+      },
+      start: () => {
+        globalCalls.push('postTradeConsistencyRuntime.start');
+      },
+      stopAndDrain: async () => {
+        globalCalls.push('postTradeConsistencyRuntime.stopAndDrain');
+      },
+      midnightClear: () => {
+        globalCalls.push('postTradeConsistencyRuntime.midnightClear');
+      },
+      completeRebuildBaseline: () => {
+        globalCalls.push('postTradeConsistencyRuntime.completeRebuildBaseline');
       },
     };
-    const refreshGate = {
-      getStatus: () => ({ staleVersion: 1 }),
-      markFresh: (_v: number) => {},
+    const trader = {
+      startOrderMonitorRuntime: () => {
+        globalCalls.push('trader.startOrderMonitorRuntime');
+      },
+      stopOrderMonitorRuntimeAndDrain: async () => {
+        globalCalls.push('trader.stopOrderMonitorRuntimeAndDrain');
+      },
     };
-
     const deps: SignalRuntimeDomainDeps = {
       monitorContexts,
-      buyProcessor: buyProcessor as unknown as SignalRuntimeDomainDeps['buyProcessor'],
-      sellProcessor: sellProcessor as unknown as SignalRuntimeDomainDeps['sellProcessor'],
-      monitorTaskProcessor:
-        monitorTaskProcessor as unknown as SignalRuntimeDomainDeps['monitorTaskProcessor'],
-      orderMonitorWorker:
-        orderMonitorWorker as unknown as SignalRuntimeDomainDeps['orderMonitorWorker'],
-      postTradeRefresher:
-        postTradeRefresher as unknown as SignalRuntimeDomainDeps['postTradeRefresher'],
-      indicatorCache: indicatorCache as unknown as SignalRuntimeDomainDeps['indicatorCache'],
-      buyTaskQueue: buyTaskQueue as unknown as SignalRuntimeDomainDeps['buyTaskQueue'],
-      sellTaskQueue: sellTaskQueue as unknown as SignalRuntimeDomainDeps['sellTaskQueue'],
-      monitorTaskQueue: monitorTaskQueue as unknown as SignalRuntimeDomainDeps['monitorTaskQueue'],
-      refreshGate: refreshGate as unknown as SignalRuntimeDomainDeps['refreshGate'],
-      releaseSignal: () => {
-        releaseSignalCount += 1;
+      buyProcessor,
+      sellProcessor,
+      monitorTaskProcessor,
+      businessEventProgram: {
+        start: () => {
+          globalCalls.push('businessEventProgram.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('businessEventProgram.stopAndDrain');
+        },
       },
+      tradingRiskEventRuntime: {
+        start: () => {
+          tradingRiskEventRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await tradingRiskEventRuntime.stopAndDrain();
+        },
+      },
+      monitorQuoteEventRuntime: {
+        start: () => {
+          monitorQuoteEventRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await monitorQuoteEventRuntime.stopAndDrain();
+        },
+      },
+      monitorDisplayRuntime: {
+        start: () => {
+          monitorDisplayRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await monitorDisplayRuntime.stopAndDrain();
+        },
+      },
+      tradingQuoteDisplayRuntime: {
+        start: () => {
+          tradingQuoteDisplayRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await tradingQuoteDisplayRuntime.stopAndDrain();
+        },
+      },
+      switchWakeupRuntime: {
+        start: () => {
+          switchWakeupRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await switchWakeupRuntime.stopAndDrain();
+        },
+      },
+      periodicSwitchWakeupRuntime: {
+        start: () => {
+          globalCalls.push('periodicSwitchWakeupRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('periodicSwitchWakeupRuntime.stopAndDrain');
+        },
+      },
+      quoteSubscriptionRuntime: {
+        reconcileFromCurrentTruth: async () => {
+          globalCalls.push('quoteSubscriptionRuntime.reconcileFromCurrentTruth');
+        },
+        start: () => {
+          globalCalls.push('quoteSubscriptionRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('quoteSubscriptionRuntime.stopAndDrain');
+        },
+      },
+      autoSearchWakeupRuntime: {
+        start: () => {
+          globalCalls.push('autoSearchWakeupRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('autoSearchWakeupRuntime.stopAndDrain');
+        },
+      },
+      seatActivationDispatcher: {
+        start: () => {
+          globalCalls.push('seatActivationDispatcher.start');
+        },
+        stop: () => {
+          globalCalls.push('seatActivationDispatcher.stop');
+        },
+      },
+      seatRuntimeCleanupDispatcher: {
+        start: () => {
+          globalCalls.push('seatRuntimeCleanupDispatcher.start');
+        },
+        stop: () => {
+          globalCalls.push('seatRuntimeCleanupDispatcher.stop');
+        },
+      },
+      trader,
+      postTradeConsistencyRuntime,
+      indicatorCache: {
+        push: () => {},
+        getClosest: () => null,
+        clearAll: () => {
+          globalCalls.push('indicatorCache.clearAll');
+        },
+      },
+      buyTaskQueue,
+      sellTaskQueue,
+      monitorTaskQueue,
     };
 
     const domain = createSignalRuntimeDomain(deps);
@@ -119,51 +312,193 @@ describe('createSignalRuntimeDomain', () => {
       runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
     });
 
-    expect(buyProcessor.calls).toContain('stopAndDrain');
-    expect(sellProcessor.calls).toContain('stopAndDrain');
-    expect(clearAllBuy).toBe(1);
-    expect(clearAllSell).toBe(1);
-    expect(clearAllMonitor).toBe(1);
-    expect(releaseSignalCount).toBe(3);
+    expect(globalCalls).toEqual([
+      'postTradeConsistencyRuntime.abortWaiting',
+      'businessEventProgram.stopAndDrain',
+      'tradingRiskEventRuntime.stopAndDrain',
+      'monitorQuoteEventRuntime.stopAndDrain',
+      'monitorDisplayRuntime.stopAndDrain',
+      'tradingQuoteDisplayRuntime.stopAndDrain',
+      'switchWakeupRuntime.stopAndDrain',
+      'periodicSwitchWakeupRuntime.stopAndDrain',
+      'autoSearchWakeupRuntime.stopAndDrain',
+      'seatActivationDispatcher.stop',
+      'monitorTaskProcessor.stopAndDrain',
+      'seatRuntimeCleanupDispatcher.stop',
+      'buyProcessor.stopAndDrain',
+      'sellProcessor.stopAndDrain',
+      'trader.stopOrderMonitorRuntimeAndDrain',
+      'quoteSubscriptionRuntime.stopAndDrain',
+      'postTradeConsistencyRuntime.stopAndDrain',
+      'buyTaskQueue.clearAll',
+      'sellTaskQueue.clearAll',
+      'monitorTaskQueue.clearAll',
+      'delayedSignalVerifier.cancelAll',
+      'postTradeConsistencyRuntime.midnightClear',
+      'indicatorCache.clearAll',
+    ]);
     expect(cancelAllCount).toBe(1);
-    expect(postTradeRefresher.calls).toContain('clearPending');
-    expect(indicatorClearAllCount).toBe(1);
   });
 
-  it('openRebuild 重启各处理器并调用 refreshGate.markFresh', async () => {
-    const buyProcessor = createMockProcessor();
-    const sellProcessor = createMockProcessor();
-    const monitorTaskProcessor = createMockProcessor();
-    const orderMonitorWorker = createMockProcessor();
-    const postTradeRefresher = createMockProcessor();
-    let markFreshCalledWith: number | null = null as number | null;
-    const refreshGate = {
-      getStatus: () => ({ staleVersion: 42 }),
-      markFresh: (v: number) => {
-        markFreshCalledWith = v;
+  it('openRebuild 按全局顺序先恢复 postTradeConsistencyRuntime，再启动 runtime 与处理器', async () => {
+    const globalCalls: string[] = [];
+    const buyProcessor = createOrderedProcessor('buyProcessor', globalCalls);
+    const sellProcessor = createOrderedProcessor('sellProcessor', globalCalls);
+    const monitorTaskProcessor = createOrderedProcessor(
+      'monitorTaskProcessor',
+      globalCalls,
+    ) as MonitorTaskProcessor;
+    const tradingRiskEventRuntime = createOrderedRuntime('tradingRiskEventRuntime', globalCalls);
+    const monitorQuoteEventRuntime = createOrderedRuntime('monitorQuoteEventRuntime', globalCalls);
+    const monitorDisplayRuntime = createOrderedRuntime('monitorDisplayRuntime', globalCalls);
+    const tradingQuoteDisplayRuntime = createOrderedRuntime(
+      'tradingQuoteDisplayRuntime',
+      globalCalls,
+    );
+    const switchWakeupRuntime = createOrderedRuntime('switchWakeupRuntime', globalCalls);
+
+    const trader = {
+      startOrderMonitorRuntime: () => {
+        globalCalls.push('trader.startOrderMonitorRuntime');
+      },
+      stopOrderMonitorRuntimeAndDrain: async () => {
+        globalCalls.push('trader.stopOrderMonitorRuntimeAndDrain');
       },
     };
 
     const deps: SignalRuntimeDomainDeps = {
       monitorContexts: new Map(),
-      buyProcessor: buyProcessor as unknown as SignalRuntimeDomainDeps['buyProcessor'],
-      sellProcessor: sellProcessor as unknown as SignalRuntimeDomainDeps['sellProcessor'],
-      monitorTaskProcessor:
-        monitorTaskProcessor as unknown as SignalRuntimeDomainDeps['monitorTaskProcessor'],
-      orderMonitorWorker:
-        orderMonitorWorker as unknown as SignalRuntimeDomainDeps['orderMonitorWorker'],
-      postTradeRefresher:
-        postTradeRefresher as unknown as SignalRuntimeDomainDeps['postTradeRefresher'],
+      buyProcessor,
+      sellProcessor,
+      monitorTaskProcessor,
+      businessEventProgram: {
+        start: () => {
+          globalCalls.push('businessEventProgram.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('businessEventProgram.stopAndDrain');
+        },
+      },
+      tradingRiskEventRuntime: {
+        start: () => {
+          tradingRiskEventRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await tradingRiskEventRuntime.stopAndDrain();
+        },
+      },
+      monitorQuoteEventRuntime: {
+        start: () => {
+          monitorQuoteEventRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await monitorQuoteEventRuntime.stopAndDrain();
+        },
+      },
+      monitorDisplayRuntime: {
+        start: () => {
+          monitorDisplayRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await monitorDisplayRuntime.stopAndDrain();
+        },
+      },
+      tradingQuoteDisplayRuntime: {
+        start: () => {
+          tradingQuoteDisplayRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await tradingQuoteDisplayRuntime.stopAndDrain();
+        },
+      },
+      switchWakeupRuntime: {
+        start: () => {
+          switchWakeupRuntime.start();
+        },
+        stopAndDrain: async () => {
+          await switchWakeupRuntime.stopAndDrain();
+        },
+      },
+      periodicSwitchWakeupRuntime: {
+        start: () => {
+          globalCalls.push('periodicSwitchWakeupRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('periodicSwitchWakeupRuntime.stopAndDrain');
+        },
+      },
+      quoteSubscriptionRuntime: {
+        reconcileFromCurrentTruth: async () => {
+          globalCalls.push('quoteSubscriptionRuntime.reconcileFromCurrentTruth');
+        },
+        start: () => {
+          globalCalls.push('quoteSubscriptionRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('quoteSubscriptionRuntime.stopAndDrain');
+        },
+      },
+      autoSearchWakeupRuntime: {
+        start: () => {
+          globalCalls.push('autoSearchWakeupRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('autoSearchWakeupRuntime.stopAndDrain');
+        },
+      },
+      seatActivationDispatcher: {
+        start: () => {
+          globalCalls.push('seatActivationDispatcher.start');
+        },
+        stop: () => {
+          globalCalls.push('seatActivationDispatcher.stop');
+        },
+      },
+      seatRuntimeCleanupDispatcher: {
+        start: () => {
+          globalCalls.push('seatRuntimeCleanupDispatcher.start');
+        },
+        stop: () => {
+          globalCalls.push('seatRuntimeCleanupDispatcher.stop');
+        },
+      },
+      trader,
+      postTradeConsistencyRuntime: {
+        abortWaiting: () => {
+          globalCalls.push('postTradeConsistencyRuntime.abortWaiting');
+        },
+        resetAbort: () => {
+          globalCalls.push('postTradeConsistencyRuntime.resetAbort');
+        },
+        start: () => {
+          globalCalls.push('postTradeConsistencyRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('postTradeConsistencyRuntime.stopAndDrain');
+        },
+        midnightClear: () => {
+          globalCalls.push('postTradeConsistencyRuntime.midnightClear');
+        },
+        completeRebuildBaseline: () => {
+          globalCalls.push('postTradeConsistencyRuntime.completeRebuildBaseline');
+        },
+      },
       indicatorCache: {
-        clearAll: () => {},
-      } as unknown as SignalRuntimeDomainDeps['indicatorCache'],
-      buyTaskQueue: { clearAll: () => 0 } as unknown as SignalRuntimeDomainDeps['buyTaskQueue'],
-      sellTaskQueue: { clearAll: () => 0 } as unknown as SignalRuntimeDomainDeps['sellTaskQueue'],
-      monitorTaskQueue: {
-        clearAll: () => 0,
-      } as unknown as SignalRuntimeDomainDeps['monitorTaskQueue'],
-      refreshGate: refreshGate as unknown as SignalRuntimeDomainDeps['refreshGate'],
-      releaseSignal: () => {},
+        push: () => {},
+        getClosest: () => null,
+        clearAll: () => {
+          globalCalls.push('indicatorCache.clearAll');
+        },
+      },
+      buyTaskQueue: createTaskQueueDouble<BuyTaskType>([], () => {
+        globalCalls.push('buyTaskQueue.clearAll');
+      }),
+      sellTaskQueue: createTaskQueueDouble<SellTaskType>([], () => {
+        globalCalls.push('sellTaskQueue.clearAll');
+      }),
+      monitorTaskQueue: createMonitorTaskQueueDouble(() => {
+        globalCalls.push('monitorTaskQueue.clearAll');
+      }),
     };
 
     const domain = createSignalRuntimeDomain(deps);
@@ -172,11 +507,26 @@ describe('createSignalRuntimeDomain', () => {
       runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
     });
 
-    expect(buyProcessor.calls).toContain('restart');
-    expect(sellProcessor.calls).toContain('restart');
-    expect(monitorTaskProcessor.calls).toContain('restart');
-    expect(orderMonitorWorker.calls).toContain('start');
-    expect(postTradeRefresher.calls).toContain('start');
-    expect(markFreshCalledWith ?? null).toBe(42);
+    expect(globalCalls).toEqual([
+      'postTradeConsistencyRuntime.resetAbort',
+      'postTradeConsistencyRuntime.start',
+      'postTradeConsistencyRuntime.completeRebuildBaseline',
+      'quoteSubscriptionRuntime.reconcileFromCurrentTruth',
+      'tradingQuoteDisplayRuntime.start',
+      'quoteSubscriptionRuntime.start',
+      'seatRuntimeCleanupDispatcher.start',
+      'seatActivationDispatcher.start',
+      'autoSearchWakeupRuntime.start',
+      'periodicSwitchWakeupRuntime.start',
+      'monitorDisplayRuntime.start',
+      'businessEventProgram.start',
+      'tradingRiskEventRuntime.start',
+      'monitorQuoteEventRuntime.start',
+      'switchWakeupRuntime.start',
+      'buyProcessor.restart',
+      'sellProcessor.restart',
+      'monitorTaskProcessor.restart',
+      'trader.startOrderMonitorRuntime',
+    ]);
   });
 });

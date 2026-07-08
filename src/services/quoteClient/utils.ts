@@ -1,7 +1,7 @@
 import { NaiveDate, Period } from 'longbridge';
 import { isRecord, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { StaticInfo } from './types.js';
-import { getHKDateKey } from '../../utils/time/index.js';
+import { getRequiredHKDateKey } from '../../utils/time/index.js';
 
 const PERIOD_LABEL_MAP: Readonly<Record<number, string>> = {
   [Period.Unknown]: '未知',
@@ -111,7 +111,7 @@ export function extractName(staticInfo: unknown): string | null {
  * @returns NaiveDate 实例
  */
 export function resolveHKNaiveDate(date: Date): NaiveDate {
-  const dateKey = getHKDateKey(date);
+  const dateKey = getRequiredHKDateKey(date);
   const parts = dateKey.split('-');
   const year = Number(parts[0]);
   const month = Number(parts[1]);

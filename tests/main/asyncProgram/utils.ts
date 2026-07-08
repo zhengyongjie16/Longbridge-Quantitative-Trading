@@ -95,6 +95,24 @@ function buildMonitorContextBase(
   const { state, monitorSymbolName } = options;
   const symbolRegistry = createSymbolRegistryDouble({
     monitorSymbol: 'HSI.HK',
+    longSeat: {
+      symbol: 'BULL.HK',
+      status: 'ACTIVE',
+      lastSwitchAt: null,
+      lastSearchAt: null,
+      lastSeatActivatedAt: 12_000,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    },
+    shortSeat: {
+      symbol: 'BEAR.HK',
+      status: 'ACTIVE',
+      lastSwitchAt: null,
+      lastSearchAt: null,
+      lastSeatActivatedAt: 13_000,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    },
     longVersion: 2,
     shortVersion: 3,
   });
@@ -128,14 +146,9 @@ export function createMonitorContext(overrides: Partial<MonitorContext> = {}): M
     {
       state: {
         monitorSymbol: 'HSI.HK',
-        monitorPrice: 20_000,
-        longPrice: 1.1,
-        shortPrice: 0.9,
         signal: null,
         pendingDelayedSignals: [],
-        monitorValues: null,
         lastMonitorSnapshot: null,
-        lastCandlestickCacheVersion: null,
         incrementalIndicatorRuntime: null,
       },
       monitorSymbolName: 'HSI.HK',
@@ -171,14 +184,9 @@ export function createMonitorTaskContext(overrides: Partial<MonitorContext> = {}
     {
       state: {
         monitorSymbol: 'HSI.HK',
-        monitorPrice: null,
-        longPrice: null,
-        shortPrice: null,
         signal: null,
         pendingDelayedSignals: [],
-        monitorValues: null,
         lastMonitorSnapshot: null,
-        lastCandlestickCacheVersion: null,
         incrementalIndicatorRuntime: null,
       },
       monitorSymbolName: 'HSI',

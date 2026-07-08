@@ -2,16 +2,17 @@
  * 自动换标模块：自动寻标（AutoSearch）
  *
  * 功能：在席位为空时按冷却间隔触发自动寻标。
- * 职责：开盘保护（在开盘延迟窗口内跳过寻标），寻标失败时累计失败计数并达上限后冻结席位，寻标成功后更新席位状态为 ACTIVATING。
- * 执行流程：maybeSearchOnTick 检查席位状态与冷却 → 调用 findBestWarrant → 成功则更新为 ACTIVATING，失败则累计失败计数或冻结。
+ * 职责：自动寻标开盘延迟（在早盘延迟窗口内跳过寻标）、失败冻结与成功后席位 ACTIVATING 更新。
+ * 执行流程：maybeSearchOnEvent 检查席位状态与冷却 → 调用 findBestWarrant → 成功则更新为 ACTIVATING，失败则累计失败计数或冻结。
  */
-import type { AutoSearchDeps, AutoSearchManager, SearchOnTickParams } from './types.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
+import type { AutoSearchDeps, AutoSearchManager, SearchOnEventParams } from './types.js';
 import { isSeatFrozenToday, resolveNextSearchFailureState } from './utils.js';
 
 /**
- * 创建自动寻标子模块，管理空席位的寻标触发、冷却控制与失败冻结逻辑；每 tick 检查席位状态，满足条件时调用 findBestWarrant 并更新席位。
+ * 创建自动寻标子模块，管理空席位的寻标触发、冷却控制与失败冻结逻辑；事件唤醒时检查席位状态，满足条件时调用 findBestWarrant 并更新席位。
  * @param deps - 依赖（autoSearchConfig、symbolRegistry、buildSeatState、updateSeatState、resolveDirectionalAutoSearchPolicy、buildFindBestWarrantInput、findBestWarrant 等）
- * @returns AutoSearchManager 实例（maybeSearchOnTick）
+ * @returns AutoSearchManager 实例（maybeSearchOnEvent）
  */
 export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
   const {
@@ -23,7 +24,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
     resolveDirectionalAutoSearchPolicy,
     buildFindBestWarrantInput,
     findBestWarrant,
-    isWithinMorningOpenProtection,
+    isWithinMorningAutoSearchOpenDelay,
     searchCooldownMs,
     getHKDateKey,
     maxSearchFailuresPerDay,
@@ -31,13 +32,13 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
   } = deps;
 
   /**
-   * 在席位为空时执行自动寻标，受开盘保护与冷却时间限制。
+   * 在席位为空时执行自动寻标，受自动寻标开盘延迟与冷却时间限制。
    */
-  async function maybeSearchOnTick({
+  async function maybeSearchOnEvent({
     direction,
     currentTime,
     canTradeNow,
-  }: SearchOnTickParams): Promise<void> {
+  }: SearchOnEventParams): Promise<void> {
     if (!autoSearchConfig.autoSearchEnabled || !canTradeNow) {
       return;
     }
@@ -59,7 +60,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
 
     if (
       autoSearchConfig.autoSearchOpenDelayMinutes > 0 &&
-      isWithinMorningOpenProtection(currentTime, autoSearchConfig.autoSearchOpenDelayMinutes)
+      isWithinMorningAutoSearchOpenDelay(currentTime, autoSearchConfig.autoSearchOpenDelayMinutes)
     ) {
       return;
     }
@@ -87,7 +88,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
       false,
     );
 
-    let best: { readonly symbol: string; readonly callPrice: number } | null = null;
+    let best: { readonly symbol: string; readonly callPrice: number } | null;
     try {
       const input = await buildFindBestWarrantInput({
         currentTime,
@@ -95,7 +96,29 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
       });
       best = await findBestWarrant(input);
     } catch (err) {
-      logger.error(`[自动寻标] ${monitorSymbol} ${direction} 寻标异常: ${String(err)}`);
+      const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
+      updateSeatState(
+        direction,
+        buildSeatState({
+          symbol: null,
+          status: 'EMPTY',
+          lastSwitchAt: currentSeat.lastSwitchAt ?? null,
+          lastSearchAt: seatState.lastSearchAt ?? null,
+          lastSeatActivatedAt: currentSeat.lastSeatActivatedAt ?? null,
+          callPrice: null,
+          searchFailCountToday: currentSeat.searchFailCountToday,
+          frozenTradingDayKey: currentSeat.frozenTradingDayKey,
+        }),
+        false,
+      );
+
+      if (isExternalApiRequestError(err)) {
+        logger.warn(
+          `[自动寻标] ${monitorSymbol} ${direction} API 请求失败，等待事件重试: ${err.message}`,
+        );
+      }
+
+      throw err;
     }
 
     if (!best) {
@@ -143,6 +166,6 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
   }
 
   return {
-    maybeSearchOnTick,
+    maybeSearchOnEvent,
   };
 }

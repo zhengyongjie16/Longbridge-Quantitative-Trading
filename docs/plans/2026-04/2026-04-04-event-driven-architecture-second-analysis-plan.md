@@ -417,6 +417,7 @@
 ### Task 1: 冻结“必须保留时间驱动”的语义边界
 
 **Files:**
+
 - Modify: `tests/` 下与 lifecycle / delayed verification / periodic switch / doomsday 相关测试
 - Test: `tests/main/lifecycle/**`
 - Test: `tests/main/asyncProgram/delayedSignalVerifier/**`
@@ -432,8 +433,7 @@
   - 末日保护窗口
 - [ ] **Step 3: 运行相关测试，确认当前语义被锁定**
 
-Run: `bun test tests/main/lifecycle tests/main/asyncProgram/delayedSignalVerifier tests/services/autoSymbolManager tests/core/doomsdayProtection`
-Expected: PASS
+Run: `bun test tests/main/lifecycle tests/main/asyncProgram/delayedSignalVerifier tests/services/autoSymbolManager tests/core/doomsdayProtection` Expected: PASS
 
 - [ ] **Step 4: Commit**
 
@@ -445,6 +445,7 @@ git commit -m "test: freeze time-driven architecture boundaries"
 ### Task 2: 从 `mainProgram` 中拆出纯时间控制平面
 
 **Files:**
+
 - Modify: `src/main/mainProgram/index.ts`
 - Create: `src/main/runtime/runTimeDrivenControlTick.ts`
 - Create: `src/main/runtime/runMarketDrivenMonitorCycle.ts`
@@ -461,8 +462,7 @@ git commit -m "test: freeze time-driven architecture boundaries"
 - [ ] **Step 3: 把 monitor 级市场处理提取到 `runMarketDrivenMonitorCycle`**
 - [ ] **Step 4: 运行测试，确认主循环行为不变**
 
-Run: `bun test tests/main/mainProgram`
-Expected: PASS
+Run: `bun test tests/main/mainProgram` Expected: PASS
 
 - [ ] **Step 5: Commit**
 
@@ -474,6 +474,7 @@ git commit -m "refactor: split time-driven and market-driven runtime entrypoints
 ### Task 3: 让风险任务调度入口显式事件化
 
 **Files:**
+
 - Modify: `src/main/processMonitor/riskTasks.ts`
 - Modify: `src/main/processMonitor/index.ts`
 - Create: `src/app/runtime/createMarketEventDispatcher.ts`
@@ -488,8 +489,7 @@ git commit -m "refactor: split time-driven and market-driven runtime entrypoints
 - [ ] **Step 4: 保留 handler 内的 refreshGate / retry / lifecycle 边界**
 - [ ] **Step 5: 跑测试，确认业务语义不变**
 
-Run: `bun test tests/main/processMonitor tests/main/asyncProgram/monitorTaskProcessor`
-Expected: PASS
+Run: `bun test tests/main/processMonitor tests/main/asyncProgram/monitorTaskProcessor` Expected: PASS
 
 - [ ] **Step 6: Commit**
 
@@ -501,6 +501,7 @@ git commit -m "refactor: drive risk task scheduling from market events"
 ### Task 4: 把距离换标首次触发从时间路径中拆出
 
 **Files:**
+
 - Modify: `src/main/processMonitor/autoSymbolTasks.ts`
 - Modify: `src/services/autoSymbolManager/switchStateMachine.ts`
 - Modify: `src/main/asyncProgram/monitorTaskProcessor/handlers/autoSymbol.ts`
@@ -515,8 +516,7 @@ git commit -m "refactor: drive risk task scheduling from market events"
 - [ ] **Step 4: 保留 `hasPendingSwitch` 的保底推进语义，不改成纯事件状态机**
 - [ ] **Step 5: 跑测试，确认状态机不会卡死**
 
-Run: `bun test tests/services/autoSymbolManager tests/main/processMonitor`
-Expected: PASS
+Run: `bun test tests/services/autoSymbolManager tests/main/processMonitor` Expected: PASS
 
 - [ ] **Step 6: Commit**
 
@@ -528,6 +528,7 @@ git commit -m "refactor: separate distance switch trigger from time-driven auto-
 ### Task 5: 把 seat state change 触发与市场处理解耦
 
 **Files:**
+
 - Modify: `src/main/processMonitor/seatSync.ts`
 - Modify: `src/main/processMonitor/index.ts`
 - Create: `src/app/runtime/createSeatEventDispatcher.ts`
@@ -539,8 +540,7 @@ git commit -m "refactor: separate distance switch trigger from time-driven auto-
 - [ ] **Step 3: 将 queue cleanup / delayed signal cancel / `SEAT_REFRESH` 触发从 market cycle 中收口到 seat event 入口**
 - [ ] **Step 4: 跑测试，确认旧 seat 任务仍被正确阻断**
 
-Run: `bun test tests/main/processMonitor`
-Expected: PASS
+Run: `bun test tests/main/processMonitor` Expected: PASS
 
 - [ ] **Step 5: Commit**
 
@@ -552,6 +552,7 @@ git commit -m "refactor: dispatch seat lifecycle changes explicitly"
 ### Task 6: 收敛成交后刷新入口与 `orderMonitorWorker` 触发条件
 
 **Files:**
+
 - Modify: `src/core/trader/orderMonitor/settlementFlow.ts`
 - Modify: `src/main/asyncProgram/postTradeRefresher/index.ts`
 - Modify: `src/main/asyncProgram/orderMonitorWorker/index.ts`
@@ -567,8 +568,7 @@ git commit -m "refactor: dispatch seat lifecycle changes explicitly"
 - [ ] **Step 4: 保留 quoteFlow 内的 timeout / retry / latest-wins worker 语义**
 - [ ] **Step 5: 跑测试，确认 order monitor 与 refresher 行为不变**
 
-Run: `bun test tests/core/trader/orderMonitor tests/main/asyncProgram/postTradeRefresher`
-Expected: PASS
+Run: `bun test tests/core/trader/orderMonitor tests/main/asyncProgram/postTradeRefresher` Expected: PASS
 
 - [ ] **Step 6: Commit**
 
@@ -580,6 +580,7 @@ git commit -m "refactor: tighten order-driven refresh and monitor scheduling"
 ### Task 7: 最终收口顶层职责并清理旧轮询痕迹
 
 **Files:**
+
 - Modify: `src/app/runApp.ts`
 - Modify: `src/main/mainProgram/index.ts`
 - Modify: `src/app/runtime/createAsyncRuntime.ts`
@@ -590,8 +591,7 @@ git commit -m "refactor: tighten order-driven refresh and monitor scheduling"
 - [ ] **Step 3: 清理已被 dispatcher 替代的旧入口，不保留兼容壳**
 - [ ] **Step 4: 运行集成测试与全量门禁**
 
-Run: `bun test tests/integration && bun lint && bun type-check`
-Expected: PASS
+Run: `bun test tests/integration && bun lint && bun type-check` Expected: PASS
 
 - [ ] **Step 5: Commit**
 

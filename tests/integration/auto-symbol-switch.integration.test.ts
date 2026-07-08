@@ -28,6 +28,18 @@ import { createWarrantCandidateWithOverrides } from '../services/autoSymbolManag
 
 let candidateQueue: Array<ReturnType<typeof createWarrantCandidateWithOverrides> | null> = [];
 
+async function runDistanceSwitch(
+  manager: ReturnType<typeof createAutoSymbolManager>,
+  params: Parameters<ReturnType<typeof createAutoSymbolManager>['startSwitchOnDistance']>[0],
+): Promise<void> {
+  if (manager.hasPendingSwitch(params.direction)) {
+    await manager.advancePendingSwitch(params);
+    return;
+  }
+
+  await manager.startSwitchOnDistance(params);
+}
+
 describe('auto-symbol-switch integration', () => {
   it('runs empty-seat search then distance-triggered switch with sell->rebuy flow', async () => {
     candidateQueue = [
@@ -146,7 +158,7 @@ describe('auto-symbol-switch integration', () => {
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSearchOnTick({
+    await manager.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,
@@ -163,7 +175,7 @@ describe('auto-symbol-switch integration', () => {
       lastSeatActivatedAt: Date.parse('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -184,7 +196,16 @@ describe('auto-symbol-switch integration', () => {
     expect(executedActions).toHaveLength(1);
     expect(executedActions[0]?.action).toBe('SELLCALL');
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    expect(executedActions).toHaveLength(1);
+    expect(manager.hasPendingSwitch('LONG')).toBeTrue();
+
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -279,7 +300,7 @@ describe('auto-symbol-switch integration', () => {
 
     const trackedOrders: Array<{ orderId: string; side: OrderSide; quantity: number }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(createTradeContextDouble(tradeCtx)),
+      ctx: createTradeContextDouble(tradeCtx),
       rateLimiter: {
         throttle: async () => {},
       },
@@ -299,11 +320,13 @@ describe('auto-symbol-switch integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder,
       tradingConfig,
@@ -349,7 +372,7 @@ describe('auto-symbol-switch integration', () => {
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSearchOnTick({
+    await manager.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,
@@ -364,7 +387,7 @@ describe('auto-symbol-switch integration', () => {
       lastSeatActivatedAt: Date.parse('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -381,7 +404,15 @@ describe('auto-symbol-switch integration', () => {
       ],
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
+
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -478,13 +509,13 @@ describe('auto-symbol-switch integration', () => {
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -493,7 +524,7 @@ describe('auto-symbol-switch integration', () => {
     expect(findBestCalls).toBe(1);
 
     distanceToStrikePercent = 0.1;
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -576,20 +607,20 @@ describe('auto-symbol-switch integration', () => {
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
     });
 
     distanceToStrikePercent = 2;
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -666,7 +697,7 @@ describe('auto-symbol-switch integration', () => {
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -677,7 +708,7 @@ describe('auto-symbol-switch integration', () => {
     expect(emptySeat.symbol).toBeNull();
     expect(manager.hasPendingSwitch('LONG')).toBeFalse();
 
-    await manager.maybeSearchOnTick({
+    await manager.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:11:00.000Z'),
       canTradeNow: true,

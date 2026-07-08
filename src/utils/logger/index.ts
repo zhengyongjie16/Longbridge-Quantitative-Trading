@@ -193,31 +193,6 @@ class DateRotatingStream extends Writable {
   }
 
   /**
-   * 异步关闭文件流，返回 Promise
-   */
-  public closeAsync(): Promise<void> {
-    if (this._fileStream) {
-      const stream = this._fileStream;
-      this._fileStream = null;
-
-      return new Promise((resolve) => {
-        stream.once('finish', () => {
-          resolve();
-        });
-
-        stream.once('error', () => {
-          resolve();
-        });
-
-        // 即使出错也继续
-        stream.end();
-      });
-    }
-
-    return Promise.resolve();
-  }
-
-  /**
    * 检查并切换日志文件（如果日期变化）
    * 使用 Promise 队列确保串行执行，避免并发问题
    * @returns Promise，确保旧流关闭完成后再继续
@@ -544,39 +519,32 @@ const fileStream = new Writable({
 
       try {
         const formatted = formatForFile(obj);
+        const systemWritePromise = new Promise<void>((resolve) => {
+          systemFileStream.write(formatted, (err) => {
+            // 始终记录错误，不仅在 DEBUG 模式
+            if (err) {
+              console.error('[FileStream] 系统日志写入失败:', err);
+            }
 
-        // 等待所有写入操作完成
-        const writePromises: Promise<void>[] = [];
+            resolve();
+          });
+        });
+        const debugWritePromises =
+          obj.level === LOG_LEVELS.DEBUG && debugFileStream
+            ? [
+                new Promise<void>((resolve) => {
+                  debugFileStream.write(formatted, (err) => {
+                    // 始终记录错误，不仅在 DEBUG 模式
+                    if (err) {
+                      console.error('[FileStream] Debug日志写入失败:', err);
+                    }
 
-        // 写入系统日志
-        writePromises.push(
-          new Promise<void>((resolve) => {
-            systemFileStream.write(formatted, (err) => {
-              // 始终记录错误，不仅在 DEBUG 模式
-              if (err) {
-                console.error('[FileStream] 系统日志写入失败:', err);
-              }
-
-              resolve();
-            });
-          }),
-        );
-
-        // 如果是 DEBUG 日志，同时写入 debug 日志
-        if (obj.level === LOG_LEVELS.DEBUG && debugFileStream) {
-          writePromises.push(
-            new Promise<void>((resolve) => {
-              debugFileStream.write(formatted, (err) => {
-                // 始终记录错误，不仅在 DEBUG 模式
-                if (err) {
-                  console.error('[FileStream] Debug日志写入失败:', err);
-                }
-
-                resolve();
-              });
-            }),
-          );
-        }
+                    resolve();
+                  });
+                }),
+              ]
+            : [];
+        const writePromises = [systemWritePromise, ...debugWritePromises];
 
         // 等待所有写入完成
         await Promise.all(writePromises);

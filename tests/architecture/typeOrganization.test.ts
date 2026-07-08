@@ -5,11 +5,11 @@
  * - 本次专项治理的硬违规文件不再在实现文件中声明命名类型
  * - strategy 契约类型整合到 core/strategy/types.ts
  * - 本次触达的 types.ts 保持纯类型文件
- * - 本次触达的 utils.ts 不再定义 type/interface
+ * - 已确认的内部符号不再作为公共 surface 导出
  */
 import path from 'node:path';
 import { constants as fsConstants } from 'node:fs';
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'bun:test';
 
 const projectRoot = process.cwd();
@@ -27,6 +27,26 @@ async function exists(relativePath: string): Promise<boolean> {
   }
 }
 
+async function collectTypeScriptFiles(relativeDir: string): Promise<ReadonlyArray<string>> {
+  const absoluteDir = path.join(projectRoot, relativeDir);
+  const entries = await readdir(absoluteDir, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const childRelativePath = path.join(relativeDir, entry.name).replaceAll(path.sep, '/');
+    if (entry.isDirectory()) {
+      files.push(...(await collectTypeScriptFiles(childRelativePath)));
+      continue;
+    }
+
+    if (entry.isFile() && childRelativePath.endsWith('.ts')) {
+      files.push(childRelativePath);
+    }
+  }
+
+  return files;
+}
+
 function getRelevantLines(source: string): string[] {
   return source
     .split('\n')
@@ -39,6 +59,13 @@ function getRelevantLines(source: string): string[] {
         !line.startsWith('*') &&
         !line.startsWith('//'),
     );
+}
+
+function expectNoNamedExport(source: string, symbolName: string): void {
+  expect(source).not.toMatch(
+    new RegExp(String.raw`export\s+(?:type|interface|function)\s+${symbolName}\b`),
+  );
+  expect(source).not.toMatch(new RegExp(String.raw`export\s*\{[^}]*\b${symbolName}\b[^}]*\}`));
 }
 
 describe('type organization regressions', () => {
@@ -61,16 +88,39 @@ describe('type organization regressions', () => {
         forbiddenPatterns: [/\btype\s+IndicatorRuntimeState\b/],
       },
       {
-        relativePath: 'src/main/asyncProgram/monitorTaskProcessor/utils.ts',
-        forbiddenPatterns: [/\btype\s+MonitorContextAndSeatReadiness\b/],
-      },
-      {
         relativePath: 'src/main/asyncProgram/monitorTaskProcessor/index.ts',
         forbiddenPatterns: [/\btype\s+RetryRegistryEntry\b/],
       },
       {
         relativePath: 'src/main/asyncProgram/sellProcessor/index.ts',
         forbiddenPatterns: [/\btype\s+SellRetryState\b/],
+      },
+      {
+        relativePath: 'src/main/tradingRiskEventRuntime/tradingRiskEventRuntime.ts',
+        forbiddenPatterns: [/\btype\s+RouteExecutionState\b/],
+      },
+      {
+        relativePath: 'src/main/tradingRiskEventRuntime/types.ts',
+        forbiddenPatterns: [/\btype\s+TradingRiskQuoteEvent\s*=\s*QuoteUpdatedEvent\b/],
+      },
+      {
+        relativePath: 'tests/main/asyncProgram/monitorTaskProcessor/business.test.ts',
+        forbiddenPatterns: [
+          /\btype\s+MonitorTaskQueueForTest\b/,
+          /\btype\s+CreateBusinessProcessorParams\b/,
+        ],
+      },
+      {
+        relativePath: 'tests/main/asyncProgram/sellProcessor/business.test.ts',
+        forbiddenPatterns: [/\btype\s+CapturedSellParams\b/],
+      },
+      {
+        relativePath: 'tests/main/lifecycle/loadTradingDayRuntimeSnapshot.test.ts',
+        forbiddenPatterns: [/\btype\s+ProtectiveOrderParams\b/],
+      },
+      {
+        relativePath: 'tests/core/trader/orderMonitor.business.test.ts',
+        forbiddenPatterns: [/\btype\s+ReplaceOrderPayload\b/, /\btype\s+RecordLocalSellCall\b/],
       },
     ];
 
@@ -90,6 +140,60 @@ describe('type organization regressions', () => {
     expect(await exists('src/core/strategy/ports.ts')).toBe(false);
   });
 
+  it('removes stale STATE_CHECK_RETRY state from orderMonitor types', async () => {
+    const orderMonitorTypesSource = await readProjectFile('src/core/trader/orderMonitor/types.ts');
+
+    expect(orderMonitorTypesSource).not.toMatch(/STATE_CHECK_RETRY/);
+    expect(orderMonitorTypesSource).not.toMatch(/nextStateCheckAt/);
+    expect(orderMonitorTypesSource).not.toMatch(/stateCheckRetryCount/);
+    expect(orderMonitorTypesSource).not.toMatch(/stateCheckBlockedUntilAt/);
+  });
+
+  it('keeps config module internal helpers non-exported', async () => {
+    const tradingUtilsSource = await readProjectFile('src/config/trading/utils.ts');
+    const validatorUtilsSource = await readProjectFile('src/config/validator/utils.ts');
+
+    expect(tradingUtilsSource).not.toMatch(
+      /export\s+function\s+parseFailFastMinimumNumberConfig\b/,
+    );
+
+    expect(validatorUtilsSource).not.toMatch(
+      /export\s+function\s+validateCriticalMinimumNumberConfig\b/,
+    );
+  });
+
+  it('keeps orderMonitor production dependencies free of test-only hooks', async () => {
+    const sources = [
+      await readProjectFile('src/core/trader/types.ts'),
+      await readProjectFile('src/core/trader/orderMonitor/index.ts'),
+    ];
+    const forbiddenPatterns = [/testHooks/, /setHandleOrderChanged/] as const;
+
+    for (const source of sources) {
+      for (const forbiddenPattern of forbiddenPatterns) {
+        expect(source).not.toMatch(forbiddenPattern);
+      }
+    }
+  });
+
+  it('keeps routingIndex internal state helpers non-exported', async () => {
+    const routingIndexSource = await readProjectFile(
+      'src/core/trader/orderMonitor/routingIndex.ts',
+    );
+
+    expect(routingIndexSource).not.toMatch(/export\s+function\s+ensureRouteState\b/);
+  });
+
+  it('keeps default strategy factory direct and neutrally named', async () => {
+    const strategySource = await readProjectFile('src/core/strategy/index.ts');
+    const monitorContextSource = await readProjectFile('src/app/context/createMonitorContexts.ts');
+
+    expect(strategySource).toMatch(/export\s+function\s+createMultiIndicatorTradingStrategy\b/);
+    expect(strategySource).not.toMatch(/createDefaultTradingSignalStrategyFactory/);
+    expect(strategySource).not.toMatch(/HangSeng|hangseng/);
+    expect(monitorContextSource).not.toMatch(/createDefaultTradingSignalStrategyFactory/);
+  });
+
   it('keeps scoped types.ts files free of runtime declarations', async () => {
     const scopedTypeFiles = [
       'src/core/strategy/types.ts',
@@ -97,6 +201,10 @@ describe('type organization regressions', () => {
       'src/services/indicators/runtime/types.ts',
       'src/main/asyncProgram/monitorTaskProcessor/types.ts',
       'src/main/asyncProgram/sellProcessor/types.ts',
+      'src/main/tradingRiskEventRuntime/types.ts',
+      'tests/main/asyncProgram/types.ts',
+      'tests/main/lifecycle/types.ts',
+      'tests/core/trader/types.ts',
     ] as const;
 
     for (const relativePath of scopedTypeFiles) {
@@ -123,20 +231,187 @@ describe('type organization regressions', () => {
     }
   });
 
-  it('keeps scoped utils.ts files free of type declarations', async () => {
-    const scopedUtilsFiles = ['src/main/asyncProgram/monitorTaskProcessor/utils.ts'] as const;
+  it('keeps shared constants and service ports free of confirmed dead public surface', async () => {
+    const constantsSource = await readProjectFile('src/constants/index.ts');
+    const servicesTypesSource = await readProjectFile('src/types/services.ts');
 
-    for (const relativePath of scopedUtilsFiles) {
-      const relevantLines = getRelevantLines(await readProjectFile(relativePath));
-      expect(
-        relevantLines.some(
-          (line) =>
-            line.startsWith('type ') ||
-            line.startsWith('interface ') ||
-            line.startsWith('export type ') ||
-            line.startsWith('export interface '),
-        ),
-      ).toBe(false);
+    expect(constantsSource).not.toMatch(/CALCULATION_TTL_MS/);
+    expect(constantsSource).not.toMatch(/CALCULATION_MAX_SIZE/);
+    expectNoNamedExport(servicesTypesSource, 'MarketWarrantListItem');
+    expectNoNamedExport(servicesTypesSource, 'MarketWarrantListRequest');
+    expectNoNamedExport(servicesTypesSource, 'MarketWarrantQuote');
+    expectNoNamedExport(servicesTypesSource, 'OrderRecorderPendingSellAndSellable');
+  });
+
+  it('keeps shared foundational helper types private when only nested consumers need them', async () => {
+    const dataTypesSource = await readProjectFile('src/types/data.ts');
+    const quoteTypesSource = await readProjectFile('src/types/quote.ts');
+
+    expect(await exists('src/types/common.ts')).toBe(false);
+    expectNoNamedExport(dataTypesSource, 'CandleValue');
+    expectNoNamedExport(quoteTypesSource, 'QuoteStaticInfo');
+  });
+
+  it('keeps unused startup and runtime gate parsing removed from production surface', async () => {
+    const seatTypesSource = await readProjectFile('src/types/seat.ts');
+
+    expect(await exists('src/app/startup/startupModes.ts')).toBe(false);
+    expectNoNamedExport(seatTypesSource, 'RunMode');
+    expectNoNamedExport(seatTypesSource, 'GateMode');
+  });
+
+  it('keeps recently removed internal surfaces private and deleted test helper types absent', async () => {
+    const apiFailureSource = await readProjectFile('src/utils/apiFailure/index.ts');
+    const quoteRetryTypesSource = await readProjectFile('src/utils/quoteRetry/types.ts');
+    const traderTypesSource = await readProjectFile('src/core/trader/types.ts');
+    const asyncProgramTypesSource = await readProjectFile('tests/main/asyncProgram/types.ts');
+
+    expectNoNamedExport(apiFailureSource, 'isRetryableExternalApiError');
+    expectNoNamedExport(quoteRetryTypesSource, 'QuoteRetryRequirement');
+    expectNoNamedExport(traderTypesSource, 'IsExecutionAllowed');
+    expectNoNamedExport(asyncProgramTypesSource, 'CreateTriggeredLongOnlyLiquidationContextParams');
+  });
+
+  it('keeps orderRecorder internal implementation files behind the public boundary', async () => {
+    const productionFiles = await collectTypeScriptFiles('src');
+    const forbiddenImportPattern =
+      /from\s+['"][^'"]*orderRecorder\/(?:orderStorage|orderApiManager|orderFilteringEngine|orderOwnershipParser|utils)\.js['"]/;
+    const violations: string[] = [];
+
+    for (const relativePath of productionFiles) {
+      if (relativePath.startsWith('src/core/orderRecorder/')) {
+        continue;
+      }
+
+      const source = await readProjectFile(relativePath);
+      if (forbiddenImportPattern.test(source)) {
+        violations.push(relativePath);
+      }
     }
+
+    expect(violations).toEqual([]);
+  });
+
+  it('keeps orderRecorder factory deps out of shared public types', async () => {
+    const sharedOrderRecorderTypesSource = await readProjectFile('src/types/orderRecorder.ts');
+
+    expect(sharedOrderRecorderTypesSource).not.toContain('OrderRecorderFactoryDeps');
+    expect(sharedOrderRecorderTypesSource).not.toContain('TradeContext');
+    expect(sharedOrderRecorderTypesSource).not.toContain('RateLimiter');
+  });
+
+  it('keeps seat symbol helper parameter types minimal and local', async () => {
+    const symbolsSource = await readProjectFile('src/utils/seat/symbols.ts');
+
+    expect(symbolsSource).not.toContain('MonitorConfig');
+    expect(symbolsSource).toMatch(
+      /readonly\s+monitors:\s*ReadonlyArray<\{\s*readonly\s+monitorSymbol:\s*string;\s*\}>/,
+    );
+
+    expect(symbolsSource).toMatch(
+      /resolveBoundSeatSymbol\s*\(\s*symbolRegistry:\s*Pick<SymbolRegistry,\s*'getSeatState'>/,
+    );
+
+    expect(symbolsSource).toMatch(
+      /readonly\s+symbolRegistry:\s*Pick<SymbolRegistry,\s*'getSeatState'>/,
+    );
+  });
+
+  it('keeps seat symbol helpers out of recovery-only modules', async () => {
+    expect(await exists('src/utils/seat/symbols.ts')).toBe(true);
+    expect(await exists('src/utils/seat/utils.ts')).toBe(false);
+
+    const appFiles = await collectTypeScriptFiles('src/app');
+    const recoveryFiles = await collectTypeScriptFiles('src/main/recovery');
+    const recoveryImportViolations: string[] = [];
+    const recoveryHelperViolations: string[] = [];
+    const forbiddenRecoveryImportPattern = /from\s+['"][^'"]*main\/recovery\/[^'"]+\.js['"]/;
+    const forbiddenRecoveryHelperPattern =
+      /(?:export\s+\{[^}]*\b(?:resolveBoundSeatSymbol|collectBoundSeatSymbols)\b[^}]*\}|\b(?:function|const)\s+(?:resolveBoundSeatSymbol|collectSeatSymbols|collectBoundSeatSymbols)\b)/;
+
+    for (const relativePath of appFiles) {
+      const source = await readProjectFile(relativePath);
+      if (forbiddenRecoveryImportPattern.test(source)) {
+        recoveryImportViolations.push(relativePath);
+      }
+    }
+
+    for (const relativePath of recoveryFiles) {
+      const source = await readProjectFile(relativePath);
+      if (forbiddenRecoveryHelperPattern.test(source)) {
+        recoveryHelperViolations.push(relativePath);
+      }
+    }
+
+    const recoveryTypesSource = await readProjectFile('src/main/recovery/types.ts');
+
+    expect(recoveryImportViolations).toEqual([]);
+    expect(recoveryHelperViolations).toEqual([]);
+    expect(recoveryTypesSource).not.toContain('CollectSeatSymbolsParams');
+  });
+
+  it('keeps non-app modules free of confirmed dead public surface', async () => {
+    const indicatorRuntimeUtilsSource = await readProjectFile(
+      'src/services/indicators/runtime/utils.ts',
+    );
+    const monitorQuoteTypesSource = await readProjectFile(
+      'src/main/monitorQuoteEventRuntime/types.ts',
+    );
+    const tradingRiskTypesSource = await readProjectFile(
+      'src/main/tradingRiskEventRuntime/types.ts',
+    );
+    const signalRuntimeDomainTypesSource = await readProjectFile(
+      'src/main/lifecycle/cacheDomains/types.ts',
+    );
+    const orderMonitorTypesSource = await readProjectFile('src/core/trader/orderMonitor/types.ts');
+    const monitorTaskProcessorTypesSource = await readProjectFile(
+      'src/main/asyncProgram/monitorTaskProcessor/types.ts',
+    );
+
+    expect(indicatorRuntimeUtilsSource).not.toMatch(/export\s+function\s+logDebug\b/);
+    expect(await exists('src/utils/objectPool/index.ts')).toBe(false);
+    expect(await exists('src/utils/objectPool/types.ts')).toBe(false);
+    expect(await exists('tools/dailyKlineMonitor/runtimeSnapshot.ts')).toBe(false);
+    expect(monitorQuoteTypesSource).not.toMatch(/export\s+type\s+MonitorQuoteFreshnessStatus\b/);
+    expect(monitorQuoteTypesSource).not.toMatch(/export\s+interface\s+SwitchWakeupFreshnessDeps\b/);
+    expect(tradingRiskTypesSource).not.toMatch(/export\s+interface\s+TradingRiskConsistencyPort\b/);
+    expect(signalRuntimeDomainTypesSource).not.toMatch(
+      /export\s+interface\s+SignalRuntimePostTradeConsistencyRuntime\b/,
+    );
+    expect(orderMonitorTypesSource).not.toMatch(/export\s+type\s+OrderMonitorTimerRegistration\b/);
+    expect(orderMonitorTypesSource).not.toMatch(/export\s+type\s+PendingSellDisposition\b/);
+    expect(monitorTaskProcessorTypesSource).not.toMatch(
+      /export\s+interface\s+MonitorTaskProcessor[\s\S]*?readonly\s+stop:/,
+    );
+  });
+
+  it('removes catch-all utils and queue protocol from the shared public surface', async () => {
+    expect(await exists('src/utils/utils.ts')).toBe(false);
+    expect(await exists('src/types/queue.ts')).toBe(false);
+
+    const runtimeValidationSource = await readProjectFile('src/app/startup/runtimeValidation.ts');
+    const runtimeSource = await readProjectFile('src/utils/runtime/index.ts');
+    const accountDisplaySource = await readProjectFile('src/services/accountDisplay/index.ts');
+    const queueCleanupSource = await readProjectFile(
+      'src/main/seatRuntimeCleanupDispatcher/queueCleanup.ts',
+    );
+
+    expect(runtimeValidationSource).not.toContain("from '../../utils/utils.js'");
+    expect(runtimeSource).not.toContain("from '../utils.js'");
+    expect(accountDisplaySource).not.toContain("from '../../utils/utils.js'");
+    expect(queueCleanupSource).not.toContain("from '../../utils/utils.js'");
+    expect(queueCleanupSource).not.toContain("from '../../types/queue.js'");
+  });
+
+  it('moves seat projection helpers out of catch-all utils', async () => {
+    const source = await readProjectFile('src/utils/seat/snapshots.ts');
+    expect(source).toContain('resolveMonitorContextSeatSnapshot');
+    expect(source).toContain('resolveMonitorContextRuntimeSnapshot');
+    expect(await exists('src/utils/utils.ts')).toBe(false);
+  });
+
+  it('keeps the old catch-all utils files deleted', async () => {
+    expect(await exists('src/utils/utils.ts')).toBe(false);
+    expect(await exists('src/types/queue.ts')).toBe(false);
   });
 });

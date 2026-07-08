@@ -19,6 +19,8 @@ const DEFAULT_CONFIG: RateLimiterConfig = {
   windowMs: 30000,
 };
 
+const noop = (): void => undefined;
+
 /**
  * 创建频率限制器。
  * 在时间窗口内限制 Trade API 调用次数，throttle() 超限时自动等待。
@@ -41,8 +43,6 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
    * 超限时自动等待，支持并发调用（内部锁串行化）
    */
   const throttle = async (): Promise<void> => {
-    const noop = (): void => undefined;
-
     // 如果有正在执行的 throttle，等待它完成
     while (throttlePromise) {
       await throttlePromise;
@@ -55,18 +55,17 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
     });
 
     try {
-      let now = Date.now();
+      let now = performance.now();
 
       // 1. 检查最小调用间隔（两次调用间隔不少于 API.MIN_CALL_INTERVAL_MS 毫秒）
       const lastCallTime = callTimestamps.at(-1);
       if (lastCallTime) {
-        const timeSinceLastCall = now - lastCallTime;
-        if (timeSinceLastCall < API.MIN_CALL_INTERVAL_MS) {
-          const waitTime = API.MIN_CALL_INTERVAL_MS - timeSinceLastCall;
+        while (now - lastCallTime < API.MIN_CALL_INTERVAL_MS) {
+          const waitTime = API.MIN_CALL_INTERVAL_MS - (now - lastCallTime);
           await new Promise<void>((resolve) => {
             setTimeout(resolve, waitTime);
           });
-          now = Date.now(); // 更新当前时间
+          now = performance.now();
         }
       }
 
@@ -90,12 +89,12 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
           setTimeout(resolve, waitTime);
         });
 
-        const nowAfterWait = Date.now();
+        const nowAfterWait = performance.now();
         callTimestamps = callTimestamps.filter((timestamp) => nowAfterWait - timestamp < windowMs);
       }
 
       // 4. 记录本次调用时间
-      callTimestamps.push(Date.now());
+      callTimestamps.push(performance.now());
     } finally {
       // 释放并发锁
       throttlePromise = null;

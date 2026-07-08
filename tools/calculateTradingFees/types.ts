@@ -10,7 +10,7 @@ export type Trade = {
   readonly side: string;
   readonly quantity: string;
   readonly price: string;
-  readonly orderType: string;
+  readonly orderType?: string | null;
   readonly status: string;
 };
 

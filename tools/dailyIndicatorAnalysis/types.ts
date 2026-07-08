@@ -72,6 +72,7 @@ export type MinuteIndicatorRow = {
   readonly changePercent: number | null;
   readonly volume: number;
   readonly ema5: number | null;
+  readonly er10: number | null;
   readonly rsi6: number | null;
   readonly kdj: KDJIndicator | null;
   readonly mfi: number | null;
@@ -91,6 +92,7 @@ export type ComputeMinuteRowsOptions = {
   readonly mfiPeriod: number;
   readonly adxPeriod: number;
   readonly ema5Period: number;
+  readonly er10Period: number;
   readonly vpVaPercent: number;
   readonly vpBins: number;
 };

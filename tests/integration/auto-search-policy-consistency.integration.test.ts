@@ -26,7 +26,6 @@ import { createSeatStateManager } from '../../src/services/autoSymbolManager/sea
 import { createSwitchStateMachine } from '../../src/services/autoSymbolManager/switchStateMachine.js';
 import { PENDING_ORDER_STATUSES } from '../../src/constants/index.js';
 import type { Logger } from '../../src/utils/logger/types.js';
-import { signalObjectPool } from '../../src/utils/objectPool/index.js';
 import { getHKDateKey } from '../../src/utils/time/index.js';
 import {
   createMarketDataClientDouble,
@@ -90,6 +89,18 @@ function createWarrantInfo(params: {
 
 function toApiDistanceRatio(percentValue: number): number {
   return percentValue / 100;
+}
+
+async function runDistanceSwitch(
+  machine: ReturnType<typeof createSwitchStateMachine>,
+  params: Parameters<ReturnType<typeof createSwitchStateMachine>['startSwitchOnDistance']>[0],
+): Promise<void> {
+  if (machine.hasPendingSwitch(params.direction)) {
+    await machine.advancePendingSwitch(params);
+    return;
+  }
+
+  await machine.startSwitchOnDistance(params);
 }
 
 describe('auto search policy consistency integration', () => {
@@ -162,7 +173,7 @@ describe('auto search policy consistency integration', () => {
       now: () => currentTime,
       logger: startupLogger.logger,
       getTradingMinutesSinceOpen: () => 10,
-      isWithinMorningOpenProtection: () => false,
+      resolveCanAutoSearchNow: () => true,
     });
 
     const startupSeat = startupRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
@@ -221,13 +232,13 @@ describe('auto search policy consistency integration', () => {
           getTradingMinutesSinceOpen: () => 10,
         }),
       findBestWarrant,
-      isWithinMorningOpenProtection: () => false,
+      isWithinMorningAutoSearchOpenDelay: () => false,
       searchCooldownMs: 10_000,
       getHKDateKey,
       maxSearchFailuresPerDay: 3,
       logger: runtimeLogger.logger,
     });
-    await runtimeAutoSearch.maybeSearchOnTick({
+    await runtimeAutoSearch.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime,
       canTradeNow: true,
@@ -268,7 +279,7 @@ describe('auto search policy consistency integration', () => {
       logger: switchLogger.logger,
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const switchStateMachine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: monitorConfig.monitorSymbol,
@@ -313,7 +324,6 @@ describe('auto search policy consistency integration', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: switchLogger.logger,
@@ -326,7 +336,7 @@ describe('auto search policy consistency integration', () => {
           new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
       }),
     });
-    await switchStateMachine.maybeSwitchOnDistance({
+    await runDistanceSwitch(switchStateMachine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -413,7 +423,7 @@ describe('auto search policy consistency integration', () => {
       now: () => currentTime,
       logger: startupLogger.logger,
       getTradingMinutesSinceOpen: () => 10,
-      isWithinMorningOpenProtection: () => false,
+      resolveCanAutoSearchNow: () => true,
     });
 
     const startupSeat = startupRegistry.getSeatState(monitorConfig.monitorSymbol, 'SHORT');
@@ -472,13 +482,13 @@ describe('auto search policy consistency integration', () => {
           getTradingMinutesSinceOpen: () => 10,
         }),
       findBestWarrant,
-      isWithinMorningOpenProtection: () => false,
+      isWithinMorningAutoSearchOpenDelay: () => false,
       searchCooldownMs: 10_000,
       getHKDateKey,
       maxSearchFailuresPerDay: 3,
       logger: runtimeLogger.logger,
     });
-    await runtimeAutoSearch.maybeSearchOnTick({
+    await runtimeAutoSearch.maybeSearchOnEvent({
       direction: 'SHORT',
       currentTime,
       canTradeNow: true,
@@ -519,7 +529,7 @@ describe('auto search policy consistency integration', () => {
       logger: switchLogger.logger,
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const switchStateMachine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: monitorConfig.monitorSymbol,
@@ -564,7 +574,6 @@ describe('auto search policy consistency integration', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: switchLogger.logger,
@@ -577,7 +586,7 @@ describe('auto search policy consistency integration', () => {
           new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
       }),
     });
-    await switchStateMachine.maybeSwitchOnDistance({
+    await runDistanceSwitch(switchStateMachine, {
       direction: 'SHORT',
       monitorPrice: 20_000,
       positions: [],
@@ -677,13 +686,13 @@ describe('auto search policy consistency integration', () => {
           getTradingMinutesSinceOpen: () => 10,
         }),
       findBestWarrant,
-      isWithinMorningOpenProtection: () => false,
+      isWithinMorningAutoSearchOpenDelay: () => false,
       searchCooldownMs: 10_000,
       getHKDateKey,
       maxSearchFailuresPerDay: 3,
       logger: runtimeLogger.logger,
     });
-    await runtimeAutoSearch.maybeSearchOnTick({
+    await runtimeAutoSearch.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime,
       canTradeNow: true,
@@ -716,7 +725,7 @@ describe('auto search policy consistency integration', () => {
       logger: safeLogger.logger,
       getHKDateKey,
     });
-    const safeSignalBuilder = createSignalBuilder({ signalObjectPool });
+    const safeSignalBuilder = createSignalBuilder();
     const safeSwitchMachine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: monitorConfig.monitorSymbol,
@@ -761,7 +770,6 @@ describe('auto search policy consistency integration', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: safeSignalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: safeLogger.logger,
@@ -774,7 +782,7 @@ describe('auto search policy consistency integration', () => {
           new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
       }),
     });
-    await safeSwitchMachine.maybeSwitchOnDistance({
+    await runDistanceSwitch(safeSwitchMachine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -805,7 +813,7 @@ describe('auto search policy consistency integration', () => {
       logger: dangerLogger.logger,
       getHKDateKey,
     });
-    const dangerSignalBuilder = createSignalBuilder({ signalObjectPool });
+    const dangerSignalBuilder = createSignalBuilder();
     const dangerSwitchMachine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: monitorConfig.monitorSymbol,
@@ -850,7 +858,6 @@ describe('auto search policy consistency integration', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: dangerSignalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: dangerLogger.logger,
@@ -863,7 +870,7 @@ describe('auto search policy consistency integration', () => {
           new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
       }),
     });
-    await dangerSwitchMachine.maybeSwitchOnDistance({
+    await runDistanceSwitch(dangerSwitchMachine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],

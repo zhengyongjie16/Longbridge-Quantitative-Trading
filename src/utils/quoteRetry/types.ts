@@ -6,12 +6,25 @@ import type { Quote } from '../../types/quote.js';
  * 数据来源：由调用方根据业务动作（如下单、监控）传入。
  * 使用范围：quoteRetry 工具模块及其调用方。
  */
-export type QuoteRetryRequirement = 'PRICE' | 'PRICE_AND_LOT_SIZE';
+type QuoteRetryRequirement = 'PRICE' | 'PRICE_AND_LOT_SIZE';
+
+/**
+ * quote 就绪性分类。
+ * 类型用途：区分行情缺失、价格无效、手数缺失和手数无效，避免把逻辑无效数据伪装成可重试未就绪。
+ * 数据来源：resolveQuoteReadinessForRequirement 根据 Quote 与字段要求计算。
+ * 使用范围：quoteRetry 工具模块及卖出、末日保护、换标、订单监控等调用方。
+ */
+export type QuoteReadinessStatus =
+  | 'READY'
+  | 'MISSING'
+  | 'INVALID_PRICE'
+  | 'MISSING_LOT_SIZE'
+  | 'INVALID_LOT_SIZE';
 
 /**
  * quote 就绪性判断参数。
  * 类型用途：统一描述就绪性判断所需的 quote 与字段要求输入。
- * 数据来源：由调用 isQuoteReadyForRequirement 的业务链路组装。
+ * 数据来源：由调用 resolveQuoteReadinessForRequirement 的业务链路组装。
  * 使用范围：quoteRetry 工具模块内部及调用方。
  */
 export type IsQuoteReadyForRequirementParams = Readonly<{

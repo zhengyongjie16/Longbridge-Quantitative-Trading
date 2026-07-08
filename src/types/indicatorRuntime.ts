@@ -1,5 +1,3 @@
-declare const indicatorIncrementalRuntimeBrand: unique symbol;
-
 /**
  * 增量指标运行态公共句柄。
  * 类型用途：为跨模块缓存与传递 runtime 提供不透明句柄，避免 types 层依赖 indicators/runtime 内部状态细节。
@@ -7,5 +5,5 @@ declare const indicatorIncrementalRuntimeBrand: unique symbol;
  * 使用范围：MonitorState 与调用 runtime 服务的模块。
  */
 export type IndicatorIncrementalRuntime = {
-  readonly [indicatorIncrementalRuntimeBrand]: 'IndicatorIncrementalRuntime';
+  readonly __indicatorIncrementalRuntimeBrand: never;
 };

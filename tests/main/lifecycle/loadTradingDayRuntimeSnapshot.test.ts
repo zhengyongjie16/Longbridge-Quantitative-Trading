@@ -2,20 +2,26 @@
  * 交易日运行时快照加载单元测试
  *
  * 覆盖：requireTradingDay 且非交易日时抛错、账户信息缺失时抛错、
- * failOnOrderFetchError 且订单拉取失败时抛错、正常返回 allOrders 与 quotesMap
+ * 订单拉取失败时抛错、正常返回 allOrders 与 quotesMap
  */
 import { describe, it, expect } from 'bun:test';
-import { OrderSide, OrderStatus, OrderType } from 'longbridge';
+import { OrderSide, OrderStatus, OrderType, WarrantStatus, WarrantType } from 'longbridge';
 import { createLoadTradingDayRuntimeSnapshot } from '../../../src/main/lifecycle/loadTradingDayRuntimeSnapshot.js';
+import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
+import { toMockDecimal } from '../../../mock/longbridge/decimal.js';
 import { createSymbolRegistry } from '../../../src/services/autoSymbolManager/utils.js';
 import { TRADING } from '../../../src/constants/index.js';
+import { createSeatActivationDispatcher } from '../../../src/main/seatActivationDispatcher/index.js';
+import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import type {
   LoadTradingDayRuntimeSnapshotDeps,
   LoadTradingDayRuntimeSnapshotParams,
 } from '../../../src/main/lifecycle/types.js';
+import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import type { LastState, MonitorState } from '../../../src/types/state.js';
 import type { RawOrderFromAPI } from '../../../src/types/services.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../../../src/core/trader/protectiveLiquidationEpisodeTracker/types.js';
+import type { ProtectiveOrderParams } from './types.js';
 import { createTradingConfig as createTradingConfigFactory } from '../../../mock/factories/configFactory.js';
 import {
   createAccountSnapshotDouble,
@@ -24,6 +30,8 @@ import {
   createMonitorConfigDouble,
   createPositionCacheDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
+  createQuoteContextDouble,
+  createSeatActivationDispatcherDouble,
   createTraderDouble,
 } from '../../helpers/testDoubles.js';
 
@@ -92,6 +100,8 @@ function createBaseDeps(
       createProtectiveLiquidationEpisodeTrackerDouble(),
     tradeLogHydrator: overrides.tradeLogHydrator ?? { hydrate: () => new Map<string, number>() },
     warrantListCacheConfig: overrides.warrantListCacheConfig ?? createWarrantListCacheConfig(),
+    seatActivationDispatcher:
+      overrides.seatActivationDispatcher ?? createSeatActivationDispatcherDouble(),
   };
 }
 
@@ -111,7 +121,6 @@ function createLoadParams(
 ): LoadTradingDayRuntimeSnapshotParams {
   return {
     requireTradingDay: false,
-    failOnOrderFetchError: false,
     resetRuntimeSubscriptions: false,
     hydrateCooldownFromTradeLog: false,
     forceOrderRefresh: false,
@@ -127,15 +136,47 @@ function createProtectiveMonitor(): LoadTradingDayRuntimeSnapshotDeps['tradingCo
   });
 }
 
-type ProtectiveOrderParams = Readonly<{
-  orderId: string;
-  status: RawOrderFromAPI['status'];
-  price: number;
-  quantity: number;
-  executedPrice: number;
-  executedQuantity: number;
-  updatedAtMs: number;
-}>;
+function createAutoSearchMonitor(): LoadTradingDayRuntimeSnapshotDeps['tradingConfig']['monitors'][number] {
+  return createMonitorConfigDouble({
+    monitorSymbol: 'HSI.HK',
+    autoSearchConfig: {
+      autoSearchEnabled: true,
+      autoSearchMinDistancePctBull: 0.35,
+      autoSearchMinDistancePctBear: -0.35,
+      autoSearchMinTurnoverPerMinuteBull: 100_000,
+      autoSearchMinTurnoverPerMinuteBear: 100_000,
+      autoSearchExpiryMinMonths: 3,
+      autoSearchOpenDelayMinutes: 5,
+      switchIntervalMinutes: 0,
+      switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+      switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+    },
+  });
+}
+
+function createWarrantInfo(params: {
+  readonly symbol: string;
+  readonly warrantType: WarrantType;
+  readonly apiDistanceRatio: number;
+  readonly turnover: number;
+  readonly callPrice: number;
+}): Parameters<ReturnType<typeof createQuoteContextMock>['seedWarrantList']>[1][number] {
+  const warrantType = params.warrantType === WarrantType.Bull ? 'Bull' : 'Bear';
+  return {
+    symbol: params.symbol,
+    name: params.symbol,
+    lastDone: toMockDecimal(0.1),
+    toCallPrice: toMockDecimal(params.apiDistanceRatio),
+    turnover: toMockDecimal(params.turnover),
+    callPrice: toMockDecimal(params.callPrice),
+    warrantType,
+    status: WarrantStatus.Normal,
+  };
+}
+
+function toApiDistanceRatio(percentValue: number): number {
+  return percentValue / 100;
+}
 
 function createProtectiveOrder(params: ProtectiveOrderParams): RawOrderFromAPI {
   return {
@@ -214,6 +255,17 @@ function createProtectiveTrackerRecorder(): {
   };
 }
 
+function drainMonitorTasks(
+  monitorTaskQueue: ReturnType<typeof createMonitorTaskQueue<MonitorTaskDataMap>>,
+): Array<ReturnType<typeof monitorTaskQueue.pop>> {
+  const tasks: Array<ReturnType<typeof monitorTaskQueue.pop>> = [];
+  while (!monitorTaskQueue.isEmpty()) {
+    tasks.push(monitorTaskQueue.pop());
+  }
+
+  return tasks;
+}
+
 describe('createLoadTradingDayRuntimeSnapshot', () => {
   it('requireTradingDay 为 true 且 isTradingDay 为 false 时抛出"重建触发时交易日信息无效"', async () => {
     const deps = createBaseDeps({
@@ -229,20 +281,60 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     );
   });
 
-  it('账户信息缺失（cachedAccount 为 null）时抛出"无法获取账户信息"', async () => {
+  it('账户快照契约失败时 fail-fast，不能按空账户继续重建', async () => {
     const deps = createBaseDeps({
       trader: createTraderDouble({
-        getAccountSnapshot: async () => null,
+        getAccountSnapshot: async () => {
+          throw new TypeError('TradeContext.accountBalance returned no primary account');
+        },
         getStockPositions: async () => [],
       }),
     });
 
     const load = createLoadTradingDayRuntimeSnapshot(deps);
 
-    expect(load(createLoadParams())).rejects.toThrow('无法获取账户信息');
+    let caught: unknown = null;
+    try {
+      await load(createLoadParams());
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as Error).message).toBe(
+      'TradeContext.accountBalance returned no primary account',
+    );
   });
 
-  it('failOnOrderFetchError 为 true 且订单拉取失败时抛出带"全量订单获取失败"的错误', async () => {
+  it('持仓快照拉取失败时 fail-fast，不能按空持仓继续重建', async () => {
+    let fetchAllOrdersCalled = false;
+    const deps = createBaseDeps({
+      trader: createReadyTrader({
+        getStockPositions: async () => {
+          throw new Error('positions unavailable');
+        },
+        fetchAllOrdersFromAPI: async () => {
+          fetchAllOrdersCalled = true;
+          return [];
+        },
+      }),
+    });
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+
+    let caughtError: unknown = null;
+    try {
+      await load(createLoadParams());
+    } catch (error) {
+      caughtError = error;
+    }
+
+    expect(caughtError).toBeInstanceOf(Error);
+    expect((caughtError as Error).message).toMatch(/无法刷新账户和持仓信息/);
+    expect(fetchAllOrdersCalled).toBe(false);
+  });
+
+  it('订单拉取失败时直接抛出原始错误，不按空订单继续初始化', async () => {
     const deps = createBaseDeps({
       trader: createReadyTrader({
         fetchAllOrdersFromAPI: async () => {
@@ -253,8 +345,151 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
 
     const load = createLoadTradingDayRuntimeSnapshot(deps);
 
-    expect(load(createLoadParams({ failOnOrderFetchError: true }))).rejects.toThrow(
-      /全量订单获取失败/,
+    expect(load(createLoadParams())).rejects.toThrow(/API 超时/);
+  });
+
+  it('only runs startup auto-search after continuous session and morning delay are both satisfied', async () => {
+    const monitor = createAutoSearchMonitor();
+    const tradingConfig = createTradingConfig([monitor]);
+    const quoteContext = createQuoteContextMock();
+    quoteContext.seedWarrantList('HSI.HK', [
+      createWarrantInfo({
+        symbol: 'AUTO_BULL.HK',
+        warrantType: WarrantType.Bull,
+        apiDistanceRatio: toApiDistanceRatio(0.55),
+        turnover: 30_000_000,
+        callPrice: 20_500,
+      }),
+      createWarrantInfo({
+        symbol: 'AUTO_BEAR.HK',
+        warrantType: WarrantType.Bear,
+        apiDistanceRatio: toApiDistanceRatio(-0.55),
+        turnover: 30_000_000,
+        callPrice: 19_500,
+      }),
+    ]);
+
+    let isTradingDayCalls = 0;
+    const marketDataClient = createMarketDataClientDouble({
+      getQuoteContext: async () => createQuoteContextDouble(quoteContext),
+      isTradingDay: async () => {
+        isTradingDayCalls += 1;
+        return { isTradingDay: true, isHalfDay: false };
+      },
+    });
+    const blockedLastState = createMinimalLastState();
+    blockedLastState.cachedTradingDayInfo = {
+      dateKey: '2026-02-16',
+      info: { isTradingDay: true, isHalfDay: false },
+    };
+    const blockedDeps = createBaseDeps({
+      lastState: blockedLastState,
+      tradingConfig,
+      marketDataClient,
+      trader: createReadyTrader(),
+      symbolRegistry: createSymbolRegistry(tradingConfig.monitors),
+    });
+    const blockedLoad = createLoadTradingDayRuntimeSnapshot(blockedDeps);
+    await blockedLoad(
+      createLoadParams({
+        now: new Date('2026-02-16T01:31:00.000Z'),
+        requireTradingDay: false,
+      }),
+    );
+
+    expect(isTradingDayCalls).toBe(0);
+    expect(quoteContext.getCalls('warrantList')).toHaveLength(0);
+
+    const allowedLastState = createMinimalLastState();
+    allowedLastState.cachedTradingDayInfo = {
+      dateKey: '2026-02-16',
+      info: { isTradingDay: true, isHalfDay: false },
+    };
+    const allowedDeps = createBaseDeps({
+      lastState: allowedLastState,
+      tradingConfig,
+      marketDataClient,
+      trader: createReadyTrader(),
+      symbolRegistry: createSymbolRegistry(tradingConfig.monitors),
+    });
+    const allowedLoad = createLoadTradingDayRuntimeSnapshot(allowedDeps);
+    await allowedLoad(
+      createLoadParams({
+        now: new Date('2026-02-16T01:35:00.000Z'),
+        requireTradingDay: false,
+      }),
+    );
+
+    expect(isTradingDayCalls).toBe(0);
+    expect(quoteContext.getCalls('warrantList')).toHaveLength(2);
+    expect(allowedDeps.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVATING');
+    expect(allowedDeps.symbolRegistry.getSeatState('HSI.HK', 'SHORT').status).toBe('ACTIVATING');
+  });
+
+  it('schedules SEAT_REFRESH for ACTIVATING seats restored during recovery', async () => {
+    const monitor = createAutoSearchMonitor();
+    const tradingConfig = createTradingConfig([monitor]);
+    const quoteContext = createQuoteContextMock();
+    quoteContext.seedWarrantList('HSI.HK', [
+      createWarrantInfo({
+        symbol: 'AUTO_BULL.HK',
+        warrantType: WarrantType.Bull,
+        apiDistanceRatio: toApiDistanceRatio(0.55),
+        turnover: 30_000_000,
+        callPrice: 20_500,
+      }),
+      createWarrantInfo({
+        symbol: 'AUTO_BEAR.HK',
+        warrantType: WarrantType.Bear,
+        apiDistanceRatio: toApiDistanceRatio(-0.55),
+        turnover: 30_000_000,
+        callPrice: 19_500,
+      }),
+    ]);
+
+    const marketDataClient = createMarketDataClientDouble({
+      getQuoteContext: async () => createQuoteContextDouble(quoteContext),
+    });
+    const lastState = createMinimalLastState();
+    lastState.cachedTradingDayInfo = {
+      dateKey: '2026-02-16',
+      info: { isTradingDay: true, isHalfDay: false },
+    };
+    const symbolRegistry = createSymbolRegistry(tradingConfig.monitors);
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const seatActivationDispatcher = createSeatActivationDispatcher({
+      tradingConfig,
+      symbolRegistry,
+      monitorTaskQueue,
+    });
+    const deps = createBaseDeps({
+      lastState,
+      tradingConfig,
+      marketDataClient,
+      trader: createReadyTrader(),
+      symbolRegistry,
+      seatActivationDispatcher,
+    });
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+    await load(
+      createLoadParams({
+        now: new Date('2026-02-16T01:35:00.000Z'),
+        requireTradingDay: false,
+      }),
+    );
+
+    const queueItems = drainMonitorTasks(monitorTaskQueue);
+    expect(queueItems).toContainEqual(
+      expect.objectContaining({
+        type: 'SEAT_REFRESH',
+        monitorSymbol: 'HSI.HK',
+        data: expect.objectContaining({
+          monitorSymbol: 'HSI.HK',
+          direction: 'LONG',
+          nextSymbol: 'AUTO_BULL.HK',
+        }),
+      }),
     );
   });
 
@@ -476,6 +711,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     expect(restoreInProgressCalls[0]).toEqual({
       monitorSymbol: 'HSI.HK',
       direction: 'LONG',
+      symbol: 'BULL.HK',
       latestExecutedTimeMs: executedAtMs,
     });
     expect(receivedBoundaryMap?.size).toBe(0);
@@ -545,6 +781,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       {
         monitorSymbol: 'HSI.HK',
         direction: 'LONG',
+        symbol: 'BULL.HK',
         latestExecutedTimeMs: pendingLatestExecutedMs,
       },
     ]);

@@ -81,7 +81,6 @@ export interface PositionLimitChecker {
     signal: Signal,
     positions: ReadonlyArray<Position> | null,
     orderNotional: number,
-    currentPrice: number | null,
   ) => RiskCheckResult;
 }
 
@@ -109,16 +108,6 @@ export interface UnrealizedLossChecker {
 // ==================== 依赖类型定义 ====================
 
 /**
- * 牛熊证风险检查器依赖。
- * 类型用途：创建 WarrantRiskChecker 时的依赖注入（当前无外部依赖，空对象）。
- * 数据来源：如适用。
- * 使用范围：仅 riskController 模块内部使用。
- */
-export type WarrantRiskCheckerDeps = {
-  readonly [key: string]: never;
-};
-
-/**
  * 持仓限制检查器依赖。
  * 类型用途：用于创建 PositionLimitChecker 时的依赖注入。
  * 数据来源：如适用（如配置中的 maxPositionNotional）。
@@ -140,18 +129,14 @@ export type UnrealizedLossCheckerDeps = {
 
 /**
  * 风险检查器依赖。
- * 类型用途：用于创建 RiskChecker 门面时的依赖注入。
- * 数据来源：如适用。
+ * 类型用途：用于创建 RiskChecker 门面时的依赖注入；阈值配置由各子检查器依赖持有。
+ * 数据来源：启动装配层创建的牛熊证、持仓限制与浮亏子检查器。
  * 使用范围：见调用方（如 riskDomain/启动层）。
  */
 export type RiskCheckerDeps = {
   readonly warrantRiskChecker: WarrantRiskChecker;
   readonly positionLimitChecker: PositionLimitChecker;
   readonly unrealizedLossChecker: UnrealizedLossChecker;
-  readonly options?: {
-    readonly maxPositionNotional?: number | null;
-    readonly maxUnrealizedLossPerSymbol?: number | null;
-  };
 };
 
 // ==================== 当日亏损追踪 ====================

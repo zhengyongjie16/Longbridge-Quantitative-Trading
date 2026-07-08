@@ -3,7 +3,7 @@
  *
  * 统一管理项目中使用的所有常量，包括：
  * - 时间相关：毫秒换算、时区偏移
- * - 交易相关：目标金额、K线配置、主循环间隔
+ * - 交易相关：目标金额、K线配置、时间唤醒恢复间隔
  * - 验证相关：延迟信号验证的时间窗口配置
  * - 日志相关：流超时配置
  * - API相关：重试策略、缓存TTL、频率限制
@@ -25,6 +25,9 @@ export const TIME = {
 
   /** 每日的毫秒数 */
   MILLISECONDS_PER_DAY: 24 * 60 * 60 * 1000,
+
+  /** setTimeout 可安全接收的最大延迟（毫秒） */
+  MAX_TIMER_DELAY_MS: 2_147_483_647,
 
   /** 香港时区偏移量（毫秒），用于 UTC 转香港时间 */
   HONG_KONG_TIMEZONE_OFFSET_MS: 8 * 60 * 60 * 1000,
@@ -62,7 +65,7 @@ export const TRADING = {
   /** K线数量，获取的实时K线条数 */
   CANDLE_COUNT: 200,
 
-  /** 主循环执行间隔（毫秒），mainProgram 的执行频率 */
+  /** 时间唤醒评估异常后的恢复重试间隔（毫秒） */
   INTERVAL_MS: 1000,
 
   /** 监控标的最大扫描范围（从 _1 扫描到 _100） */
@@ -84,6 +87,15 @@ export const AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS = 3_000;
 
 /** 自动寻标当日最大失败次数（达到后冻结席位至次日） */
 export const AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY = 3;
+
+/** 末日保护相关常量 */
+export const DOOMSDAY = {
+  /** 买入截止窗口：距离收盘前的分钟数 */
+  BUY_CUTOFF_MINUTES_BEFORE_CLOSE: 15,
+
+  /** 清仓接管窗口：距离收盘前的分钟数 */
+  CLEARANCE_TAKEOVER_MINUTES_BEFORE_CLOSE: 5,
+} as const;
 
 /** 生命周期重建相关常量 */
 export const LIFECYCLE = {
@@ -113,9 +125,6 @@ export const VERIFICATION = {
 
   /** 验证时间点2偏移量（秒），信号触发后二次验证 */
   TIME_OFFSET_2_SECONDS: 10,
-
-  /** 验证时间点误差容忍度（毫秒） */
-  TIME_TOLERANCE_MS: 5 * 1000,
 
   /** 验证就绪延迟时间（秒），信号注册后等待验证的时间 */
   READY_DELAY_SECONDS: 10,
@@ -192,26 +201,11 @@ export const API = {
 
 /** 指标缓存相关常量 */
 export const INDICATOR_CACHE = {
-  /** 指标计算缓存 TTL（毫秒） */
-  CALCULATION_TTL_MS: 5_000,
+  /** 指标样本默认保留时间窗口（毫秒） */
+  DEFAULT_RETENTION_WINDOW_MS: 100 * 1000,
 
-  /** 指标计算最大缓存条目数（防止内存泄漏） */
-  CALCULATION_MAX_SIZE: 50,
-
-  /** 指标时序缓存默认最大条目数（环形缓冲区） */
-  TIMESERIES_DEFAULT_MAX_ENTRIES: 100,
-} as const;
-
-/** 行情监控相关常量，用于 MarketMonitor 检测价格/指标变化 */
-export const MONITOR = {
-  /** 价格变化检测阈值，低于此值不触发更新 */
-  PRICE_CHANGE_THRESHOLD: 0.001,
-
-  /** 技术指标变化检测阈值（EMA/RSI/MFI/KDJ/MACD） */
-  INDICATOR_CHANGE_THRESHOLD: 0.001,
-
-  /** 涨跌幅变化检测阈值（百分比） */
-  CHANGE_PERCENT_THRESHOLD: 0.01,
+  /** 样本保留窗口安全余量（秒） */
+  RETENTION_SAFETY_MARGIN_SECONDS: 15,
 } as const;
 
 /** 订单相关常量 */
@@ -338,6 +332,31 @@ export const REPLACE_UNSUPPORTED_BY_TYPE_ERROR_CODE_SET = new Set(['602012']);
  */
 export const REPLACE_TEMP_BLOCKED_BY_STATUS_ERROR_CODE_SET = new Set(['602013']);
 
+/** 订单 API 暂态状态码：超时、限流和服务端临时不可用 */
+export const ORDER_API_TRANSIENT_STATUS_CODE_SET = new Set([
+  '408',
+  '425',
+  '429',
+  '500',
+  '502',
+  '503',
+  '504',
+]);
+
+/** 订单 API 暂态错误消息关键词 */
+export const ORDER_API_RETRYABLE_MESSAGE_HINTS = [
+  'network',
+  'timeout',
+  'timed out',
+  'temporarily unavailable',
+  'service unavailable',
+  'service busy',
+  'connection',
+  'econnreset',
+  'etimedout',
+  'rate limit',
+] as const;
+
 /** 百分比格式化小数位数 */
 export const DEFAULT_PERCENT_DECIMALS = 2;
 
@@ -359,7 +378,7 @@ export const ACCOUNT_CHANNEL_MAP: Record<string, string> = {
 };
 
 /** 有效的交易信号集合，不包含 HOLD（仅用于判断是否需要执行交易） */
-export const STRATEGY_ACTIONS: ReadonlyArray<StrategyAction> = [
+const STRATEGY_ACTIONS: ReadonlyArray<StrategyAction> = [
   'BUYCALL',
   'SELLCALL',
   'BUYPUT',
@@ -406,3 +425,7 @@ export const ORDER_OWNERSHIP = {
   LONG_MARKERS: ['RC', 'BULL', 'CALL', '\u725B'],
   SHORT_MARKERS: ['RP', 'BEAR', 'PUT', '\u718A'],
 } as const;
+
+export const LONG_DIRECTION_NAME = '\u505A\u591A\u6807\u7684';
+
+export const SHORT_DIRECTION_NAME = '\u505A\u7A7A\u6807\u7684';

@@ -6,7 +6,14 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { inspect } from 'node:util';
-import { FilterWarrantExpiryDate, WarrantStatus, WarrantType } from 'longbridge';
+import {
+  FilterWarrantExpiryDate,
+  FilterWarrantInOutBoundsType,
+  SortOrderType,
+  WarrantSortBy,
+  WarrantStatus,
+  WarrantType,
+} from 'longbridge';
 
 import { findBestWarrant } from '../../../src/services/autoSymbolFinder/index.js';
 import { resolveDirectionalAutoSearchPolicy } from '../../../src/services/autoSymbolFinder/policyResolver.js';
@@ -58,11 +65,9 @@ function createWarrantListItem(params: {
   return {
     symbol: params.symbol,
     name: params.name ?? params.symbol,
-    lastDone: toMockDecimal(0.1),
     toCallPrice: toMockDecimal(params.apiDistanceRatio),
     callPrice: toMockDecimal(params.callPrice ?? 20_000),
     turnover: toMockDecimal(params.turnover),
-    warrantType: WarrantType.Bull,
     status: params.status ?? WarrantStatus.Normal,
   };
 }
@@ -74,7 +79,9 @@ function toApiDistanceRatio(percentValue: number): number {
 function toWarrantInfo(
   item: WarrantListItem,
 ): Parameters<ReturnType<typeof createQuoteContextMock>['seedWarrantList']>[1][number] {
-  const normalizeDecimalField = (value: WarrantListItem['lastDone']): number | null | undefined => {
+  const normalizeDecimalField = (
+    value: WarrantListItem['toCallPrice'],
+  ): number | null | undefined => {
     if (value === undefined || value === null) {
       return value;
     }
@@ -86,15 +93,13 @@ function toWarrantInfo(
     return value.toNumber();
   };
 
-  const lastDone = normalizeDecimalField(item.lastDone);
   const toCallPrice = normalizeDecimalField(item.toCallPrice);
   const callPrice = normalizeDecimalField(item.callPrice);
   const turnover = normalizeDecimalField(item.turnover);
   return {
-    warrantType: item.warrantType ?? 'Bull',
+    warrantType: WarrantType.Bull,
     symbol: item.symbol,
     ...(item.name === undefined ? {} : { name: item.name }),
-    ...(lastDone === undefined ? {} : { lastDone }),
     ...(toCallPrice === undefined ? {} : { toCallPrice }),
     ...(callPrice === undefined ? {} : { callPrice }),
     ...(turnover === undefined ? {} : { turnover }),
@@ -590,6 +595,35 @@ describe('autoSymbolFinder business flow', () => {
     ).toBeTrue();
   });
 
+  it('forwards full warrantList filters through the MarketQuoteContext boundary', async () => {
+    const quoteCtx = createQuoteContextMock();
+    const ctx = createQuoteContextDouble(quoteCtx);
+
+    await ctx.warrantList({
+      symbol: 'HSI.HK',
+      sortBy: WarrantSortBy.Turnover,
+      sortOrder: SortOrderType.Descending,
+      types: [WarrantType.Bull],
+      issuerIds: [123],
+      expiryFilters: [FilterWarrantExpiryDate.Between_3_6],
+      inOutBoundsTypes: [FilterWarrantInOutBoundsType.In],
+      status: [WarrantStatus.Normal],
+    });
+
+    const warrantListCalls = quoteCtx.getCalls('warrantList');
+    expect(warrantListCalls).toHaveLength(1);
+    expect(warrantListCalls[0]?.args).toEqual([
+      'HSI.HK',
+      WarrantSortBy.Turnover,
+      SortOrderType.Descending,
+      [WarrantType.Bull],
+      [123],
+      [FilterWarrantExpiryDate.Between_3_6],
+      [FilterWarrantInOutBoundsType.In],
+      [WarrantStatus.Normal],
+    ]);
+  });
+
   it('reuses cache within TTL and re-fetches after expiry for the same monitor symbol and direction', async () => {
     const quoteCtx = createQuoteContextMock();
     quoteCtx.seedWarrantList('HSI.HK', [
@@ -633,25 +667,30 @@ describe('autoSymbolFinder business flow', () => {
     expect(quoteCtx.getCalls('warrantList')).toHaveLength(2);
   });
 
-  it('returns null and records warning when api call fails', async () => {
+  it('throws ExternalApiRequestError when warrantList api call fails', async () => {
     const quoteCtx = createQuoteContextMock();
     quoteCtx.setFailureRule('warrantList', {
-      failAtCalls: [1],
-      errorMessage: 'warrant list mock failed',
+      failAtCalls: [1, 2, 3],
+      errorMessage: 'service unavailable',
     });
 
-    const { logger, warns } = createLoggerRecorder();
-    const result = await findBestWarrant({
-      ctx: createQuoteContextDouble(quoteCtx),
-      monitorSymbol: 'HSI.HK',
-      tradingMinutes: 10,
-      policy: createDirectionalPolicy('LONG'),
-      expiryMinMonths: 3,
-      logger,
-    });
+    const { logger } = createLoggerRecorder();
+    let error: unknown = null;
+    try {
+      await findBestWarrant({
+        ctx: createQuoteContextDouble(quoteCtx),
+        monitorSymbol: 'HSI.HK',
+        tradingMinutes: 10,
+        policy: createDirectionalPolicy('LONG'),
+        expiryMinMonths: 3,
+        logger,
+      });
+    } catch (err) {
+      error = err;
+    }
 
-    expect(result).toBeNull();
-    expect(warns.some((msg) => msg.includes('warrantList 获取失败'))).toBeTrue();
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).name).toBe('ExternalApiRequestError');
   });
 
   it('returns null and logs when no warrant can satisfy business thresholds', async () => {

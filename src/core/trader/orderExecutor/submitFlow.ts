@@ -9,6 +9,10 @@
 import { OrderSide, OrderType, TimeInForceType, type TradeContext } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { TRADING } from '../../../constants/index.js';
+import {
+  isExternalApiRequestError,
+  wrapExternalApiRequest,
+} from '../../../utils/apiFailure/index.js';
 import { decimalToNumber, isValidPositiveNumber } from '../../../utils/helpers/index.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
 import type { MonitorConfig } from '../../../types/config.js';
@@ -96,6 +100,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
    *
    * @param params 提交参数
    * @returns 订单 ID，失败返回 null
+   * @throws 当远端下单成功但本地追踪登记失败时抛错，避免静默丢失订单状态
    */
   async function submitOrder(params: SubmitOrderParams): Promise<string | null> {
     const {
@@ -155,7 +160,14 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
       }
 
       recordBuyAttempt(signal.action, monitorConfig);
-      const resp = await ctx.submitOrder(orderPayload);
+      const resp = await wrapExternalApiRequest({
+        operation: 'TradeContext.submitOrder',
+        request: () => ctx.submitOrder(orderPayload),
+        retryConfig: {
+          retries: 0,
+          delayMs: 0,
+        },
+      });
       cacheManager.clearCache();
       const orderId = extractOrderId(resp);
       const actionDesc = getActionDescription(signal.action);
@@ -204,6 +216,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
       handleSubmitError(err, signal, orderPayload);
       const message = err instanceof Error ? err.message : '';
       if (
+        isExternalApiRequestError(err) ||
         message.includes('orderId') ||
         message.startsWith('order submitted but local sync failed:')
       ) {

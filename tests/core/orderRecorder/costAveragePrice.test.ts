@@ -11,7 +11,7 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 // Mock logger 避免测试输出噪音
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- mock.module 在 bun:test 中是同步的
+
 mock.module('../../../src/utils/logger/index.js', () => ({
   logger: {
     info: () => {},

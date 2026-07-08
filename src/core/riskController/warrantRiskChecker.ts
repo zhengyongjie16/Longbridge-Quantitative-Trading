@@ -31,9 +31,14 @@ import type {
   WarrantDistanceLiquidationResult,
   WarrantRefreshResult,
 } from '../../types/services.js';
-import type { WarrantInfo, WarrantRiskChecker, WarrantRiskCheckerDeps } from './types.js';
+import type { WarrantInfo, WarrantRiskChecker } from './types.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
 import { formatError } from '../../utils/error/index.js';
+import {
+  isExternalApiRequestError,
+  isProgramError,
+  wrapExternalApiRequest,
+} from '../../utils/apiFailure/index.js';
 import {
   BULL_WARRANT_MIN_DISTANCE_PERCENT,
   BEAR_WARRANT_MAX_DISTANCE_PERCENT,
@@ -334,8 +339,11 @@ async function checkWarrantType(
   const ctx = await marketDataClient.getQuoteContext();
 
   // 使用 warrantQuote API 获取牛熊证信息
-  const warrantQuotesRaw = await ctx.warrantQuote([symbol]);
-  const warrantQuote = Array.isArray(warrantQuotesRaw) ? (warrantQuotesRaw[0] ?? null) : null;
+  const warrantQuotesRaw = await wrapExternalApiRequest({
+    operation: 'QuoteContext.warrantQuote',
+    request: () => ctx.warrantQuote([symbol]),
+  });
+  const warrantQuote = warrantQuotesRaw[0] ?? null;
   if (!warrantQuote) {
     return { isWarrant: false };
   }
@@ -363,10 +371,9 @@ async function checkWarrantType(
 
 /**
  * 创建牛熊证风险检查器（风控：距离回收价检查）
- * @param _deps 可选依赖，当前未使用
  * @returns WarrantRiskChecker 接口实例
  */
-export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): WarrantRiskChecker {
+export function createWarrantRiskChecker(): WarrantRiskChecker {
   // 闭包捕获的私有状态
   let longWarrantInfo: WarrantInfo | null = null;
   let shortWarrantInfo: WarrantInfo | null = null;
@@ -401,17 +408,15 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
         return { status: 'notWarrant', isWarrant: false };
       }
     } catch (err) {
+      if (isExternalApiRequestError(err) || isProgramError(err)) {
+        throw err;
+      }
+
       const errorMessage = formatError(err);
       logger.warn(
         `[风险检查] 检查${isLong ? '做多' : '做空'}标的 ${symbolDisplay} 牛熊证信息时出错：`,
         errorMessage,
       );
-
-      if (isLong) {
-        longWarrantInfo = { isWarrant: false };
-      } else {
-        shortWarrantInfo = { isWarrant: false };
-      }
 
       return { status: 'error', isWarrant: false, reason: errorMessage };
     }

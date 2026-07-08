@@ -71,12 +71,32 @@ class TestNaiveDate {
   }
 }
 
-import { Market as RealMarket, Period as RealPeriod } from 'longbridge';
+import {
+  Market as RealMarket,
+  Period as RealPeriod,
+  SortOrderType,
+  TradeSessions as RealTradeSessions,
+  WarrantSortBy,
+  WarrantStatus,
+  WarrantType,
+} from 'longbridge';
+import type { createMarketDataClient as actualCreateMarketDataClient } from '../../../src/services/quoteClient/index.js';
+import { isExternalApiRequestError } from '../../../src/utils/apiFailure/index.js';
 
-import { createPushCandlestickEvent } from '../../../mock/factories/quoteFactory.js';
+import {
+  createPushCandlestickEvent,
+  createPushQuoteEvent,
+  createWarrantInfo,
+  createWarrantQuote,
+} from '../../../mock/factories/quoteFactory.js';
 import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
-import { createMarketDataClient } from '../../../src/services/quoteClient/index.js';
 import { createSdkConfigDouble } from '../../helpers/testDoubles.js';
+
+const quoteClientModulePath =
+  '../../../src/services/quoteClient/index.js?quote-client-business-test';
+const { createMarketDataClient } = (await import(quoteClientModulePath)) as {
+  readonly createMarketDataClient: typeof actualCreateMarketDataClient;
+};
 
 let quoteMock: ReturnType<typeof createQuoteContextMock>;
 
@@ -155,7 +175,474 @@ describe('quoteClient business flow', () => {
     expect(quoteMock.getCalls('realtimeQuote')).toHaveLength(1);
   });
 
-  it('returns null for admitted symbol when realtime quote is not warmed', async () => {
+  it('returns null for realtime quotes with non-positive lastDone', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 0, 1.2),
+      },
+    ]);
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+    const quotes = await client.getQuotes(['BULL.HK']);
+
+    expect(quotes.get('BULL.HK')).toBeNull();
+  });
+
+  it('retries quote subscription after a transient API failure', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+
+    quoteMock.setFailureRule('subscribe', {
+      failAtCalls: [1],
+      errorMessage: 'service unavailable',
+    });
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    let error: unknown = null;
+    try {
+      await client.subscribeSymbols(['BULL.HK']);
+    } catch (err) {
+      error = err;
+    }
+
+    expect(quoteMock.getCalls('subscribe')).toHaveLength(2);
+    expect(error).toBeNull();
+  });
+
+  it('retries quote unsubscribe after a transient API failure', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+    await client.subscribeSymbols(['BULL.HK']);
+    quoteMock.setFailureRule('unsubscribe', {
+      failAtCalls: [1],
+      errorMessage: 'service unavailable',
+    });
+
+    let error: unknown = null;
+    try {
+      await client.unsubscribeSymbols(['BULL.HK']);
+    } catch (err) {
+      error = err;
+    }
+
+    expect(quoteMock.getCalls('unsubscribe')).toHaveLength(2);
+    expect(error).toBeNull();
+  });
+
+  it('publishes standardized quote updates for subscribed symbols and supports listener disposal', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+
+    const received: Array<{
+      readonly symbol: string;
+      readonly price: number;
+      readonly name: string | null;
+      readonly prevClose: number;
+      readonly lotSize: number | undefined;
+    }> = [];
+    const dispose = client.onQuoteUpdated((event) => {
+      received.push({
+        symbol: event.symbol,
+        price: event.quote.price,
+        name: event.quote.name,
+        prevClose: event.quote.prevClose,
+        lotSize: event.quote.lotSize,
+      });
+    });
+
+    quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 1.31 }));
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({
+      symbol: 'BULL.HK',
+      price: 1.31,
+      name: '测试牛证',
+      prevClose: 1.2,
+      lotSize: 500,
+    });
+
+    dispose();
+    quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 1.32 }));
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(1);
+  });
+
+  it('fails fast when a standardized quote listener throws', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+    client.onQuoteUpdated(() => {
+      throw new Error('listener failed');
+    });
+
+    expect(() => {
+      quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 1.31 }));
+      quoteMock.flushAllEvents();
+    }).toThrow('listener failed');
+  });
+
+  it('drops standardized quote updates when lastDone is not a valid positive value', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+
+    const received: string[] = [];
+    client.onQuoteUpdated((event) => {
+      received.push(event.symbol);
+    });
+
+    quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 0 }));
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(0);
+  });
+
+  it('stops standardized quote updates after symbol unsubscribe', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+
+    const received: Array<string> = [];
+    client.onQuoteUpdated((event) => {
+      received.push(event.symbol);
+    });
+
+    await client.unsubscribeSymbols(['BULL.HK']);
+    quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 1.31 }));
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(0);
+  });
+
+  it('publishes standardized candlestick updates for subscribed symbols and supports listener disposal', async () => {
+    quoteMock.seedCandlesticks('BULL.HK', RealPeriod.Min_1, [
+      makeCandlestick(100, '2026-02-16T01:00:00.000Z'),
+      makeCandlestick(101, '2026-02-16T01:01:00.000Z'),
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeCandlesticks('BULL.HK', RealPeriod.Min_1);
+
+    const received: Array<{
+      readonly symbol: string;
+      readonly period: number;
+      readonly version: number;
+      readonly lastBarConfirmed: boolean | null;
+      readonly latestClose: number;
+    }> = [];
+    const dispose = client.onCandlestickUpdated((event) => {
+      received.push({
+        symbol: event.symbol,
+        period: event.period,
+        version: event.snapshot.version,
+        lastBarConfirmed: event.snapshot.lastBarConfirmed,
+        latestClose: Number(event.snapshot.candles.at(-1)?.close?.toString() ?? Number.NaN),
+      });
+    });
+
+    quoteMock.emitCandlestick(
+      createPushCandlestickEvent({
+        symbol: 'BULL.HK',
+        close: 105,
+        timestampMs: Date.parse('2026-02-16T01:02:00.000Z'),
+        period: RealPeriod.Min_1,
+        isConfirmed: false,
+      }),
+    );
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({
+      symbol: 'BULL.HK',
+      period: RealPeriod.Min_1,
+      version: 2,
+      lastBarConfirmed: false,
+      latestClose: 105,
+    });
+
+    dispose();
+    quoteMock.emitCandlestick(
+      createPushCandlestickEvent({
+        symbol: 'BULL.HK',
+        close: 106,
+        timestampMs: Date.parse('2026-02-16T01:03:00.000Z'),
+        period: RealPeriod.Min_1,
+        isConfirmed: false,
+      }),
+    );
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(1);
+    expect(quoteMock.getCalls('subscribeCandlesticks')[0]?.args[2]).toBe(
+      RealTradeSessions.Intraday,
+    );
+  });
+
+  it('bridges quote context warrant queries without altering request or response data', async () => {
+    quoteMock.seedWarrantQuotes([
+      createWarrantQuote({ symbol: 'BULL-CALL.HK', callPrice: 18800, category: 1 }),
+    ]);
+
+    quoteMock.seedWarrantList('HSI.HK', [
+      createWarrantInfo({ symbol: 'BULL-CALL.HK', warrantType: 'Bull', callPrice: 18800 }),
+      createWarrantInfo({ symbol: 'BEAR-CALL.HK', warrantType: 'Bear', callPrice: 21200 }),
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    const quoteContext = await client.getQuoteContext();
+    const warrantQuotes = await quoteContext.warrantQuote(['BULL-CALL.HK']);
+    const warrantList = await quoteContext.warrantList({
+      symbol: 'HSI.HK',
+      sortBy: WarrantSortBy.Turnover,
+      sortOrder: SortOrderType.Descending,
+      types: [WarrantType.Bull],
+      issuerIds: [1, 2],
+      status: [WarrantStatus.Normal],
+    });
+
+    expect(warrantQuotes).toHaveLength(1);
+    expect(warrantQuotes[0]?.symbol).toBe('BULL-CALL.HK');
+    expect(warrantList.map((item) => item.symbol)).toEqual(['BULL-CALL.HK']);
+    expect(quoteMock.getCalls('warrantQuote')[0]?.args).toEqual([['BULL-CALL.HK']]);
+    expect(quoteMock.getCalls('warrantList')[0]?.args).toEqual([
+      'HSI.HK',
+      WarrantSortBy.Turnover,
+      SortOrderType.Descending,
+      [WarrantType.Bull],
+      [1, 2],
+      undefined,
+      undefined,
+      [WarrantStatus.Normal],
+    ]);
+  });
+
+  it('retries quote context warrant requests before returning authoritative data', async () => {
+    quoteMock.seedWarrantQuotes([
+      createWarrantQuote({ symbol: 'BULL-CALL.HK', callPrice: 18800, category: 1 }),
+    ]);
+
+    quoteMock.seedWarrantList('HSI.HK', [
+      createWarrantInfo({ symbol: 'BULL-CALL.HK', warrantType: 'Bull', callPrice: 18800 }),
+    ]);
+
+    quoteMock.setFailureRule('warrantQuote', {
+      failAtCalls: [1],
+      errorMessage: 'network unavailable',
+    });
+
+    quoteMock.setFailureRule('warrantList', {
+      failAtCalls: [1],
+      errorMessage: 'network unavailable',
+    });
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    const quoteContext = await client.getQuoteContext();
+    const warrantQuotes = await quoteContext.warrantQuote(['BULL-CALL.HK']);
+    const warrantList = await quoteContext.warrantList({
+      symbol: 'HSI.HK',
+      sortBy: WarrantSortBy.Turnover,
+      sortOrder: SortOrderType.Descending,
+      types: [WarrantType.Bull],
+    });
+
+    expect(warrantQuotes).toHaveLength(1);
+    expect(warrantList).toHaveLength(1);
+    expect(quoteMock.getCalls('warrantQuote')).toHaveLength(2);
+    expect(quoteMock.getCalls('warrantList')).toHaveLength(2);
+  });
+
+  it('does not locally retry realtimeQuote failures on the quote read path', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+    await client.subscribeSymbols(['BULL.HK']);
+    quoteMock.setFailureRule('realtimeQuote', {
+      failAtCalls: [1],
+      errorMessage: 'service unavailable',
+    });
+
+    let error: unknown = null;
+    try {
+      await client.getQuotes(['BULL.HK']);
+    } catch (err) {
+      error = err;
+    }
+
+    expect(quoteMock.getCalls('realtimeQuote')).toHaveLength(1);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).name).toBe('ExternalApiRequestError');
+  });
+
+  it('returns null for subscribed symbol when realtime quote is not warmed', async () => {
     quoteMock.seedStaticInfo([
       {
         symbol: 'BULL.HK',
@@ -425,9 +912,17 @@ describe('quoteClient business flow', () => {
     await client.subscribeSymbols(['BULL.HK']);
     await client.subscribeCandlesticks('BULL.HK', RealPeriod.Min_1);
 
+    const received: string[] = [];
+    client.onQuoteUpdated((event) => {
+      received.push(event.symbol);
+    });
+
     await client.resetRuntimeSubscriptionsAndCaches();
+    quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 1.31 }));
+    quoteMock.flushAllEvents();
 
     expect(client.getQuotes(['BULL.HK'])).rejects.toThrow('未订阅');
+    expect(received).toHaveLength(0);
     expect(quoteMock.getCalls('unsubscribe')).toHaveLength(1);
     expect(quoteMock.getCalls('unsubscribeCandlesticks')).toHaveLength(1);
   });
@@ -460,10 +955,10 @@ describe('quoteClient business flow', () => {
     quoteMock.setFailureRule('unsubscribe', {
       failAtCalls: [1, 2, 3],
       maxFailures: 3,
-      errorMessage: 'unsubscribe failed by rule',
+      errorMessage: 'service unavailable',
     });
 
-    expect(client.resetRuntimeSubscriptionsAndCaches()).rejects.toThrow('退订失败');
+    expect(client.resetRuntimeSubscriptionsAndCaches()).rejects.toThrow('外部 API 请求失败');
 
     quoteMock.clearFailureRules();
 
@@ -474,6 +969,91 @@ describe('quoteClient business flow', () => {
     expect(quote?.name).toBe('测试牛证');
     expect(quote?.lotSize).toBe(500);
     expect(quote?.prevClose).toBeCloseTo(1.2);
+  });
+
+  it('keeps external API classification for pure unsubscribe failures during reset', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+    quoteMock.setFailureRule('unsubscribe', {
+      failAtCalls: [1, 2, 3],
+      maxFailures: 3,
+      errorMessage: 'service unavailable',
+    });
+
+    let caught: unknown = null;
+    try {
+      await client.resetRuntimeSubscriptionsAndCaches();
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(AggregateError);
+    expect(isExternalApiRequestError(caught)).toBeTrue();
+  });
+
+  it('keeps mixed reset failures outside external API retry classification', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+    await client.subscribeCandlesticks('', RealPeriod.Min_1);
+    quoteMock.setFailureRule('unsubscribe', {
+      failAtCalls: [1, 2, 3],
+      maxFailures: 3,
+      errorMessage: 'service unavailable',
+    });
+
+    let caught: unknown = null;
+    try {
+      await client.resetRuntimeSubscriptionsAndCaches();
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(AggregateError);
+    expect(isExternalApiRequestError(caught)).toBeFalse();
   });
 
   it('keeps local candlestick cache for unsubscribe-failed keys during reset', async () => {
@@ -495,10 +1075,10 @@ describe('quoteClient business flow', () => {
     quoteMock.setFailureRule('unsubscribeCandlesticks', {
       failAtCalls: [2, 3, 4],
       maxFailures: 3,
-      errorMessage: 'unsubscribe candlestick failed by rule',
+      errorMessage: 'service unavailable',
     });
 
-    expect(client.resetRuntimeSubscriptionsAndCaches()).rejects.toThrow('退订失败');
+    expect(client.resetRuntimeSubscriptionsAndCaches()).rejects.toThrow('外部 API 请求失败');
 
     const bullSnapshot = client.getCandlestickSnapshot('BULL.HK', RealPeriod.Min_1);
     const bearSnapshot = client.getCandlestickSnapshot('BEAR.HK', RealPeriod.Min_1);

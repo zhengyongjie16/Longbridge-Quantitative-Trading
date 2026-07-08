@@ -182,8 +182,8 @@ async function assertDualDirectionBuyBlockedAfterHydration(params: {
 
   expect(buyCallResult).toHaveLength(0);
   expect(buyPutResult).toHaveLength(0);
-  expect(buyCallSignal.reason).toContain('清仓冷却期内');
-  expect(buyPutSignal.reason).toContain('清仓冷却期内');
+  expect(buyCallSignal.reason).toBe('recovery-cooldown-buycall');
+  expect(buyPutSignal.reason).toBe('recovery-cooldown-buyput');
 }
 
 describe('liquidation-cooldown-recovery integration', () => {
@@ -313,13 +313,13 @@ describe('liquidation-cooldown-recovery integration', () => {
 
     expect(monitorABuyCallResult).toHaveLength(0);
     expect(monitorABuyPutResult).toHaveLength(0);
-    expect(monitorABuyCallSignal.reason).toContain('清仓冷却期内');
-    expect(monitorABuyPutSignal.reason).toContain('清仓冷却期内');
+    expect(monitorABuyCallSignal.reason).toBe('monitorA-buycall');
+    expect(monitorABuyPutSignal.reason).toBe('monitorA-buyput');
 
     expect(monitorBBuyCallResult).toHaveLength(1);
     expect(monitorBBuyPutResult).toHaveLength(1);
-    expect(monitorBBuyCallSignal.reason).not.toContain('清仓冷却期内');
-    expect(monitorBBuyPutSignal.reason).not.toContain('清仓冷却期内');
+    expect(monitorBBuyCallSignal.reason).toBe('monitorB-buycall');
+    expect(monitorBBuyPutSignal.reason).toBe('monitorB-buyput');
   });
 
   it('blocks BUYCALL and BUYPUT after hydrating only LONG cooldown records', async () => {

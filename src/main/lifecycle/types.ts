@@ -8,17 +8,18 @@ import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { Quote } from '../../types/quote.js';
 import type { MarketDataClient, RawOrderFromAPI, Trader } from '../../types/services.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../../core/trader/protectiveLiquidationEpisodeTracker/types.js';
+import type { SeatActivationDispatcher } from '../seatActivationDispatcher/types.js';
 
 /**
- * 每次 tick 传入的运行时标志（生命周期 tick 的入参之一）。
- * 类型用途：供 DayLifecycleManager.tick 使用，表示当日键、是否可交易、是否交易日等；管理器只读不写。
- * 数据来源：由主循环根据当前时间与交易日历等计算后传入 tick(now, runtime)。
- * 使用范围：仅 lifecycle 模块及主程序调用 tick 处使用，内部使用。
+ * 单次生命周期推进传入的运行时标志。
+ * 类型用途：供 DayLifecycleManager.tick 使用，表示当日键、是否可交易、是否交易日等；isTradingDay 为 null 表示交易日状态未知；管理器只读不写。
+ * 数据来源：由时间唤醒评估根据当前时间与交易日历等计算后传入 tick(now, runtime)。
+ * 使用范围：仅 lifecycle 模块及时间唤醒评估调用 tick 处使用，内部使用。
  */
 export type LifecycleRuntimeFlags = Readonly<{
   dayKey: string | null;
   canTradeNow: boolean;
-  isTradingDay: boolean;
+  isTradingDay: boolean | null;
 }>;
 
 /**
@@ -44,6 +45,7 @@ export type LifecycleMutableState = {
 export type LifecycleContext = Readonly<{
   now: Date;
   runtime: LifecycleRuntimeFlags;
+  invalidateSeatActivationCarryover?: boolean;
 }>;
 
 /**
@@ -58,13 +60,24 @@ export interface CacheDomain {
 }
 
 /**
+ * 单次生命周期 tick 后暴露给时间评估器的重试与等待状态。
+ * 类型用途：表达生命周期内部下一次重试时间与是否仍等待开盘重建，供时间唤醒评估器规划后续唤醒。
+ * 数据来源：由 DayLifecycleManager.tick 根据内部午夜清理与开盘重建重试状态生成。
+ * 使用范围：仅生命周期管理器与时间唤醒评估链路使用。
+ */
+export type DayLifecycleTickResult = Readonly<{
+  nextRetryAtMs: number | null;
+  pendingOpenRebuild: boolean;
+}>;
+
+/**
  * 交易日生命周期管理器接口。
- * 类型用途：对外暴露 tick 方法，供主循环每秒驱动；内部根据 dayKey 与状态执行午夜清理与开盘重建。
+ * 类型用途：对外暴露 tick 方法，供时间唤醒评估器驱动；内部根据 dayKey 与状态执行午夜清理与开盘重建。
  * 数据来源：由 createDayLifecycleManager(DayLifecycleManagerDeps) 返回。
- * 使用范围：仅主程序 mainProgram 调用。
+ * 使用范围：仅时间驱动/时间唤醒主程序调用。
  */
 export interface DayLifecycleManager {
-  readonly tick: (now: Date, runtime: LifecycleRuntimeFlags) => Promise<void>;
+  readonly tick: (now: Date, runtime: LifecycleRuntimeFlags) => Promise<DayLifecycleTickResult>;
 }
 
 /**
@@ -96,7 +109,7 @@ export type RebuildTradingDayStateDeps = Readonly<{
   displayAccountAndPositions: (params: {
     readonly lastState: LastState;
     readonly quotesMap: ReadonlyMap<string, Quote | null>;
-  }) => Promise<void>;
+  }) => void;
 }>;
 
 /**
@@ -113,14 +126,13 @@ export type RebuildTradingDayStateParams = Readonly<{
 
 /**
  * loadTradingDayRuntimeSnapshot 的调用参数。
- * 类型用途：控制加载行为：是否要求交易日、订单拉取失败是否抛错、是否重置订阅、是否从成交记录恢复冷却等。
+ * 类型用途：控制加载行为：是否要求交易日、是否重置订阅、是否从成交记录恢复冷却等。
  * 数据来源：由启动流程或开盘重建逻辑根据场景组装传入。
  * 使用范围：仅 lifecycle 内部使用。
  */
 export type LoadTradingDayRuntimeSnapshotParams = Readonly<{
   now: Date;
   requireTradingDay: boolean;
-  failOnOrderFetchError: boolean;
   resetRuntimeSubscriptions: boolean;
   hydrateCooldownFromTradeLog: boolean;
   forceOrderRefresh: boolean;
@@ -153,6 +165,7 @@ export type LoadTradingDayRuntimeSnapshotDeps = Readonly<{
   protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
   tradeLogHydrator: TradeLogHydrator;
   warrantListCacheConfig: WarrantListCacheConfig;
+  seatActivationDispatcher: Pick<SeatActivationDispatcher, 'dispatchCurrentActivatingSeats'>;
 }>;
 
 /**

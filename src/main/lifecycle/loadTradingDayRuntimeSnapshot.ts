@@ -19,23 +19,21 @@
  * - 程序启动时的首次初始化
  * - 开盘重建流程中由 globalStateDomain 调用
  */
-import { OrderSide } from 'longbridge';
+import { OrderSide, TradeSessions } from 'longbridge';
 import { PENDING_ORDER_STATUSES, TRADING } from '../../constants/index.js';
 import {
   getHKDateKey,
   getTradingMinutesSinceOpen,
-  isWithinMorningOpenProtection,
+  isInContinuousHKSession,
+  isWithinMorningOpenWindow,
 } from '../../utils/time/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { prepareSeatsForRuntime } from '../recovery/seatPreparation.js';
 import { collectRuntimeQuoteSymbols, refreshAccountAndPositions } from '../utils.js';
-import type { RawOrderFromAPI } from '../../types/services.js';
-import { formatError } from '../../utils/error/index.js';
 import { decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { resolveOrderOwnership } from '../../core/orderRecorder/orderOwnershipParser.js';
+import { resolveOrderOwnership } from '../../core/orderRecorder/index.js';
 import { hasProtectiveLiquidationRemark } from '../../core/trader/utils.js';
 import { buildCooldownKey } from '../../services/liquidationCooldown/utils.js';
-import { hasSeatSymbol } from '../../utils/seat/guards.js';
 import type {
   LoadTradingDayRuntimeSnapshotDeps,
   LoadTradingDayRuntimeSnapshotParams,
@@ -61,21 +59,6 @@ function resolveDirectionFromKey(
     monitorSymbol,
     direction: directionText,
   };
-}
-
-function isDirectionFlatAtSnapshot(
-  symbolRegistry: LoadTradingDayRuntimeSnapshotDeps['symbolRegistry'],
-  lastState: LoadTradingDayRuntimeSnapshotDeps['lastState'],
-  monitorSymbol: string,
-  direction: ProtectiveLiquidationDirection,
-): boolean {
-  const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-  if (!hasSeatSymbol(seatState)) {
-    return true;
-  }
-
-  const position = lastState.positionCache.get(seatState.symbol);
-  return position === null || position.quantity <= 0;
 }
 
 function restoreCompletedBoundary(params: {
@@ -123,6 +106,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     protectiveLiquidationEpisodeTracker,
     tradeLogHydrator,
     warrantListCacheConfig,
+    seatActivationDispatcher,
   } = deps;
 
   /**
@@ -136,7 +120,6 @@ export function createLoadTradingDayRuntimeSnapshot(
     const {
       now,
       requireTradingDay,
-      failOnOrderFetchError,
       resetRuntimeSubscriptions,
       hydrateCooldownFromTradeLog,
       forceOrderRefresh,
@@ -147,7 +130,10 @@ export function createLoadTradingDayRuntimeSnapshot(
         throw new Error('重建触发时交易日信息无效');
       }
 
-      lastState.cachedTradingDayInfo = tradingDayInfo;
+      lastState.cachedTradingDayInfo = {
+        dateKey: getHKDateKey(now) ?? '',
+        info: tradingDayInfo,
+      };
       lastState.isHalfDay = tradingDayInfo.isHalfDay;
     }
 
@@ -162,16 +148,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     }
 
     logger.debug('账户和持仓信息获取成功，开始解析席位');
-    let allOrders: ReadonlyArray<RawOrderFromAPI> = [];
-    try {
-      allOrders = await trader.fetchAllOrdersFromAPI(forceOrderRefresh);
-    } catch (err) {
-      if (failOnOrderFetchError) {
-        throw new Error(`[全量订单获取失败] ${formatError(err)}`, { cause: err });
-      }
-
-      logger.warn('[全量订单获取失败] 将按空订单继续初始化', formatError(err));
-    }
+    const allOrders = await trader.fetchAllOrdersFromAPI(forceOrderRefresh);
 
     trader.seedOrderHoldSymbols(allOrders);
     await prepareSeatsForRuntime({
@@ -183,17 +160,35 @@ export function createLoadTradingDayRuntimeSnapshot(
       now: () => now,
       logger,
       getTradingMinutesSinceOpen,
-      isWithinMorningOpenProtection,
+      resolveCanAutoSearchNow: ({ currentTime, openDelayMinutes }) => {
+        const tradingDayInfo = lastState.cachedTradingDayInfo?.info ?? null;
+        if (tradingDayInfo?.isTradingDay !== true) {
+          return false;
+        }
+
+        if (!isInContinuousHKSession(currentTime, tradingDayInfo.isHalfDay)) {
+          return false;
+        }
+
+        return !isWithinMorningOpenWindow(currentTime, openDelayMinutes);
+      },
       warrantListCacheConfig,
     });
+    seatActivationDispatcher.dispatchCurrentActivatingSeats();
     protectiveLiquidationEpisodeTracker.resetAll();
     const completedBoundaryByDirection = hydrateCooldownFromTradeLog
       ? tradeLogHydrator.hydrate()
       : new Map<string, number>();
 
     const currentDayKey = getHKDateKey(now);
-    const protectiveLatestFillByDirection = new Map<string, number>();
-    const pendingProtectiveLatestFillByDirection = new Map<string, number>();
+    const protectiveLatestFillByDirection = new Map<
+      string,
+      Readonly<{ latestExecutedTimeMs: number; symbol: string }>
+    >();
+    const pendingProtectiveLatestFillByDirection = new Map<
+      string,
+      Readonly<{ latestExecutedTimeMs: number; symbol: string }>
+    >();
     const pendingProtectiveDirectionKeys = new Set<string>();
     for (const order of allOrders) {
       if (!hasProtectiveLiquidationRemark(order.remark)) {
@@ -222,8 +217,11 @@ export function createLoadTradingDayRuntimeSnapshot(
         isValidPositiveNumber(executedQuantity);
       if (hasProtectiveExecution) {
         const existing = protectiveLatestFillByDirection.get(directionKey);
-        if (existing === undefined || executedTimeMs > existing) {
-          protectiveLatestFillByDirection.set(directionKey, executedTimeMs);
+        if (existing === undefined || executedTimeMs > existing.latestExecutedTimeMs) {
+          protectiveLatestFillByDirection.set(directionKey, {
+            latestExecutedTimeMs: executedTimeMs,
+            symbol: order.symbol,
+          });
         }
       }
 
@@ -231,8 +229,14 @@ export function createLoadTradingDayRuntimeSnapshot(
         pendingProtectiveDirectionKeys.add(directionKey);
         if (hasProtectiveExecution) {
           const existingPending = pendingProtectiveLatestFillByDirection.get(directionKey);
-          if (existingPending === undefined || executedTimeMs > existingPending) {
-            pendingProtectiveLatestFillByDirection.set(directionKey, executedTimeMs);
+          if (
+            existingPending === undefined ||
+            executedTimeMs > existingPending.latestExecutedTimeMs
+          ) {
+            pendingProtectiveLatestFillByDirection.set(directionKey, {
+              latestExecutedTimeMs: executedTimeMs,
+              symbol: order.symbol,
+            });
           }
         }
       }
@@ -255,7 +259,7 @@ export function createLoadTradingDayRuntimeSnapshot(
       });
     }
 
-    for (const [directionKey, latestExecutedTimeMs] of protectiveLatestFillByDirection) {
+    for (const [directionKey, protectiveFill] of protectiveLatestFillByDirection) {
       if (
         restoredBoundaryByDirection.has(directionKey) ||
         pendingProtectiveDirectionKeys.has(directionKey)
@@ -268,12 +272,8 @@ export function createLoadTradingDayRuntimeSnapshot(
         continue;
       }
 
-      const isDirectionFlat = isDirectionFlatAtSnapshot(
-        symbolRegistry,
-        lastState,
-        parsed.monitorSymbol,
-        parsed.direction,
-      );
+      const position = lastState.positionCache.get(protectiveFill.symbol);
+      const isDirectionFlat = position === null || position.quantity <= 0;
       if (!isDirectionFlat) {
         continue;
       }
@@ -284,11 +284,11 @@ export function createLoadTradingDayRuntimeSnapshot(
         directionKey,
         monitorSymbol: parsed.monitorSymbol,
         direction: parsed.direction,
-        boundaryExecutedTimeMs: latestExecutedTimeMs,
+        boundaryExecutedTimeMs: protectiveFill.latestExecutedTimeMs,
       });
     }
 
-    for (const [directionKey, latestExecutedTimeMs] of protectiveLatestFillByDirection) {
+    for (const [directionKey, protectiveFill] of protectiveLatestFillByDirection) {
       const parsed = resolveDirectionFromKey(directionKey);
       if (!parsed) {
         continue;
@@ -302,28 +302,28 @@ export function createLoadTradingDayRuntimeSnapshot(
         if (
           pendingLatestExecutedTimeMs !== undefined &&
           (boundaryExecutedTimeMs === undefined ||
-            pendingLatestExecutedTimeMs > boundaryExecutedTimeMs)
+            pendingLatestExecutedTimeMs.latestExecutedTimeMs > boundaryExecutedTimeMs)
         ) {
           protectiveLiquidationEpisodeTracker.restoreInProgressEpisode({
             monitorSymbol: parsed.monitorSymbol,
             direction: parsed.direction,
-            latestExecutedTimeMs: pendingLatestExecutedTimeMs,
+            symbol: pendingLatestExecutedTimeMs.symbol,
+            latestExecutedTimeMs: pendingLatestExecutedTimeMs.latestExecutedTimeMs,
           });
         }
 
         continue;
       }
 
-      if (boundaryExecutedTimeMs !== undefined && latestExecutedTimeMs <= boundaryExecutedTimeMs) {
+      if (
+        boundaryExecutedTimeMs !== undefined &&
+        protectiveFill.latestExecutedTimeMs <= boundaryExecutedTimeMs
+      ) {
         continue;
       }
 
-      const isDirectionFlat = isDirectionFlatAtSnapshot(
-        symbolRegistry,
-        lastState,
-        parsed.monitorSymbol,
-        parsed.direction,
-      );
+      const position = lastState.positionCache.get(protectiveFill.symbol);
+      const isDirectionFlat = position === null || position.quantity <= 0;
       if (isDirectionFlat) {
         restoreCompletedBoundary({
           protectiveLiquidationEpisodeTracker,
@@ -331,7 +331,7 @@ export function createLoadTradingDayRuntimeSnapshot(
           directionKey,
           monitorSymbol: parsed.monitorSymbol,
           direction: parsed.direction,
-          boundaryExecutedTimeMs: latestExecutedTimeMs,
+          boundaryExecutedTimeMs: protectiveFill.latestExecutedTimeMs,
         });
         continue;
       }
@@ -339,7 +339,8 @@ export function createLoadTradingDayRuntimeSnapshot(
       protectiveLiquidationEpisodeTracker.restoreInProgressEpisode({
         monitorSymbol: parsed.monitorSymbol,
         direction: parsed.direction,
-        latestExecutedTimeMs,
+        symbol: protectiveFill.symbol,
+        latestExecutedTimeMs: protectiveFill.latestExecutedTimeMs,
       });
     }
 
@@ -372,6 +373,7 @@ export function createLoadTradingDayRuntimeSnapshot(
       await marketDataClient.subscribeCandlesticks(
         monitorConfig.monitorSymbol,
         TRADING.CANDLE_PERIOD,
+        TradeSessions.Intraday,
       );
     }
 

@@ -1,11 +1,6 @@
-import type {
-  Decimal,
-  FilterWarrantExpiryDate,
-  QuoteContext,
-  WarrantStatus,
-  WarrantType,
-} from 'longbridge';
+import type { Decimal, FilterWarrantExpiryDate, WarrantStatus, WarrantType } from 'longbridge';
 import type { AutoSearchConfig, NumberRange } from '../../types/config.js';
+import type { MarketQuoteContext } from '../../types/services.js';
 import type { Logger } from '../../utils/logger/types.js';
 import type { DecimalLike } from '../../utils/helpers/types.js';
 
@@ -48,12 +43,12 @@ export type ResolveDirectionalAutoSearchPolicyInput = {
 
 /**
  * 基于共享策略构造 findBestWarrant 入参的参数。
- * 类型用途：将共享策略、QuoteContext 与交易分钟数解析器组装为最终 Finder 输入，避免调用方重复拼装。
+ * 类型用途：将共享策略、轮证查询上下文与交易分钟数解析器组装为最终 Finder 输入，避免调用方重复拼装。
  * 数据来源：由 recovery/seatPreparation、thresholdResolver 等调用方组装。
  * 使用范围：autoSymbolFinder 与自动寻标入口之间的共享边界。
  */
 export type BuildFindBestWarrantInputFromPolicyParams = {
-  readonly ctx: QuoteContext;
+  readonly ctx: MarketQuoteContext;
   readonly monitorSymbol: string;
   readonly currentTime: Date;
   readonly policy: DirectionalAutoSearchPolicy;
@@ -65,12 +60,12 @@ export type BuildFindBestWarrantInputFromPolicyParams = {
 
 /**
  * 寻找最佳牛熊证的入参。
- * 类型用途：包含行情上下文、方向化寻标策略与缓存配置，由 findBestWarrant 消费。
+ * 类型用途：包含轮证查询上下文、方向化寻标策略与缓存配置，由 findBestWarrant 消费。
  * 数据来源：由 policyResolver 或 autoSymbolManager 的输入构造器统一生成。
  * 使用范围：autoSymbolFinder 与 autoSymbolManager 模块使用。
  */
 export type FindBestWarrantInput = {
-  readonly ctx: QuoteContext;
+  readonly ctx: MarketQuoteContext;
   readonly monitorSymbol: string;
   readonly tradingMinutes: number;
   readonly policy: DirectionalAutoSearchPolicy;
@@ -88,21 +83,19 @@ export type FindBestWarrantInput = {
 export type WarrantListItem = {
   readonly symbol: string;
   readonly name?: string | null;
-  readonly lastDone: DecimalLike | number | string | null | undefined;
 
   /** Longbridge warrantList 原始小数比值；0.0036 表示 0.36% */
-  readonly toCallPrice: DecimalLike | number | string | null | undefined;
+  readonly toCallPrice?: DecimalLike | number | string | null | undefined;
   readonly callPrice?: DecimalLike | number | string | null | undefined;
-  readonly turnover: DecimalLike | number | string | null | undefined;
-  readonly warrantType: WarrantType | number | string | null | undefined;
-  readonly status: WarrantStatus | number | string | null | undefined;
+  readonly turnover?: DecimalLike | number | string | null | undefined;
+  readonly status?: WarrantStatus | number | string | null | undefined;
 };
 
 /**
  * 牛熊证列表缓存条目。
  * 类型用途：记录获取时间与数据，用于 TTL 过期判断。
  * 数据来源：由 fetchWarrantsWithCache 写入缓存。
- * 使用范围：仅 autoSymbolFinder 模块内部使用。
+ * 使用范围：autoSymbolFinder 缓存实现、app/runtime 装配层与相关测试共享使用。
  */
 export type WarrantListCacheEntry = {
   readonly fetchedAt: number;
@@ -113,7 +106,7 @@ export type WarrantListCacheEntry = {
  * 牛熊证列表缓存接口。
  * 类型用途：支持 TTL 缓存与请求去重（inFlight），供 findBestWarrant 复用列表请求。
  * 数据来源：由 createWarrantListCache 工厂函数实现并注入。
- * 使用范围：仅 autoSymbolFinder 模块内部使用。
+ * 使用范围：autoSymbolFinder、autoSymbolManager、app/runtime 装配层、lifecycle cache domain 与相关测试共享使用。
  */
 export interface WarrantListCache {
   getEntry: (key: string) => WarrantListCacheEntry | undefined;

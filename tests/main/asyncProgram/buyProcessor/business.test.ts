@@ -8,6 +8,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { createBuyTaskQueue } from '../../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createBuyProcessor } from '../../../../src/main/asyncProgram/buyProcessor/index.js';
+import { createExternalApiRequestError } from '../../../../src/utils/apiFailure/index.js';
 
 import type { Signal } from '../../../../src/types/signal.js';
 
@@ -28,7 +29,7 @@ describe('buyProcessor business flow', () => {
     let riskCheckCalls = 0;
     const signalProcessor = {
       processSellSignals: () => [],
-      applyRiskChecks: async (signals: Signal[]) => {
+      applyRiskChecks: async <TSignal extends Signal>(signals: TSignal[]) => {
         riskCheckCalls += 1;
         return signals;
       },
@@ -42,7 +43,7 @@ describe('buyProcessor business flow', () => {
       current: null,
     };
     const trader = createTraderDouble({
-      executeSignals: async (signals: Signal[]) => {
+      executeSignals: async (signals: ReadonlyArray<Signal>) => {
         executed += 1;
         const first = signals[0];
         submittedSnapshotRef.current = {
@@ -68,7 +69,7 @@ describe('buyProcessor business flow', () => {
     const processor = createBuyProcessor({
       taskQueue: queue,
       getMonitorContext: () => monitorContext,
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient,
       doomsdayProtection: createDoomsdayProtectionDouble(),
@@ -77,8 +78,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,
@@ -126,7 +127,7 @@ describe('buyProcessor business flow', () => {
     const processor = createBuyProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -142,8 +143,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,
@@ -183,7 +184,7 @@ describe('buyProcessor business flow', () => {
     const processor = createBuyProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -199,8 +200,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,
@@ -239,7 +240,7 @@ describe('buyProcessor business flow', () => {
     const processor = createBuyProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -255,8 +256,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const staleSignal = createSignalDouble('BUYCALL', 'BULL.HK');
-    staleSignal.seatVersion = 1;
+    let staleSignal = createSignalDouble('BUYCALL', 'BULL.HK');
+    staleSignal = { ...staleSignal, seatVersion: 1 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_BUY', monitorSymbol: 'HSI.HK', data: staleSignal });
@@ -275,7 +276,7 @@ describe('buyProcessor business flow', () => {
     let riskCalls = 0;
     const signalProcessor = {
       processSellSignals: () => [],
-      applyRiskChecks: async (signals: Signal[]) => {
+      applyRiskChecks: async <TSignal extends Signal>(signals: TSignal[]) => {
         riskCalls += 1;
         return signals;
       },
@@ -294,7 +295,7 @@ describe('buyProcessor business flow', () => {
     const processor = createBuyProcessor({
       taskQueue: queue,
       getMonitorContext: () => monitorContext,
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader,
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () => {
@@ -316,8 +317,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => true,
     });
 
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     await runProcessorFlow({
       processor,
@@ -330,6 +331,116 @@ describe('buyProcessor business flow', () => {
     await Bun.sleep(20);
 
     expect(executeCalls).toBe(0);
+  });
+
+  it('sends submitOrder API failure to fatal channel', async () => {
+    const queue = createBuyTaskQueue();
+    const submitError = createExternalApiRequestError({
+      operation: 'TradeContext.submitOrder',
+      attempts: 1,
+      cause: new Error('submit timeout'),
+    });
+    const fatalErrors: unknown[] = [];
+    const signalProcessor = {
+      processSellSignals: () => [],
+      applyRiskChecks: async <TSignal extends Signal>(signals: TSignal[]) => signals,
+      resetRiskCheckCooldown: () => {},
+    };
+
+    const processor = createBuyProcessor({
+      taskQueue: queue,
+      getMonitorContext: () => createMonitorContext(),
+      signalProcessor,
+      trader: createTraderDouble({
+        executeSignals: async () => {
+          throw submitError;
+        },
+      }),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () =>
+          new Map([
+            ['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 1)],
+            ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+            ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+          ]),
+      }),
+      doomsdayProtection: createDoomsdayProtectionDouble(),
+      getLastState: () => createLastState(),
+      getIsHalfDay: () => false,
+      getCanProcessTask: () => true,
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+        signal = { ...signal, seatVersion: 2 };
+        queue.push({ type: 'IMMEDIATE_BUY', monitorSymbol: 'HSI.HK', data: signal });
+      },
+      waitCondition: () => fatalErrors.length === 1,
+    });
+
+    expect(fatalErrors).toEqual([submitError]);
+    expect(queue.isEmpty()).toBeTrue();
+  });
+
+  it('consumes non-submit external API failures without fatal channel escalation', async () => {
+    const queue = createBuyTaskQueue();
+    const quoteError = createExternalApiRequestError({
+      operation: 'QuoteContext.realtimeQuote',
+      attempts: 1,
+      cause: new Error('quote timeout'),
+    });
+    const fatalErrors: unknown[] = [];
+    let executeCalls = 0;
+    const signalProcessor = {
+      processSellSignals: () => [],
+      applyRiskChecks: async <TSignal extends Signal>(signals: TSignal[]) => signals,
+      resetRiskCheckCooldown: () => {},
+    };
+
+    const processor = createBuyProcessor({
+      taskQueue: queue,
+      getMonitorContext: () => createMonitorContext(),
+      signalProcessor,
+      trader: createTraderDouble({
+        executeSignals: async () => {
+          executeCalls += 1;
+          throw quoteError;
+        },
+      }),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async () =>
+          new Map([
+            ['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 1)],
+            ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+            ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+          ]),
+      }),
+      doomsdayProtection: createDoomsdayProtectionDouble(),
+      getLastState: () => createLastState(),
+      getIsHalfDay: () => false,
+      getCanProcessTask: () => true,
+      onFatalError: (error) => {
+        fatalErrors.push(error);
+      },
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+        signal = { ...signal, seatVersion: 2 };
+        queue.push({ type: 'IMMEDIATE_BUY', monitorSymbol: 'HSI.HK', data: signal });
+      },
+      waitCondition: () => executeCalls === 1,
+    });
+
+    expect(fatalErrors).toEqual([]);
+    expect(queue.isEmpty()).toBeTrue();
   });
 
   it('base gate blocks task before processTask when lifecycle gate is closed', async () => {
@@ -348,7 +459,7 @@ describe('buyProcessor business flow', () => {
     const processor = createBuyProcessor({
       taskQueue: queue,
       getMonitorContext: () => createMonitorContext(),
-      signalProcessor: signalProcessor as never,
+      signalProcessor: signalProcessor,
       trader: createTraderDouble(),
       marketDataClient: createMarketDataClientDouble({
         getQuotes: async () =>
@@ -364,8 +475,8 @@ describe('buyProcessor business flow', () => {
       getCanProcessTask: () => false,
     });
 
-    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
-    signal.seatVersion = 2;
+    let signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    signal = { ...signal, seatVersion: 2 };
 
     processor.start();
     queue.push({ type: 'IMMEDIATE_BUY', monitorSymbol: 'HSI.HK', data: signal });

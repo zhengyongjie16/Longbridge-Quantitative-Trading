@@ -1,7 +1,29 @@
 import path from 'node:path';
 import { RUNTIME } from '../../constants/index.js';
 import type { RuntimeProfile } from '../types.js';
-import { parseBooleanEnv } from '../utils.js';
+
+/**
+ * 解析布尔环境变量字符串。
+ *
+ * @param value 环境变量原始字符串
+ * @returns true、false 或 null
+ */
+function parseBooleanEnv(value: string | undefined): boolean | null {
+  if (value === undefined) {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1') {
+    return true;
+  }
+
+  if (normalized === 'false' || normalized === '0') {
+    return false;
+  }
+
+  return null;
+}
 
 /**
  * 解析运行时档位（正式/测试）。

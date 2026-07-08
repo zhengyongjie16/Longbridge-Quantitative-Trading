@@ -23,6 +23,63 @@ function createSwitchSuppressionsMap(): Map<'LONG' | 'SHORT', SwitchSuppression>
 }
 
 describe('autoSymbolManager seatStateManager business flow', () => {
+  it('enterSwitchingSeat publishes listeners after SWITCHING state and version are both current', () => {
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
+    const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const observed: Array<{
+      readonly eventKind: 'version' | 'state';
+      readonly status: string;
+      readonly version: number;
+    }> = [];
+    symbolRegistry.onSeatVersionChanged(() => {
+      observed.push({
+        eventKind: 'version',
+        status: symbolRegistry.getSeatState('HSI.HK', 'LONG').status,
+        version: symbolRegistry.getSeatVersion('HSI.HK', 'LONG'),
+      });
+    });
+
+    symbolRegistry.onSeatStateChanged(() => {
+      observed.push({
+        eventKind: 'state',
+        status: symbolRegistry.getSeatState('HSI.HK', 'LONG').status,
+        version: symbolRegistry.getSeatVersion('HSI.HK', 'LONG'),
+      });
+    });
+    const manager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+
+    manager.enterSwitchingSeat({
+      direction: 'LONG',
+      reason: 'test-enter-switching-seat',
+    });
+
+    expect(observed).toEqual([
+      { eventKind: 'version', status: 'SWITCHING', version: 2 },
+      { eventKind: 'state', status: 'SWITCHING', version: 2 },
+    ]);
+  });
+
   it('enterSwitchingSeat bumps seat version and puts seat into SWITCHING with switch state snapshot', () => {
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',

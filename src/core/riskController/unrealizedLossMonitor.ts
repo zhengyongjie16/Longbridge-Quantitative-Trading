@@ -2,42 +2,31 @@
  * 浮亏监控模块
  *
  * 功能：
- * - 实时监控单标的的浮亏
- * - 浮亏超过阈值时触发保护性清仓
- * - 保护性清仓订单类型由全局配置 liquidationOrderType 决定
- *
- * 浮亏计算（由 riskChecker.checkUnrealizedLoss 执行）：
- * - unrealizedLoss = currentPrice * N1 - R1（负数表示亏损）
- * - R1：未平仓买入订单的成本总和
- * - N1：未平仓买入订单的成交数量总和
- *
- * 清仓流程：
- * 1. 检查浮亏是否超过阈值
- * 2. 创建清仓信号
- * 3. 执行清仓订单
- * 4. 清空订单记录后刷新浮亏数据
+ * - 基于单方向交易标的最新事件价格执行浮亏检查
+ * - 浮亏超过阈值时触发保护性清仓信号并提交交易执行链
+ * - 保护性清仓的最终订单类型由 trader 层按全局配置解析
  */
-import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { signalObjectPool } from '../../utils/objectPool/index.js';
+import { formatSymbolDisplay } from '../../utils/display/index.js';
+import { formatError } from '../../utils/error/index.js';
+import { isExternalApiRequestError } from '../../utils/apiFailure/index.js';
+import { logger } from '../../utils/logger/index.js';
 import type { Quote } from '../../types/quote.js';
 import type {
   DailyLossTracker,
+  DirectionalUnrealizedLossMonitorContext,
   UnrealizedLossMonitor,
-  UnrealizedLossMonitorContext,
 } from '../../types/risk.js';
-import type { Signal } from '../../types/signal.js';
-import type { RiskChecker, Trader, OrderRecorder } from '../../types/services.js';
-import { formatSymbolDisplay } from '../../utils/display/index.js';
-import { formatError } from '../../utils/error/index.js';
+import type { SellSignal } from '../../types/signal.js';
+import type { OrderRecorder, RiskChecker, Trader } from '../../types/services.js';
 import type { UnrealizedLossMonitorDeps } from './types.js';
 
 /**
  * 创建浮亏监控器。
- * 封装「检查浮亏 → 超阈值则生成保护性清仓信号并提交」的流程，供主循环按标的调用。
- * 浮亏超 maxUnrealizedLossPerSymbol 时需统一走清仓、清空订单记录、刷新浮亏数据，避免重复开仓。
- * @param deps 依赖，含 maxUnrealizedLossPerSymbol（≤0 表示禁用）
- * @returns 实现 UnrealizedLossMonitor 接口的实例，主循环调用 monitorUnrealizedLoss(context)
+ * 封装「检查浮亏 -> 超阈值则生成保护性清仓信号并提交」的流程，供 TradingRiskEventRuntime 按单方向调用。
+ *
+ * @param deps 依赖，含 maxUnrealizedLossPerSymbol（<= 0 表示禁用）
+ * @returns 实现 UnrealizedLossMonitor 接口的实例
  */
 export const createUnrealizedLossMonitor = (
   deps: UnrealizedLossMonitorDeps,
@@ -46,157 +35,127 @@ export const createUnrealizedLossMonitor = (
 
   /**
    * 检查指定标的的浮亏是否超过阈值，超过时执行保护性清仓。
-   * 清仓订单提交成功后立即清空订单记录并刷新浮亏数据，以防止重复开仓判断。
-   * 门禁拦截或订单未提交时不更新缓存，返回 false。
+   *
+   * @param params 单方向浮亏检查所需依赖
+   * @returns 实际提交保护性清仓时返回 true
    */
   const checkAndLiquidate = async (params: {
     readonly symbol: string;
     readonly currentPrice: number;
     readonly isLong: boolean;
     readonly monitorSymbol: string;
+    readonly seatVersion: number;
     readonly riskChecker: RiskChecker;
     readonly trader: Trader;
     readonly orderRecorder: OrderRecorder;
     readonly dailyLossTracker: DailyLossTracker;
-    readonly quote?: Quote | null;
+    readonly quote: Quote;
   }): Promise<boolean> => {
     const {
       symbol,
       currentPrice,
       isLong,
       monitorSymbol,
+      seatVersion,
       riskChecker,
       trader,
       orderRecorder,
       dailyLossTracker,
       quote,
     } = params;
-
-    // 如果未启用浮亏监控，直接返回
     if (maxUnrealizedLossPerSymbol <= 0) {
       return false;
     }
 
-    // 验证价格有效性
     if (!isValidPositiveNumber(currentPrice)) {
       return false;
     }
 
-    // 检查浮亏
     const lossCheck = riskChecker.checkUnrealizedLoss(symbol, currentPrice, isLong);
     if (!lossCheck.shouldLiquidate) {
       return false;
     }
 
-    // 执行保护性清仓
     const liquidationReason =
       lossCheck.reason === undefined || lossCheck.reason === ''
         ? '浮亏超过阈值，执行保护性清仓'
         : lossCheck.reason;
     logger.error(liquidationReason);
 
-    // 对象池返回 PoolableSignal；保护性清仓会在此处完整填充后按 Signal 使用
-    const liquidationSignal = signalObjectPool.acquire() as Signal;
-    liquidationSignal.symbol = symbol;
-    liquidationSignal.action = isLong ? 'SELLCALL' : 'SELLPUT';
-    liquidationSignal.reason = lossCheck.reason ?? '';
-    liquidationSignal.isProtectiveLiquidation = true;
-    liquidationSignal.quantity = lossCheck.quantity ?? null;
-    liquidationSignal.price = currentPrice;
+    const liquidationSignal: SellSignal = {
+      symbol,
+      symbolName: quote.name ?? null,
+      action: isLong ? 'SELLCALL' : 'SELLPUT',
+      reason: lossCheck.reason ?? '',
+      isProtectiveLiquidation: true,
+      quantity: lossCheck.quantity ?? null,
+      price: currentPrice,
+      seatVersion,
+      lotSize: quote.lotSize ?? null,
+    };
 
-    // 订单类型将由 orderExecutor 根据全局配置自动选择（LIQUIDATION_ORDER_TYPE）
-    // 设置最小买卖单位（从行情数据获取，仅在缺失时设置）
-    if (quote?.lotSize !== undefined) {
-      liquidationSignal.lotSize ??= quote.lotSize;
-    }
-
+    let submittedCount: number;
     try {
-      const { submittedCount } = await trader.executeSignals([liquidationSignal]);
-
-      // 仅在实际提交订单后才清空订单记录并刷新浮亏数据（门禁拦截或未提交时不得更新缓存）
-      if (submittedCount === 0) {
-        return false; // 未提交，不视为清仓成功，不更新缓存
+      const executionResult = await trader.executeSignals([liquidationSignal]);
+      submittedCount = executionResult.submittedCount;
+    } catch (error) {
+      if (isExternalApiRequestError(error) && error.operation === 'TradeContext.submitOrder') {
+        throw error;
       }
 
-      // 保护性清仓订单已提交：清空订单记录（完全成交后由 orderMonitor 的 recordLocalSell 再次确认；此处先清避免重复开仓判断）
-      // 使用专门的 clearBuyOrders 方法，而不是 recordLocalSell（避免价格过滤逻辑）
-      orderRecorder.clearBuyOrders(symbol, isLong, quote);
-
-      // 重新计算浮亏数据（订单记录已清空，浮亏数据也会为空）
-      await riskChecker.refreshUnrealizedLossData(
-        orderRecorder,
-        symbol,
-        isLong,
-        quote,
-        dailyLossTracker.getLossOffset(monitorSymbol, isLong),
-      );
-      return true; // 清仓成功
-    } catch (err) {
       const direction = isLong ? '做多标的' : '做空标的';
-      const symbolDisplay = formatSymbolDisplay(symbol, quote?.name ?? null);
-      logger.error(`[保护性清仓失败] ${direction} ${symbolDisplay}`, formatError(err));
+      const symbolDisplay = formatSymbolDisplay(symbol, quote.name ?? null);
+      logger.error(`[保护性清仓失败] ${direction} ${symbolDisplay}`, formatError(error));
       return false;
-    } finally {
-      // 无论成功或失败，都释放信号对象回对象池
-      signalObjectPool.release(liquidationSignal);
     }
+
+    if (submittedCount === 0) {
+      return false;
+    }
+
+    orderRecorder.clearBuyOrders(symbol, isLong, quote);
+    await riskChecker.refreshUnrealizedLossData(
+      orderRecorder,
+      symbol,
+      isLong,
+      quote,
+      dailyLossTracker.getLossOffset(monitorSymbol, isLong),
+    );
+    return true;
   };
 
   /**
-   * 监控做多和做空标的的浮亏，价格变化时由主循环调用。
-   * 依次对做多、做空标的调用 checkAndLiquidate，任一方向超阈值即触发保护性清仓。
+   * 监控单方向标的的浮亏。
+   * 直接消费 runtime 已路由好的单一 symbol，并沿用 seatVersion 完成保护性清仓。
+   *
+   * @param context 单方向浮亏监控上下文
    */
-  const monitorUnrealizedLoss = async (context: UnrealizedLossMonitorContext): Promise<void> => {
-    const {
-      longQuote,
-      shortQuote,
-      longSymbol,
-      shortSymbol,
-      monitorSymbol,
-      riskChecker,
-      trader,
-      orderRecorder,
-      dailyLossTracker,
-    } = context;
-
-    // 如果未启用浮亏监控，直接返回
+  const monitorDirectionalUnrealizedLoss = async (
+    context: DirectionalUnrealizedLossMonitorContext,
+  ): Promise<void> => {
     if (maxUnrealizedLossPerSymbol <= 0) {
       return;
     }
 
-    // 统一的浮亏检查逻辑（适用于做多和做空标的）
-    const checkSymbolLoss = async (
-      quote: Quote | null,
-      symbol: string | null,
-      isLong: boolean,
-    ): Promise<void> => {
-      if (!quote || !symbol) {
-        return;
-      }
+    if (!isValidPositiveNumber(context.quote.price)) {
+      return;
+    }
 
-      const price = quote.price;
-      if (isValidPositiveNumber(price)) {
-        await checkAndLiquidate({
-          symbol,
-          currentPrice: price,
-          isLong,
-          monitorSymbol,
-          riskChecker,
-          trader,
-          orderRecorder,
-          dailyLossTracker,
-          quote,
-        });
-      }
-    };
-
-    // 检查做多标的的浮亏
-    await checkSymbolLoss(longQuote, longSymbol, true);
-
-    // 检查做空标的的浮亏
-    await checkSymbolLoss(shortQuote, shortSymbol, false);
+    await checkAndLiquidate({
+      symbol: context.symbol,
+      currentPrice: context.quote.price,
+      isLong: context.isLong,
+      monitorSymbol: context.monitorSymbol,
+      seatVersion: context.seatVersion,
+      riskChecker: context.riskChecker,
+      trader: context.trader,
+      orderRecorder: context.orderRecorder,
+      dailyLossTracker: context.dailyLossTracker,
+      quote: context.quote,
+    });
   };
+
   return {
-    monitorUnrealizedLoss,
+    monitorDirectionalUnrealizedLoss,
   };
 };

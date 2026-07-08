@@ -15,7 +15,7 @@ import {
 } from 'longbridge';
 import { DEFAULT_PERCENT_DECIMALS, DEFAULT_PRICE_DECIMALS } from '../../constants/index.js';
 import { buildExpiryDateFilters, selectBestWarrant } from './utils.js';
-import { formatError } from '../../utils/error/index.js';
+import { wrapExternalApiRequest } from '../../utils/apiFailure/index.js';
 import { formatDecimal } from '../../utils/numeric/index.js';
 import type {
   DirectionalAutoSearchPolicy,
@@ -140,16 +140,20 @@ function requestWarrantList({
   warrantType,
   expiryFilters,
 }: WarrantListRequestParams): Promise<ReadonlyArray<WarrantListItem>> {
-  return ctx.warrantList(
-    monitorSymbol,
-    WarrantSortBy.Turnover,
-    SortOrderType.Descending,
-    [warrantType],
-    null,
-    [...expiryFilters],
-    [FilterWarrantInOutBoundsType.In],
-    [WarrantStatus.Normal],
-  );
+  return wrapExternalApiRequest({
+    operation: 'QuoteContext.warrantList',
+    request: () =>
+      ctx.warrantList({
+        symbol: monitorSymbol,
+        sortBy: WarrantSortBy.Turnover,
+        sortOrder: SortOrderType.Descending,
+        types: [warrantType],
+        issuerIds: null,
+        expiryFilters: [...expiryFilters],
+        inOutBoundsTypes: [FilterWarrantInOutBoundsType.In],
+        status: [WarrantStatus.Normal],
+      }),
+  });
 }
 
 /**
@@ -220,56 +224,48 @@ export async function findBestWarrant({
   logger,
   cacheConfig,
 }: FindBestWarrantInput): Promise<WarrantCandidate | null> {
-  try {
-    const warrantType = resolvePolicyWarrantType(policy);
-    const expiryFilters = buildExpiryDateFilters(expiryMinMonths);
-    const warrants = cacheConfig
-      ? await fetchWarrantsWithCache({
-          ctx,
-          monitorSymbol,
-          warrantType,
-          expiryFilters,
-          cacheConfig,
-        })
-      : await requestWarrantList({
-          ctx,
-          monitorSymbol,
-          warrantType,
-          expiryFilters,
-        });
-    const selectionResult = selectBestWarrant({
-      warrants,
-      tradingMinutes,
-      policy,
-    });
-    if (selectionResult.candidate === null) {
-      logNoCandidateFound({
-        logger,
+  const warrantType = resolvePolicyWarrantType(policy);
+  const expiryFilters = buildExpiryDateFilters(expiryMinMonths);
+  const warrants = cacheConfig
+    ? await fetchWarrantsWithCache({
+        ctx,
         monitorSymbol,
-        tradingMinutes,
-        warrants,
-        policy,
-        primaryCandidateCount: selectionResult.primaryCandidateCount,
-        degradedCandidateCount: selectionResult.degradedCandidateCount,
+        warrantType,
+        expiryFilters,
+        cacheConfig,
+      })
+    : await requestWarrantList({
+        ctx,
+        monitorSymbol,
+        warrantType,
+        expiryFilters,
       });
-      return null;
-    }
-
-    logSelectedCandidate({
+  const selectionResult = selectBestWarrant({
+    warrants,
+    tradingMinutes,
+    policy,
+  });
+  if (selectionResult.candidate === null) {
+    logNoCandidateFound({
       logger,
       monitorSymbol,
       tradingMinutes,
+      warrants,
       policy,
-      candidate: selectionResult.candidate,
       primaryCandidateCount: selectionResult.primaryCandidateCount,
       degradedCandidateCount: selectionResult.degradedCandidateCount,
     });
-    return selectionResult.candidate;
-  } catch (error) {
-    logger.warn(
-      `[自动寻标] warrantList 获取失败：${monitorSymbol}(${resolvePolicyDirectionLabel(policy)})`,
-      formatError(error),
-    );
     return null;
   }
+
+  logSelectedCandidate({
+    logger,
+    monitorSymbol,
+    tradingMinutes,
+    policy,
+    candidate: selectionResult.candidate,
+    primaryCandidateCount: selectionResult.primaryCandidateCount,
+    degradedCandidateCount: selectionResult.degradedCandidateCount,
+  });
+  return selectionResult.candidate;
 }

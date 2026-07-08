@@ -1,6 +1,14 @@
+/**
+ * 多指标策略测试
+ *
+ * 覆盖：
+ * - 校验信号配置解析后能驱动策略生成买卖信号
+ * - 验证指标组合、卖出前置条件与边界输入的行为一致性
+ */
 import { describe, expect, it } from 'bun:test';
 import { parseSignalConfig } from '../../../src/config/utils.js';
-import { createHangSengMultiIndicatorStrategy } from '../../../src/core/strategy/index.js';
+import { createMultiIndicatorTradingStrategy } from '../../../src/core/strategy/index.js';
+import type { TradingSignalStrategyConfig } from '../../../src/core/strategy/types.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import {
   createIndicatorUsageProfileDouble,
@@ -35,9 +43,13 @@ function createSnapshot(overrides: Partial<IndicatorSnapshot> = {}): IndicatorSn
   };
 }
 
-describe('createHangSengMultiIndicatorStrategy', () => {
+function createStrategy(strategyConfig: TradingSignalStrategyConfig) {
+  return createMultiIndicatorTradingStrategy(strategyConfig);
+}
+
+describe('createMultiIndicatorTradingStrategy', () => {
   it('routes immediate and delayed signals by action-specific verification mode', () => {
-    const strategy = createHangSengMultiIndicatorStrategy({
+    const strategy = createStrategy({
       signalConfig: {
         buycall: requireSignalConfig('(K>80)'),
         sellcall: requireSignalConfig('(D>50)'),
@@ -87,7 +99,7 @@ describe('createHangSengMultiIndicatorStrategy', () => {
   });
 
   it('does not generate sell signals when no matching buy orders exist', () => {
-    const strategy = createHangSengMultiIndicatorStrategy({
+    const strategy = createStrategy({
       signalConfig: {
         buycall: null,
         sellcall: requireSignalConfig('(K>80)'),
@@ -121,7 +133,7 @@ describe('createHangSengMultiIndicatorStrategy', () => {
   });
 
   it('drops delayed signals when compiled verification indicator list is empty', () => {
-    const strategy = createHangSengMultiIndicatorStrategy({
+    const strategy = createStrategy({
       signalConfig: {
         buycall: requireSignalConfig('(K>80)'),
         sellcall: null,
@@ -157,8 +169,8 @@ describe('createHangSengMultiIndicatorStrategy', () => {
     expect(result.delayedSignals).toHaveLength(0);
   });
 
-  it('releases pooled indicator records after delayed validation setup fails', () => {
-    const strategy = createHangSengMultiIndicatorStrategy({
+  it('drops delayed signals when delayed validation setup fails and keeps only indicators1 on success', () => {
+    const strategy = createStrategy({
       signalConfig: {
         buycall: requireSignalConfig('(K>80)'),
         sellcall: null,
@@ -209,12 +221,14 @@ describe('createHangSengMultiIndicatorStrategy', () => {
       }),
     );
 
+    const delayedSignal = successfulResult.delayedSignals[0];
     expect(successfulResult.delayedSignals).toHaveLength(1);
-    expect(successfulResult.delayedSignals[0]?.indicators1).toEqual({ D: 60 });
+    expect(delayedSignal?.indicators1).toEqual({ D: 60 });
+    expect(Object.hasOwn(delayedSignal ?? {}, 'verificationHistory')).toBe(false);
   });
 
   it('does not generate signals for manually injected ADX signal conditions', () => {
-    const strategy = createHangSengMultiIndicatorStrategy({
+    const strategy = createStrategy({
       signalConfig: {
         buycall: {
           conditionGroups: [

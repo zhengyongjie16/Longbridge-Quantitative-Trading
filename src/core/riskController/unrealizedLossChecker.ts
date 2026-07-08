@@ -9,11 +9,8 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import {
-  formatSymbolDisplayFromQuote,
-  getLongDirectionName,
-  getShortDirectionName,
-} from '../utils.js';
+import { formatSymbolDisplayFromQuote } from '../utils.js';
+import { LONG_DIRECTION_NAME, SHORT_DIRECTION_NAME } from '../../constants/index.js';
 import {
   decimalAdd,
   decimalGt,
@@ -69,7 +66,7 @@ function calculateCostAndQuantity(
 /**
  * 创建浮亏检查器。
  * 维护标的级浮亏缓存（R1/N1），提供 refresh 与 check；check 时计算 R2 - R1，超过 maxUnrealizedLossPerSymbol 则返回 shouldLiquidate。
- * 买入前、行情展示与主循环浮亏监控共用同一套 R1/N1 缓存，避免重复计算。
+ * 买入前、行情展示与浮亏监控共用同一套 R1/N1 缓存，避免重复计算。
  * @param deps 依赖，含 maxUnrealizedLossPerSymbol（null 或 ≤0 表示禁用浮亏清仓阈值检查）
  * @returns 实现 UnrealizedLossChecker 接口的实例（含 refresh/check/clearUnrealizedLossData）
  */
@@ -122,50 +119,33 @@ export const createUnrealizedLossChecker = (
       return Promise.resolve(null);
     }
 
-    try {
-      // 使用公共方法获取订单列表
-      const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, isLongSymbol);
+    const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, isLongSymbol);
+    const { r1: baseR1, n1 } = calculateCostAndQuantity(buyOrders);
+    const rawOffset =
+      dailyLossOffset !== undefined && Number.isFinite(dailyLossOffset) ? dailyLossOffset : 0;
+    const normalizedOffset = Math.min(rawOffset, 0);
+    const adjustedR1 = decimalToNumberValue(decimalSub(baseR1, normalizedOffset));
 
-      // 计算R1（开仓成本）和N1（持仓数量）
-      const { r1: baseR1, n1 } = calculateCostAndQuantity(buyOrders);
-      const rawOffset =
-        dailyLossOffset !== undefined && Number.isFinite(dailyLossOffset) ? dailyLossOffset : 0;
-      const normalizedOffset = Math.min(rawOffset, 0);
+    unrealizedLossData.set(symbol, {
+      r1: adjustedR1,
+      n1,
+      baseR1,
+      dailyLossOffset: normalizedOffset,
+      lastUpdateTime: Date.now(),
+    });
 
-      // 调整后R1 = 基础R1 - 当日偏移
-      // 当日偏移仅记录亏损（<=0）：盈利偏移统一按 0，不减少 R1
-      // 亏损偏移为负数时，减去负数使 R1 增大，从而更容易触发浮亏保护
-      const adjustedR1 = decimalToNumberValue(decimalSub(baseR1, normalizedOffset));
+    const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
+    const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
 
-      // 更新缓存
-      unrealizedLossData.set(symbol, {
-        r1: adjustedR1,
-        n1,
-        baseR1,
-        dailyLossOffset: normalizedOffset,
-        lastUpdateTime: Date.now(),
-      });
+    logger.info(
+      `[浮亏监控] ${positionType} ${symbolDisplay}: ` +
+        `R1(开仓成本)=${formatDecimal(baseR1, 2)} HKD, ` +
+        `当日偏移=${formatDecimal(normalizedOffset, 2)} HKD, ` +
+        `调整后R1(开仓成本)=${formatDecimal(adjustedR1, 2)} HKD, ` +
+        `N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
+    );
 
-      const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
-
-      // 使用 formatSymbolDisplayFromQuote 格式化标的显示
-      const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
-
-      logger.info(
-        `[浮亏监控] ${positionType} ${symbolDisplay}: ` +
-          `R1(开仓成本)=${formatDecimal(baseR1, 2)} HKD, ` +
-          `当日偏移=${formatDecimal(normalizedOffset, 2)} HKD, ` +
-          `调整后R1(开仓成本)=${formatDecimal(adjustedR1, 2)} HKD, ` +
-          `N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
-      );
-
-      return Promise.resolve({ r1: adjustedR1, n1 });
-    } catch (error) {
-      const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`[浮亏监控] 刷新标的 ${symbolDisplay} 的浮亏数据失败`, errorMessage);
-      return Promise.resolve(null);
-    }
+    return Promise.resolve({ r1: adjustedR1, n1 });
   };
 
   /**
@@ -212,7 +192,7 @@ export const createUnrealizedLossChecker = (
 
     // 检查浮亏是否超过阈值（浮亏为负数表示亏损）
     if (decimalLt(unrealizedLoss, decimalNeg(threshold))) {
-      const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+      const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
       const reason = `[保护性清仓] ${positionType} ${symbol} 浮亏=${formatDecimal(
         unrealizedLoss,
         2,

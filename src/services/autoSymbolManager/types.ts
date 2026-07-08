@@ -1,8 +1,14 @@
 import type { AutoSearchConfig, MonitorConfig } from '../../types/config.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
-import type { Signal } from '../../types/signal.js';
-import type { SeatState, SeatStatus, SymbolRegistry } from '../../types/seat.js';
+import type { BuySignal, SellSignal, Signal } from '../../types/signal.js';
+import type {
+  SeatState,
+  SeatStateChangedEvent,
+  SeatStatus,
+  SeatVersionChangedEvent,
+  SymbolRegistry,
+} from '../../types/seat.js';
 import type {
   MarketDataClient,
   OrderRecorder,
@@ -12,7 +18,12 @@ import type {
 } from '../../types/services.js';
 import type { Logger } from '../../utils/logger/types.js';
 import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
-import type { ObjectPool, PoolableSignal } from '../../utils/objectPool/types.js';
+import type {
+  AdvancePendingSwitchResult,
+  PeriodicSwitchPendingState,
+  StartSwitchOnDistanceResult,
+  SwitchDriveResult,
+} from '../../types/monitorContextPorts.js';
 import type {
   DirectionalAutoSearchPolicy,
   FindBestWarrantInput,
@@ -30,6 +41,7 @@ import type {
 export type SeatEntry = {
   state: SeatState;
   version: number;
+  lastEventVersion: number;
 };
 
 /**
@@ -42,6 +54,22 @@ export type SymbolSeatEntry = {
   long: SeatEntry;
   short: SeatEntry;
 };
+
+/**
+ * 席位状态变化监听器。
+ * 类型用途：SymbolRegistry 内部事件发射时保存 listener 集合。
+ * 数据来源：由 onSeatStateChanged 注册。
+ * 使用范围：仅 autoSymbolManager 的 SymbolRegistry 实现使用。
+ */
+export type SeatStateChangedListener = (event: SeatStateChangedEvent) => void;
+
+/**
+ * 席位版本变化监听器。
+ * 类型用途：SymbolRegistry 内部版本事件发射时保存 listener 集合。
+ * 数据来源：由 onSeatVersionChanged 注册。
+ * 使用范围：仅 autoSymbolManager 的 SymbolRegistry 实现使用。
+ */
+export type SeatVersionChangedListener = (event: SeatVersionChangedEvent) => void;
 
 /**
  * 自动换标管理器的依赖注入参数。
@@ -62,37 +90,57 @@ export type AutoSymbolManagerDeps = {
 };
 
 /**
- * 每 tick 触发自动寻标的入参。
- * 类型用途：包含方向、当前时间与是否可交易标志，由 autoSearch.maybeSearchOnTick 消费。
+ * 事件触发自动寻标的入参。
+ * 类型用途：包含方向、当前时间与是否可交易标志，由 autoSearch.maybeSearchOnEvent 消费。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
-export type SearchOnTickParams = {
+export type SearchOnEventParams = {
   readonly direction: 'LONG' | 'SHORT';
   readonly currentTime: Date;
   readonly canTradeNow: boolean;
 };
 
 /**
- * 距回收价阈值触发换标的入参。
- * 类型用途：包含方向、监控标的价格与持仓列表；实际执行时行情由 switchStateMachine 按阶段获取。
+ * 距回收价换标启动入参。
+ * 类型用途：表达距离触发的首次启动检查所需最小上下文。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
-export type SwitchOnDistanceParams = {
+export type StartSwitchOnDistanceParams = {
   readonly direction: 'LONG' | 'SHORT';
   readonly monitorPrice: number | null;
   readonly positions: ReadonlyArray<Position>;
 };
 
 /**
- * 周期换标触发检查入参。
- * 类型用途：包含方向、当前时间、交易时段与开盘保护状态，由 switchStateMachine.maybeSwitchOnInterval 消费。
+ * 距回收价换标推进入参。
+ * 类型用途：表达存在 pending switch 时继续推进状态机所需的最小上下文。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
-export type SwitchOnIntervalParams = {
+export type AdvancePendingSwitchParams = {
+  readonly direction: 'LONG' | 'SHORT';
+  readonly positions: ReadonlyArray<Position>;
+};
+
+/**
+ * 换标状态机推进入参。
+ * 类型用途：收口 processSwitchState 真正消费的最小上下文，避免把距离换标首帧输入错误传播到后续推进链。
+ * 数据来源：由 startSwitchFlow 与 advancePendingSwitch 在状态机推进前组装。
+ * 使用范围：仅 autoSymbolManager 的 switchStateMachine 内部使用。
+ */
+export type SwitchProcessParams = Readonly<{
+  readonly direction: 'LONG' | 'SHORT';
+  readonly positions: ReadonlyArray<Position>;
+}>;
+
+/**
+ * 周期换标触发检查入参。
+ * 类型用途：包含方向、当前时间与交易时段状态，由 switchStateMachine.evaluatePeriodicSwitchDue 消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
+ */
+export type PeriodicSwitchDueParams = {
   readonly direction: 'LONG' | 'SHORT';
   readonly currentTime: Date;
   readonly canTradeNow: boolean;
-  readonly openProtectionActive: boolean;
 };
 
 /**
@@ -134,26 +182,6 @@ export type SwitchState = {
 export type PeriodicSeatBlockSource = 'ORDER_RECORDER' | 'LOCAL_PENDING_ORDER' | 'EMPTY';
 
 /**
- * 周期换标阻塞来源（有效阻塞值）。
- * 类型用途：用于表达会阻断周期换标的本地占用来源，不包含 EMPTY。
- * 数据来源：由 resolvePeriodicSeatBlockSource 判定后收窄得到。
- * 使用范围：仅 autoSymbolManager 模块内部使用。
- */
-export type PeriodicSeatBlockingReason = Exclude<PeriodicSeatBlockSource, 'EMPTY'>;
-
-/**
- * 周期换标等待状态。
- * 类型用途：记录周期到期后等待空仓触发换标的状态与最近一次本地阻塞来源。
- * 使用范围：仅 autoSymbolManager 模块内部使用。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- */
-export type PeriodicSwitchPendingState = {
-  readonly pending: boolean;
-  readonly pendingSinceMs: number | null;
-  readonly blockedBy?: PeriodicSeatBlockingReason;
-};
-
-/**
  * 换标流程阶段枚举（内部类型）。
  * 类型用途：描述状态机从撤单到完成的各个步骤。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
@@ -191,13 +219,6 @@ export type SwitchSuppression = {
   readonly dateKey: string;
   readonly suppressedTriggerKinds: ReadonlySet<SuppressibleSwitchTriggerKind>;
 };
-
-/**
- * 信号对象池（内部类型）。
- * 类型用途：仅暴露 acquire/release 方法，供换标状态机使用。
- * 使用范围：仅 autoSymbolManager 模块内部使用。
- */
-type SignalObjectPool = Pick<ObjectPool<PoolableSignal>, 'acquire' | 'release'>;
 
 /**
  * 换标状态 Map（内部类型）。
@@ -253,11 +274,14 @@ type TradingCalendarSnapshotProvider = () => TradingCalendarSnapshot;
 type HKDateKeyResolver = (date: Date | null | undefined) => string | null;
 
 /**
- * 开盘保护检查函数（内部类型）。
- * 类型用途：判断当前时间是否在开盘延迟保护窗口内。
+ * 自动寻标开盘延迟检查函数（内部类型）。
+ * 类型用途：判断当前时间是否处于自动寻标早盘开盘延迟窗口。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
-type MorningOpenProtectionChecker = (date: Date | null | undefined, minutes: number) => boolean;
+type MorningAutoSearchOpenDelayChecker = (
+  date: Date | null | undefined,
+  minutes: number,
+) => boolean;
 
 /**
  * 基于共享策略构建 FindBestWarrantInput 的完整依赖参数（内部类型）。
@@ -320,7 +344,7 @@ export type ThresholdResolverDeps = {
  * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export type BuildOrderSignalParams = {
-  readonly action: Signal['action'];
+  readonly action: BuySignal['action'] | SellSignal['action'];
   readonly symbol: string;
   readonly quote: Quote | null;
   readonly reason: string;
@@ -330,20 +354,18 @@ export type BuildOrderSignalParams = {
 };
 
 /**
- * 订单信号构建函数类型。
- * 类型用途：根据 BuildOrderSignalParams 构造订单 Signal，由 createSignalBuilder 实现并注入，供换标状态机消费。
+ * 订单信号联合类型。
+ * 类型用途：统一表达自动寻标与换标链路中生成的买入/卖出订单信号。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
-export type OrderSignalBuilder = (params: BuildOrderSignalParams) => Signal;
+export type OrderSignal = BuySignal | SellSignal;
 
 /**
- * 信号构建器工厂的依赖注入参数（内部类型）。
- * 类型用途：包含信号对象池，供 createSignalBuilder 消费。
- * 使用范围：仅 autoSymbolManager 模块内部使用。
+ * 订单信号构建函数类型。
+ * 类型用途：根据 BuildOrderSignalParams 构造 OrderSignal，由 createSignalBuilder 实现并注入，供换标状态机消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
-export type SignalBuilderDeps = {
-  readonly signalObjectPool: SignalObjectPool;
-};
+export type OrderSignalBuilder = (params: BuildOrderSignalParams) => OrderSignal;
 
 /**
  * 席位不可用原因枚举。
@@ -492,7 +514,7 @@ export type AutoSearchDeps = {
   readonly resolveDirectionalAutoSearchPolicy: ResolveDirectionalAutoSearchPolicy;
   readonly buildFindBestWarrantInput: BuildFindBestWarrantInput;
   readonly findBestWarrant: FindBestWarrant;
-  readonly isWithinMorningOpenProtection: MorningOpenProtectionChecker;
+  readonly isWithinMorningAutoSearchOpenDelay: MorningAutoSearchOpenDelayChecker;
   readonly searchCooldownMs: number;
   readonly getHKDateKey: HKDateKeyResolver;
   readonly maxSearchFailuresPerDay: number;
@@ -500,20 +522,20 @@ export type AutoSearchDeps = {
 };
 
 /**
- * 自动寻标子模块接口，提供每 tick 触发寻标的方法。
+ * 自动寻标子模块接口，提供事件触发寻标的方法。
  * 由 createAutoSearch 实现，供 autoSymbolManager 消费。
  * 类型用途：用于 AutoSearchManager 的类型约束与语义表达。
  * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
  * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export interface AutoSearchManager {
-  maybeSearchOnTick: (params: SearchOnTickParams) => Promise<void>;
+  maybeSearchOnEvent: (params: SearchOnEventParams) => Promise<void>;
 }
 
 /**
  * 启动换标流程的入参。
  * 类型用途：供 switchStateMachine.startSwitchFlow 统一接收距离换标/周期换标请求，并用判别联合表达触发语义。
- * 数据来源：由 maybeSwitchOnDistance / maybeSwitchOnInterval 组装后传入。
+ * 数据来源：由 startSwitchOnDistance / evaluatePeriodicSwitchDue 组装后传入。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 export type StartSwitchFlowParams =
@@ -525,7 +547,7 @@ export type StartSwitchFlowParams =
   | {
       readonly reason: string;
       readonly triggerKind: Exclude<SwitchTriggerKind, 'PERIODIC'>;
-      readonly distanceContext: SwitchOnDistanceParams;
+      readonly distanceContext: StartSwitchOnDistanceParams;
     };
 
 /**
@@ -573,7 +595,6 @@ export type SwitchStateMachineDeps = {
     lotSize: number,
   ) => number | null;
   readonly buildOrderSignal: OrderSignalBuilder;
-  readonly signalObjectPool: SignalObjectPool;
   readonly pendingOrderStatuses: ReadonlySet<PendingOrder['status']>;
   readonly buySide: PendingOrder['side'];
   readonly logger: Logger;
@@ -591,7 +612,10 @@ export type SwitchStateMachineDeps = {
  * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export interface SwitchStateMachine {
-  maybeSwitchOnInterval: (params: SwitchOnIntervalParams) => Promise<void>;
-  maybeSwitchOnDistance: (params: SwitchOnDistanceParams) => Promise<void>;
+  evaluatePeriodicSwitchDue: (params: PeriodicSwitchDueParams) => Promise<SwitchDriveResult>;
+  startSwitchOnDistance: (
+    params: StartSwitchOnDistanceParams,
+  ) => Promise<StartSwitchOnDistanceResult>;
+  advancePendingSwitch: (params: AdvancePendingSwitchParams) => Promise<AdvancePendingSwitchResult>;
   hasPendingSwitch: (direction: 'LONG' | 'SHORT') => boolean;
 }

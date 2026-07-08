@@ -9,8 +9,9 @@
  *
  * 过滤算法（从旧到新累积过滤）：
  * 1. M0：最新卖出时间之后成交的买入订单（无条件保留）
- * 2. 过滤历史高价买入且未被完全卖出的订单
- * 3. 最终记录 = M0 + 过滤后的买入订单
+ * 2. 从最旧卖出订单开始，逐轮处理该卖出时间之前仍保留的买入订单
+ * 3. 若卖出数量不足以全部覆盖，则按“低价优先整笔消除”扣减，并补回两次卖出之间新成交的买入订单
+ * 4. 最终记录 = M0 + 最后一轮过滤结果
  *
  * 智能清仓逻辑：
  * - 智能平仓开启：三阶段卖出（整体盈利全卖；未盈利先卖盈利订单；可选卖出超时订单）
@@ -23,12 +24,11 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import {
-  formatSymbolDisplayFromQuote,
-  getLongDirectionName,
-  getShortDirectionName,
-} from '../utils.js';
+import { formatSymbolDisplayFromQuote } from '../utils.js';
+import { LONG_DIRECTION_NAME, SHORT_DIRECTION_NAME } from '../../constants/index.js';
+import type { MonitorConfig } from '../../types/config.js';
 import type { Quote } from '../../types/quote.js';
+import type { OrderOwnership } from '../../types/orderRecorder.js';
 import type {
   OrderRecord,
   OrderRecorder,
@@ -38,12 +38,18 @@ import type {
   SellableOrderSelectParams,
 } from '../../types/services.js';
 import type {
+  OrderDailyLossAnalysisDeps,
   OrderRecorderDeps,
+  OrderRecorderFactoryDeps,
   OrderStatistics,
   OrderRefreshResultLogParams,
   PendingOrderClassificationForRebuild,
 } from './types.js';
-import { calculateOrderStatistics, classifyOrdersForRebuild } from './utils.js';
+import { createOrderStorage } from './orderStorage.js';
+import { createOrderAPIManager } from './orderApiManager.js';
+import * as orderFilteringEngineModule from './orderFilteringEngine.js';
+import * as orderOwnershipParser from './orderOwnershipParser.js';
+import * as orderRecorderUtils from './utils.js';
 
 /**
  * 验证订单参数有效性
@@ -78,7 +84,7 @@ function logRefreshResult(params: OrderRefreshResultLogParams): void {
     extraInfo,
     quote,
   } = params;
-  const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+  const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
   const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
   const pendingInfo = pendingClassification
     ? `, 待成交买单${pendingClassification.pendingBuyOrders.length}笔, 待成交卖单${pendingClassification.pendingSellOrders.length}笔`
@@ -136,14 +142,14 @@ function formatOrderStatsLine(stats: OrderStatistics): string {
  * @param deps 依赖注入（storage、apiManager、filteringEngine）
  * @returns OrderRecorder 接口实例
  */
-export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
+function createOrderRecorderFromParts(deps: OrderRecorderDeps): OrderRecorder {
   const { storage, apiManager, filteringEngine } = deps;
 
   /** DEBUG 模式下输出指定标的当前订单列表及统计信息 */
   function debugOutputOrders(symbol: string, isLongSymbol: boolean): void {
     if (process.env['DEBUG'] !== 'true') return;
 
-    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
+    const positionType = isLongSymbol ? LONG_DIRECTION_NAME : SHORT_DIRECTION_NAME;
     const currentOrders = storage.getBuyOrdersList(symbol, isLongSymbol);
     const header = `[订单记录变化] ${positionType} ${symbol}: 当前订单列表 (共${currentOrders.length}笔)`;
 
@@ -155,7 +161,9 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
         logLines.push(formatOrderLine(order, index));
       }
 
-      logLines.push(formatOrderStatsLine(calculateOrderStatistics(currentOrders)));
+      logLines.push(
+        formatOrderStatsLine(orderRecorderUtils.calculateOrderStatistics(currentOrders)),
+      );
     }
 
     logger.debug(logLines.join('\n'));
@@ -300,9 +308,10 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   }
 
   /**
-   * 根据卖出订单更新本地买入记录
+   * 根据卖出订单更新本地买入记录。
    * - 卖出数量 >= 总数量：清空记录
-   * - 否则保留成交价 >= 卖出价的订单
+   * - 若提供 relatedBuyOrderIds：按关联买单精确扣减
+   * - 否则回退为低价优先整笔消除策略
    */
   function recordLocalSell(
     symbol: string,
@@ -373,7 +382,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     quote?: Quote | null,
   ): Promise<ReadonlyArray<OrderRecord>> {
     const filteredOrders = allOrders.filter((order) => order.symbol === symbol);
-    const classified = classifyOrdersForRebuild(filteredOrders);
+    const classified = orderRecorderUtils.classifyOrdersForRebuild(filteredOrders);
     const allBuyOrders = classified.filledBuyOrders;
     const filledSellOrders = classified.filledSellOrders;
 
@@ -394,7 +403,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     quote?: Quote | null,
   ): Promise<ReadonlyArray<OrderRecord>> {
     const filteredOrders = allOrders.filter((order) => order.symbol === symbol);
-    const classified = classifyOrdersForRebuild(filteredOrders);
+    const classified = orderRecorderUtils.classifyOrdersForRebuild(filteredOrders);
     const allBuyOrders = classified.filledBuyOrders;
     const filledSellOrders = classified.filledSellOrders;
 
@@ -454,7 +463,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     );
   }
 
-  /** 标记卖出订单完全成交 */
+  /** 更新待成交卖单元数据（数量与关联买单） */
   function updatePendingSell(
     orderId: string,
     params: {
@@ -536,4 +545,65 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
 
     resetAll,
   };
+}
+
+/**
+ * 创建订单记录器正式实例。
+ * 仅要求外部注入 TradeContext 与 RateLimiter，订单存储、API 管理器和过滤引擎在 orderRecorder 边界内完成组装。
+ * @param deps 外部交易上下文与限流器
+ * @returns OrderRecorder 接口实例
+ */
+export function createOrderRecorder(deps: OrderRecorderFactoryDeps): OrderRecorder {
+  const storage = createOrderStorage();
+  const apiManager = createOrderAPIManager({ ctx: deps.ctx, rateLimiter: deps.rateLimiter });
+  const filteringEngine = orderFilteringEngineModule.createOrderFilteringEngine();
+
+  return createOrderRecorderFromParts({
+    storage,
+    apiManager,
+    filteringEngine,
+  });
+}
+
+/**
+ * 创建 dailyLossTracker 所需的订单分析依赖。
+ * 仅暴露日内亏损回算所需的最小能力集合，避免重新引入宽边界 toolkit。
+ * @returns dailyLossTracker 依赖中的订单过滤、归属解析与成交转换能力
+ */
+export function createDailyLossOrderAnalysisDeps(): OrderDailyLossAnalysisDeps {
+  return {
+    filteringEngine: orderFilteringEngineModule.createOrderFilteringEngine(),
+    resolveOrderOwnership,
+    classifyAndConvertOrders: orderRecorderUtils.classifyAndConvertOrders,
+  };
+}
+
+/**
+ * 解析订单归属。
+ * 通过 orderRecorder 公共边界暴露归属分析能力，避免调用方直接引用内部实现文件。
+ * @param order 原始订单
+ * @param monitors 监控配置列表
+ * @returns 订单归属，无法解析时返回 null
+ */
+export function resolveOrderOwnership(
+  order: RawOrderFromAPI,
+  monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
+): OrderOwnership | null {
+  return orderOwnershipParser.resolveOrderOwnership(order, monitors);
+}
+
+/**
+ * 获取最新成交标的。
+ * 通过 orderRecorder 公共边界暴露席位恢复所需的最近成交标的解析能力。
+ * @param orders 原始订单列表
+ * @param orderOwnershipMapping 归属映射
+ * @param direction 多空方向
+ * @returns 最近成交的标的代码，无匹配时返回 null
+ */
+export function getLatestTradedSymbol(
+  orders: ReadonlyArray<RawOrderFromAPI>,
+  orderOwnershipMapping: ReadonlyArray<string>,
+  direction: 'LONG' | 'SHORT',
+): string | null {
+  return orderOwnershipParser.getLatestTradedSymbol(orders, orderOwnershipMapping, direction);
 }

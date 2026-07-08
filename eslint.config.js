@@ -50,6 +50,211 @@ const noImportAliasRule = {
   },
 };
 
+const redundantTypeAliasRule = {
+  meta: {
+    type: 'problem',
+    schema: [],
+    messages: {
+      redundantNamedAlias: '不允许定义仅指向另一个命名类型的重复类型别名，请直接使用原类型。',
+      redundantPrimitiveAlias: '不允许为基础类型定义等价类型别名，请直接使用原始基础类型。',
+    },
+  },
+  create(context) {
+    const filename = getNormalizedFilename(context);
+    if (!isSrcFile(filename)) {
+      return {};
+    }
+
+    return {
+      TSTypeAliasDeclaration(node) {
+        const { typeAnnotation } = node;
+
+        if (
+          typeAnnotation.type === 'TSTypeReference' &&
+          typeAnnotation.typeArguments === undefined
+        ) {
+          reportNode(context, node, 'redundantNamedAlias');
+          return;
+        }
+
+        if (
+          typeAnnotation.type === 'TSStringKeyword' ||
+          typeAnnotation.type === 'TSNumberKeyword' ||
+          typeAnnotation.type === 'TSBooleanKeyword' ||
+          typeAnnotation.type === 'TSBigIntKeyword' ||
+          typeAnnotation.type === 'TSSymbolKeyword'
+        ) {
+          reportNode(context, node, 'redundantPrimitiveAlias');
+        }
+      },
+    };
+  },
+};
+
+function getNormalizedFilename(context) {
+  return (context.filename ?? context.physicalFilename).replaceAll('\\', '/');
+}
+
+function isSrcFile(filename) {
+  return filename.includes('/src/') && filename.endsWith('.ts');
+}
+
+function isTypesFile(filename) {
+  return filename.endsWith('/types.ts') || filename.includes('/src/types/');
+}
+
+function isUtilsFile(filename) {
+  return filename.endsWith('/utils.ts');
+}
+
+function isDeclarationFile(filename) {
+  return filename.endsWith('.d.ts');
+}
+
+function reportNode(context, node, messageId) {
+  context.report({
+    node,
+    messageId,
+  });
+}
+
+const typeDefinitionsLocationRule = {
+  meta: {
+    type: 'problem',
+    schema: [],
+    messages: {
+      invalidTypeLocation: '类型定义只能放在 src/types 或相邻 types.ts 中，且禁止 .d.ts 与 enum。',
+    },
+  },
+  create(context) {
+    const filename = getNormalizedFilename(context);
+    if (!isSrcFile(filename)) {
+      return {};
+    }
+
+    const isAllowedTypeLocation = isTypesFile(filename) && !isDeclarationFile(filename);
+
+    return {
+      TSEnumDeclaration(node) {
+        reportNode(context, node, 'invalidTypeLocation');
+      },
+      TSInterfaceDeclaration(node) {
+        if (!isAllowedTypeLocation) {
+          reportNode(context, node, 'invalidTypeLocation');
+        }
+      },
+      TSModuleDeclaration(node) {
+        reportNode(context, node, 'invalidTypeLocation');
+      },
+      TSTypeAliasDeclaration(node) {
+        if (!isAllowedTypeLocation) {
+          reportNode(context, node, 'invalidTypeLocation');
+        }
+      },
+      TSDeclareFunction(node) {
+        reportNode(context, node, 'invalidTypeLocation');
+      },
+      VariableDeclaration(node) {
+        if (node.declare === true) {
+          reportNode(context, node, 'invalidTypeLocation');
+        }
+      },
+    };
+  },
+};
+
+const typesFileOnlyTypesRule = {
+  meta: {
+    type: 'problem',
+    schema: [],
+    messages: {
+      runtimeInTypesFile: 'types.ts 只能包含 import type、type 与 interface 定义。',
+    },
+  },
+  create(context) {
+    const filename = getNormalizedFilename(context);
+    if (!isSrcFile(filename) || !isTypesFile(filename)) {
+      return {};
+    }
+
+    function reportRuntimeNode(node) {
+      reportNode(context, node, 'runtimeInTypesFile');
+    }
+
+    return {
+      ExportAllDeclaration: reportRuntimeNode,
+      ExportNamedDeclaration(node) {
+        if (
+          node.source === null &&
+          (node.declaration?.type === 'TSTypeAliasDeclaration' ||
+            node.declaration?.type === 'TSInterfaceDeclaration')
+        ) {
+          return;
+        }
+
+        reportRuntimeNode(node);
+      },
+      ImportDeclaration(node) {
+        if (node.importKind === 'type') {
+          return;
+        }
+
+        reportRuntimeNode(node);
+      },
+      Program(node) {
+        for (const statement of node.body) {
+          if (
+            statement.type === 'ImportDeclaration' ||
+            statement.type === 'ExportNamedDeclaration' ||
+            statement.type === 'TSTypeAliasDeclaration' ||
+            statement.type === 'TSInterfaceDeclaration'
+          ) {
+            continue;
+          }
+
+          reportRuntimeNode(statement);
+        }
+      },
+    };
+  },
+};
+
+const utilsFileNoTypesRule = {
+  meta: {
+    type: 'problem',
+    schema: [],
+    messages: {
+      typeInUtilsFile: 'utils.ts 只能包含工具函数实现，不能定义类型。',
+    },
+  },
+  create(context) {
+    const filename = getNormalizedFilename(context);
+    if (!isSrcFile(filename) || !isUtilsFile(filename)) {
+      return {};
+    }
+
+    return {
+      TSDeclareFunction(node) {
+        reportNode(context, node, 'typeInUtilsFile');
+      },
+      TSInterfaceDeclaration(node) {
+        reportNode(context, node, 'typeInUtilsFile');
+      },
+      TSModuleDeclaration(node) {
+        reportNode(context, node, 'typeInUtilsFile');
+      },
+      TSTypeAliasDeclaration(node) {
+        reportNode(context, node, 'typeInUtilsFile');
+      },
+      VariableDeclaration(node) {
+        if (node.declare === true) {
+          reportNode(context, node, 'typeInUtilsFile');
+        }
+      },
+    };
+  },
+};
+
 export default defineConfig(
   js.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
@@ -62,6 +267,10 @@ export default defineConfig(
       local: {
         rules: {
           'no-import-alias': noImportAliasRule,
+          'no-redundant-type-alias': redundantTypeAliasRule,
+          'type-definitions-location': typeDefinitionsLocationRule,
+          'types-file-only-types': typesFileOnlyTypesRule,
+          'utils-file-no-types': utilsFileNoTypesRule,
         },
       },
     },
@@ -194,6 +403,10 @@ export default defineConfig(
       'no-nested-ternary': 'error',
       'prefer-arrow-callback': 'error',
       'local/no-import-alias': 'error',
+      'local/no-redundant-type-alias': 'error',
+      'local/type-definitions-location': 'error',
+      'local/types-file-only-types': 'error',
+      'local/utils-file-no-types': 'error',
 
       // Unicorn 规则兼容性调整
       'unicorn/prefer-string-slice': 'off',
@@ -218,18 +431,33 @@ export default defineConfig(
     },
   },
   {
-    files: ['tests/**/*.ts'],
+    files: ['src/**/*.ts'],
     rules: {
-      // 测试文件统一放宽部分规则，减少测试实现噪音
+      'unicorn/consistent-function-scoping': [
+        'error',
+        {
+          checkArrowFunctions: true,
+        },
+      ],
+    },
+  },
+  {
+    files: ['tests/**/*.ts', 'tools/**/*.ts'],
+    rules: {
+      // 测试和工具文件统一放宽部分规则，减少实现噪音
+      'unicorn/consistent-function-scoping': 'off',
       'local/no-import-alias': 'off',
       '@typescript-eslint/no-empty-function': 'off',
+      '@typescript-eslint/no-floating-promises': 'off',
       '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-extraneous-class': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/unbound-method': 'off',
+      'sonarjs/void-use': 'off',
     },
   },
   {

@@ -61,7 +61,6 @@ describe('QuoteContext mock contract', () => {
     const quotes = await quoteCtx.quote(['700.HK']);
     const staticInfos = await quoteCtx.staticInfo(['700.HK']);
     const candles = await quoteCtx.subscribeCandlesticks('700.HK', Period.Min_1, TradeSessions.All);
-    const latestCandle = await quoteCtx.realtimeCandlesticks('700.HK', Period.Min_1, 1);
     const tradingDays = await quoteCtx.tradingDays(Market.HK, '2026-02-16', '2026-02-16');
     const warrantQuotes = await quoteCtx.warrantQuote(['12345.HK']);
     const warrantBullList = await quoteCtx.warrantList(
@@ -74,7 +73,6 @@ describe('QuoteContext mock contract', () => {
     expect(quotes).toHaveLength(1);
     expect(staticInfos).toHaveLength(1);
     expect(candles).toHaveLength(2);
-    expect(latestCandle).toHaveLength(1);
     expect(tradingDays.tradingDays.map(String)).toEqual(['2026-02-16']);
     expect(warrantQuotes).toHaveLength(1);
     expect(warrantBullList).toHaveLength(1);

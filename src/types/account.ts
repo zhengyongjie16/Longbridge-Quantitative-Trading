@@ -2,34 +2,34 @@ import type { Market } from 'longbridge';
 
 /**
  * 持仓信息。
- * 类型用途：表示某标的的持仓状态，作为 getStockPositions 返回元素、持仓缓存、风控与卖出逻辑的入参/数据源；需可变以支持对象池（PoolablePosition）重用。
+ * 类型用途：表示某标的的持仓状态，作为 getStockPositions 返回元素、持仓缓存、风控与卖出逻辑的入参/数据源。
  * 数据来源：Longbridge 账户 API（getStockPositions）。
- * 使用范围：Trader、RiskChecker、持仓缓存、主循环等；全项目可引用。
+ * 使用范围：Trader、RiskChecker、持仓缓存、运行期状态等；全项目可引用。
  */
 export type Position = {
   /** 账户渠道 */
-  accountChannel: string;
+  readonly accountChannel: string;
 
   /** 标的代码 */
-  symbol: string;
+  readonly symbol: string;
 
   /** 标的名称 */
-  symbolName: string;
+  readonly symbolName: string;
 
   /** 持仓数量 */
-  quantity: number;
+  readonly quantity: number;
 
   /** 可用数量（可卖出） */
-  availableQuantity: number;
+  readonly availableQuantity: number;
 
   /** 币种 */
-  currency: string;
+  readonly currency: string;
 
   /** 成本价 */
-  costPrice: number;
+  readonly costPrice: number;
 
   /** 市场（Longbridge 返回值） */
-  market: Market | string;
+  readonly market: Market | string;
 };
 
 /**
@@ -59,7 +59,7 @@ export type CashInfo = {
  * 账户快照。
  * 类型用途：表示某一时刻的账户资产状态（现金、净资产、购买力等），用于 getAccountSnapshot 返回值、RiskCheckContext、门禁等。
  * 数据来源：Longbridge 账户 API。
- * 使用范围：Trader、RiskChecker、LastState、主循环等；全项目可引用。
+ * 使用范围：Trader、RiskChecker、LastState、运行期状态等；全项目可引用。
  */
 export type AccountSnapshot = {
   /** 结算币种 */

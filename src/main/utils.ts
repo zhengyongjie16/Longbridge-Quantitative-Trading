@@ -2,67 +2,51 @@ import type { Position } from '../types/account.js';
 import type { SymbolRegistry } from '../types/seat.js';
 import type { LastState } from '../types/state.js';
 import type { Trader } from '../types/services.js';
-import { TIME } from '../constants/index.js';
 import { logger } from '../utils/logger/index.js';
 import { formatError } from '../utils/error/index.js';
-
-/**
- * 异步延迟指定毫秒数，无效值时使用 1000ms。
- *
- * @param ms 延迟毫秒数
- * @returns Promise，延迟结束后 resolve
- */
-export async function sleep(ms: number): Promise<void> {
-  const delay = ms;
-  if (!Number.isFinite(delay) || delay < 0) {
-    logger.warn(`[sleep] 无效的延迟时间 ${ms}，使用默认值 ${TIME.MILLISECONDS_PER_SECOND}ms`);
-    return new Promise<void>((resolve) => {
-      setTimeout(resolve, TIME.MILLISECONDS_PER_SECOND);
-    });
-  }
-
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, delay);
-  });
-}
+import { isExternalApiRequestError, isProgramError } from '../utils/apiFailure/index.js';
 
 /**
  * 刷新账户与持仓缓存（仅数据拉取，不做行情订阅）。默认行为：仅当 lastState.cachedAccount 为空时调用
- * trader.getAccountSnapshot 与 getStockPositions，否则直接使用已有缓存；成功后更新 lastState 的
- * cachedAccount、cachedPositions 与 positionCache，失败时仅打日志不抛错。
+ * trader.getAccountSnapshot 与 getStockPositions，否则直接使用已有缓存；成功后原子更新 lastState 的
+ * cachedAccount、cachedPositions 与 positionCache。账户或持仓任一失败都会抛错，避免把未知快照写成空事实。
  *
  * @param trader Trader 实例，用于拉取账户与持仓
  * @param lastState 状态对象，用于读取/更新缓存（cachedAccount、cachedPositions、positionCache）
- * @returns Promise<void>，无返回值；拉取失败时不抛错
+ * @returns Promise<void>，无返回值；拉取失败时抛错
  */
 export async function refreshAccountAndPositions(
   trader: Trader,
   lastState: LastState,
 ): Promise<void> {
-  try {
-    const hasCache = lastState.cachedAccount !== null;
-    let account = lastState.cachedAccount;
-    let positions = lastState.cachedPositions;
-    if (!hasCache) {
-      const [freshAccount, freshPositions] = await Promise.all([
-        trader.getAccountSnapshot().catch((err: unknown) => {
-          logger.warn('获取账户信息失败', formatError(err));
-          return null;
-        }),
-        trader.getStockPositions().catch((err: unknown) => {
-          logger.warn('获取股票仓位失败', formatError(err));
-          return [];
-        }),
-      ]);
-      account = freshAccount;
-      positions = freshPositions;
-      lastState.cachedAccount = account;
-      lastState.cachedPositions = positions;
-      lastState.positionCache.update(positions);
-    }
-  } catch (err) {
-    logger.warn('获取账户和持仓信息失败', formatError(err));
+  if (lastState.cachedAccount !== null) {
+    return;
   }
+
+  let freshAccount: Awaited<ReturnType<Trader['getAccountSnapshot']>>;
+  let freshPositions: Awaited<ReturnType<Trader['getStockPositions']>>;
+  try {
+    [freshAccount, freshPositions] = await Promise.all([
+      trader.getAccountSnapshot(),
+      trader.getStockPositions(),
+    ]);
+  } catch (err) {
+    const message = `无法刷新账户和持仓信息: ${formatError(err)}`;
+    logger.warn(message);
+    if (isProgramError(err)) {
+      throw err;
+    }
+
+    if (isExternalApiRequestError(err)) {
+      throw err;
+    }
+
+    throw new Error(message, { cause: err });
+  }
+
+  lastState.cachedAccount = freshAccount;
+  lastState.cachedPositions = freshPositions;
+  lastState.positionCache.update(freshPositions);
 }
 
 /**
@@ -101,35 +85,7 @@ export function collectRuntimeQuoteSymbols(
 }
 
 /**
- * 计算两个行情标的集合的增量（新增与移除）。默认行为：遍历比较后返回 added/removed 数组。
- *
- * @param prevSymbols 上一次的标的集合
- * @param nextSymbols 当前需要的标的集合
- * @returns 新增标的数组（added）与移除标的数组（removed）
- */
-export function diffQuoteSymbols(
-  prevSymbols: ReadonlySet<string>,
-  nextSymbols: ReadonlySet<string>,
-): { added: ReadonlyArray<string>; removed: ReadonlyArray<string> } {
-  const added: string[] = [];
-  const removed: string[] = [];
-  for (const symbol of nextSymbols) {
-    if (!prevSymbols.has(symbol)) {
-      added.push(symbol);
-    }
-  }
-
-  for (const symbol of prevSymbols) {
-    if (!nextSymbols.has(symbol)) {
-      removed.push(symbol);
-    }
-  }
-
-  return { added, removed };
-}
-
-/**
- * 收集所有需要获取行情的标的代码（监控标的 + 席位占用标的），用于主循环一次性批量拉取行情。
+ * 收集所有需要获取行情的标的代码（监控标的 + 席位占用标的），供运行时快照与订阅链路批量拉取行情。
  *
  * @param monitorConfigs 监控配置数组（monitorSymbol、longSymbol、shortSymbol）
  * @param symbolRegistry 标的注册表，可选；传入时从席位状态解析做多/做空占用标的并加入集合

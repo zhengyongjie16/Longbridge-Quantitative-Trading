@@ -70,3 +70,14 @@ export function formatError(err: unknown): string {
     return inspect(err, { depth: 5, maxArrayLength: 100 });
   }
 }
+
+/**
+ * 将任意值归一化为 Error 实例。
+ * 已是 Error 实例则直接返回；否则通过 formatError 获取消息并构造新 Error。
+ *
+ * @param error 任意错误或未知值
+ * @returns Error 实例
+ */
+export function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(formatError(error));
+}

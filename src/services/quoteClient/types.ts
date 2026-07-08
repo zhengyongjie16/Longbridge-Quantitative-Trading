@@ -1,16 +1,27 @@
-import type { Candlestick, Config, Market, Period, TradeSessions } from 'longbridge';
-import type { CandlestickCacheSnapshot } from '../../types/services.js';
+import type {
+  Config,
+  Market,
+  Period,
+  PushCandlestickEvent,
+  PushQuoteEvent,
+  QuoteContext,
+  SubType,
+  TradeSessions,
+} from 'longbridge';
+import type { CandlestickCacheSnapshot, CandlestickUpdatedEvent } from '../../types/services.js';
+import type { DecimalLike } from '../../utils/helpers/types.js';
 
 /**
- * withRetry 重试配置。
- * 类型用途：控制 API 调用的重试次数与间隔，作为 withRetry 的参数。
- * 使用范围：仅 quoteClient 模块内部使用。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
+ * 轮证报价最小结构。
+ * 类型用途：约束 quoteClient 对 Longbridge warrantQuote 返回值的最小依赖边界。
+ * 数据来源：Longbridge warrantQuote 响应。
+ * 使用范围：仅 QuoteContextLike.warrantQuote 内部契约使用。
  */
-export type RetryConfig = {
-  readonly retries: number;
-  readonly delayMs: number;
-};
+type QuoteContextWarrantQuote = Readonly<{
+  readonly symbol: string;
+  readonly callPrice?: DecimalLike | string | number | null;
+  readonly category?: number | string | null;
+}>;
 
 /**
  * Longbridge 静态信息结构。
@@ -26,53 +37,43 @@ export type StaticInfo = {
 };
 
 /**
- * K 线 push 数据结构（最小语义子集）。
- * 类型用途：抽象 QuoteContext.setOnCandlestick 的 push data 数据形态。
- * 数据来源：Longbridge PushCandlestickEvent.data。
+ * Quote push 事件数据结构（最小语义子集）。
+ * 类型用途：抽象 QuoteContext.setOnQuote 的推送事件结构，仅保留 quoteClient 需要的字段。
+ * 数据来源：Longbridge PushQuoteEvent。
  * 使用范围：quoteClient 模块内部使用。
  */
-export type PushCandlestickLike = Readonly<{
-  readonly period: Period;
-  readonly candlestick: Candlestick;
-  readonly isConfirmed: boolean;
-}>;
-
-/**
- * K 线 push 事件结构（最小语义子集）。
- * 类型用途：抽象 QuoteContext.setOnCandlestick 的事件形态。
- * 数据来源：Longbridge PushCandlestickEvent。
- * 使用范围：quoteClient 模块内部使用。
- */
-export type PushCandlestickEventLike = Readonly<{
+export type PushQuoteEventLike = Readonly<{
   readonly symbol: string;
-  readonly data: PushCandlestickLike;
+  readonly data: {
+    readonly lastDone: unknown;
+    readonly timestamp?: Date | null;
+  };
 }>;
 
 /**
  * QuoteContext 最小契约。
- * 类型用途：约束 quoteClient 对 Longbridge QuoteContext 的依赖边界，便于测试替身注入与类型校验。
+ * 类型用途：约束 quoteClient 对 Longbridge QuoteContext 的依赖边界；其中 warrantList 保持 SDK 位置参数签名，
+ * 对外暴露时再适配为业务层对象参数。
  * 数据来源：Longbridge QuoteContext API 能力映射。
  * 使用范围：quoteClient 模块内部使用。
  */
 export interface QuoteContextLike {
   readonly quote: (symbols: string[]) => Promise<ReadonlyArray<unknown>>;
   readonly staticInfo: (symbols: string[]) => Promise<ReadonlyArray<unknown>>;
-  readonly subscribe: (symbols: string[], subTypes: number[]) => Promise<void>;
-  readonly unsubscribe: (symbols: string[], subTypes: number[]) => Promise<void>;
+  readonly subscribe: (symbols: string[], subTypes: SubType[]) => Promise<void>;
+  readonly unsubscribe: (symbols: string[], subTypes: SubType[]) => Promise<void>;
   readonly realtimeQuote: (symbols: string[]) => Promise<ReadonlyArray<unknown>>;
   readonly subscribeCandlesticks: (
     symbol: string,
     period: Period,
-    tradeSessions?: TradeSessions,
+    tradeSessions: TradeSessions,
   ) => Promise<ReadonlyArray<unknown>>;
   readonly unsubscribeCandlesticks: (symbol: string, period: Period) => Promise<void>;
-  readonly realtimeCandlesticks: (
-    symbol: string,
-    period: Period,
-    count: number,
-  ) => Promise<ReadonlyArray<unknown>>;
+  readonly warrantQuote: (symbols: string[]) => Promise<ReadonlyArray<QuoteContextWarrantQuote>>;
+  readonly warrantList: QuoteContext['warrantList'];
+  readonly setOnQuote: (callback: (err: null | Error, event: PushQuoteEvent) => void) => void;
   readonly setOnCandlestick: (
-    callback: (err: null | Error, event: PushCandlestickEventLike) => void,
+    callback: (err: null | Error, event: PushCandlestickEvent) => void,
   ) => void;
   readonly tradingDays: (
     market: Market,
@@ -92,7 +93,7 @@ export interface QuoteContextLike {
  */
 export type MarketDataClientDeps = {
   readonly config: Config;
-  readonly quoteContextFactory?: (config: Config) => Promise<QuoteContextLike>;
+  readonly quoteContextFactory?: (config: Config) => QuoteContextLike | Promise<QuoteContextLike>;
 };
 
 /**
@@ -132,6 +133,14 @@ export type ApplyCandlestickPushParams = {
   readonly candlestick: unknown;
   readonly isConfirmed: boolean;
 };
+
+/**
+ * K 线更新监听器。
+ * 类型用途：收口 quoteClient 对外发布的标准化 K 线更新事件监听签名。
+ * 数据来源：quoteClient 在 K 线 push 后发布的 CandlestickUpdatedEvent。
+ * 使用范围：quoteClient 模块内部事件派发使用。
+ */
+export type CandlestickUpdatedListener = (event: CandlestickUpdatedEvent) => void;
 
 /**
  * 标准化 K 线字段值。

@@ -9,6 +9,10 @@
 import { OrderSide } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
+import {
+  isExternalApiRequestError,
+  wrapExternalApiRequest,
+} from '../../../utils/apiFailure/index.js';
 import type { CancelOrderOutcome, OrderStateCheckResult } from '../../../types/trader.js';
 import {
   ORDER_MONITOR_REPLACE_TEMP_BLOCK_BACKOFF_MS,
@@ -30,11 +34,12 @@ import {
   isOrderClosedBusinessError,
   isReplaceTempBlockedError,
   isReplaceUnsupportedByTypeError,
-  isRetryableCancelError,
+  isRetryableOrderMutationError,
   isWaitWsOnlyReplaceMode,
   normalizePriceText,
   resolveInitialTrackedStatus,
 } from './utils.js';
+import { attachTrackedOrder } from './routingIndex.js';
 
 /**
  * 读取并消费单订单权威终态缓存。
@@ -86,9 +91,6 @@ function resetTrackedOrderReplaceState(trackedOrder: OrderMonitorTrackedOrder): 
   trackedOrder.replaceBlockedUntilAt = null;
   trackedOrder.replaceTempBlockedCount = 0;
   trackedOrder.replaceResumeMode = 'TIME_BACKOFF';
-  trackedOrder.stateCheckBlockedUntilAt = null;
-  trackedOrder.nextStateCheckAt = null;
-  trackedOrder.stateCheckRetryCount = 0;
 }
 
 /**
@@ -138,7 +140,7 @@ function mapStateCheckResultToCancelOutcome(
   };
 }
 
-/** 写入改单结果事件缓存，供 quoteFlow 在同轮循环中消费。 */
+/** 写入改单结果事件缓存，供 route owner 在后续推进中消费。 */
 function setReplaceOutcome(
   runtime: OrderMonitorRuntimeStore,
   orderId: string,
@@ -158,6 +160,22 @@ function clearReplaceState(
   runtime.queriedTerminalStateByOrderId.delete(orderId);
 }
 
+function resolveAttachedTrackedOrder(
+  runtime: OrderMonitorRuntimeStore,
+  orderId: string,
+  trackedOrder: OrderMonitorTrackedOrder,
+): OrderMonitorTrackedOrder | null {
+  if (runtime.closedOrderIds.has(orderId)) {
+    return null;
+  }
+
+  if (runtime.trackedOrderLifecycles.get(orderId) !== 'OPEN') {
+    return null;
+  }
+
+  return runtime.trackedOrders.get(orderId) === trackedOrder ? trackedOrder : null;
+}
+
 /**
  * 创建订单操作处理器。
  *
@@ -165,8 +183,15 @@ function clearReplaceState(
  * @returns 订单操作接口
  */
 export function createOrderOps(deps: OrderOpsDeps): OrderOps {
-  const { runtime, ctxPromise, rateLimiter, cacheManager, orderHoldRegistry, orderStatusQuery } =
-    deps;
+  const {
+    runtime,
+    ctx,
+    rateLimiter,
+    cacheManager,
+    orderHoldRegistry,
+    orderStatusQuery,
+    triggerRoute,
+  } = deps;
 
   /**
    * 开始追踪订单（订单提交后调用）。
@@ -225,9 +250,6 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       quoteRetryAttempts: 0,
       quoteRetryNextAt: null,
       quoteRetryExhausted: false,
-      nextStateCheckAt: null,
-      stateCheckRetryCount: 0,
-      stateCheckBlockedUntilAt: null,
       replaceTempBlockedCount: 0,
       replaceResumeMode: 'TIME_BACKOFF',
       timeoutMarketConversionPending: false,
@@ -235,6 +257,11 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
     };
     runtime.trackedOrders.set(orderId, order);
     runtime.trackedOrderLifecycles.set(orderId, 'OPEN');
+    attachTrackedOrder(runtime, symbol, orderId);
+    if (runtime.runtimeState === 'ACTIVE') {
+      triggerRoute(symbol, 'TRACKED');
+    }
+
     logger.debug(
       `[订单监控] 开始追踪订单 ${orderId}，` +
         `标的=${symbol}，方向=${side === OrderSide.Buy ? '买入' : '卖出'}，` +
@@ -251,8 +278,11 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
   async function cancelOrder(orderId: string): Promise<CancelOrderOutcome> {
     try {
       await rateLimiter.throttle();
-      const ctx = await ctxPromise;
-      await ctx.cancelOrder(orderId);
+      await wrapExternalApiRequest({
+        operation: 'TradeContext.cancelOrder',
+        request: () => ctx.cancelOrder(orderId),
+        shouldRetry: isRetryableOrderMutationError,
+      });
       cacheManager.clearCache();
       logger.debug(`[订单撤销成功] 订单ID=${orderId}，等待 WS 终态确认`);
       return {
@@ -262,9 +292,13 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
         relatedBuyOrderIds: null,
       };
     } catch (error) {
+      if (isExternalApiRequestError(error)) {
+        throw error;
+      }
+
       const errorCode = extractErrorCode(error);
       const message = extractErrorMessage(error);
-      if (isRetryableCancelError(error)) {
+      if (isRetryableOrderMutationError(error)) {
         return {
           kind: 'RETRYABLE_FAILURE',
           errorCode,
@@ -316,9 +350,15 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
     }
 
     const queryResult = await orderStatusQuery.checkOrderState(orderId);
+    const attachedTrackedOrder = resolveAttachedTrackedOrder(runtime, orderId, trackedOrder);
+    if (attachedTrackedOrder === null) {
+      logger.debug(`[订单修改] 订单 ${orderId} 已脱离追踪，丢弃过期 602013 恢复结果`);
+      return;
+    }
+
     if (queryResult.kind === 'TERMINAL') {
       runtime.queriedTerminalStateByOrderId.set(orderId, queryResult);
-      clearReplaceState(runtime, orderId, trackedOrder);
+      clearReplaceState(runtime, orderId, attachedTrackedOrder);
       setReplaceOutcome(runtime, orderId, {
         kind: 'TERMINAL_CONFIRMED',
         terminalState: queryResult,
@@ -327,9 +367,9 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       return;
     }
 
-    trackedOrder.replaceCapability = 'TEMP_BLOCKED_BY_STATUS';
-    trackedOrder.replaceBlockedUntilAt = ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS;
-    trackedOrder.replaceResumeMode = 'WAIT_WS_ONLY';
+    attachedTrackedOrder.replaceCapability = 'TEMP_BLOCKED_BY_STATUS';
+    attachedTrackedOrder.replaceBlockedUntilAt = ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS;
+    attachedTrackedOrder.replaceResumeMode = 'WAIT_WS_ONLY';
     setReplaceOutcome(runtime, orderId, {
       kind: 'WAIT_WS_ONLY',
       reason: queryResult.kind === 'OPEN' ? 'OPEN' : 'QUERY_FAILED',
@@ -415,27 +455,52 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
 
     try {
       await rateLimiter.throttle();
-      const ctx = await ctxPromise;
-      await ctx.replaceOrder(replacePayload);
+      if (resolveAttachedTrackedOrder(runtime, orderId, trackedOrder) === null) {
+        logger.debug(`[订单修改] 订单 ${orderId} 已脱离追踪，跳过过期改单请求`);
+        return;
+      }
+
+      await wrapExternalApiRequest({
+        operation: 'TradeContext.replaceOrder',
+        request: () => ctx.replaceOrder(replacePayload),
+        shouldRetry: isRetryableOrderMutationError,
+      });
       cacheManager.clearCache();
-      trackedOrder.submittedPrice = normalizedNewPriceNumber;
-      trackedOrder.submittedQuantity = trackedOrder.executedQuantity + targetQuantity;
-      trackedOrder.lastPriceUpdateAt = now;
-      clearReplaceState(runtime, orderId, trackedOrder);
+      const attachedTrackedOrder = resolveAttachedTrackedOrder(runtime, orderId, trackedOrder);
+      if (attachedTrackedOrder === null) {
+        logger.debug(`[订单修改] 订单 ${orderId} 已脱离追踪，丢弃过期改单成功结果`);
+        return;
+      }
+
+      attachedTrackedOrder.submittedPrice = normalizedNewPriceNumber;
+      attachedTrackedOrder.submittedQuantity =
+        attachedTrackedOrder.executedQuantity + targetQuantity;
+      attachedTrackedOrder.lastPriceUpdateAt = now;
+      clearReplaceState(runtime, orderId, attachedTrackedOrder);
       setReplaceOutcome(runtime, orderId, {
         kind: 'REPLACED',
       });
       logger.debug(`[订单修改成功] 订单ID=${orderId} 新价格=${normalizedNewPriceText}`);
     } catch (error) {
-      trackedOrder.lastPriceUpdateAt = now;
+      if (isExternalApiRequestError(error)) {
+        throw error;
+      }
+
+      const attachedTrackedOrder = resolveAttachedTrackedOrder(runtime, orderId, trackedOrder);
+      if (attachedTrackedOrder === null) {
+        logger.debug(`[订单修改] 订单 ${orderId} 已脱离追踪，丢弃过期改单失败结果`);
+        return;
+      }
+
+      attachedTrackedOrder.lastPriceUpdateAt = now;
       const errorCode = extractErrorCode(error);
       const message = extractErrorMessage(error);
 
       if (isReplaceUnsupportedByTypeError(error)) {
-        trackedOrder.replaceCapability = 'UNSUPPORTED_BY_TYPE';
-        trackedOrder.replaceBlockedUntilAt = null;
-        trackedOrder.replaceResumeMode = 'TIME_BACKOFF';
-        trackedOrder.replaceTempBlockedCount = 0;
+        attachedTrackedOrder.replaceCapability = 'UNSUPPORTED_BY_TYPE';
+        attachedTrackedOrder.replaceBlockedUntilAt = null;
+        attachedTrackedOrder.replaceResumeMode = 'TIME_BACKOFF';
+        attachedTrackedOrder.replaceTempBlockedCount = 0;
         setReplaceOutcome(runtime, orderId, {
           kind: 'SKIPPED',
           reason: 'UNSUPPORTED_BY_TYPE',
@@ -445,11 +510,11 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       }
 
       if (isReplaceTempBlockedError(error)) {
-        await handleReplaceTempBlockedByStatus(orderId, trackedOrder, now);
+        await handleReplaceTempBlockedByStatus(orderId, attachedTrackedOrder, now);
         return;
       }
 
-      if (isRetryableCancelError(error)) {
+      if (isRetryableOrderMutationError(error)) {
         setReplaceOutcome(runtime, orderId, {
           kind: 'FAILED',
           reason: 'RETRYABLE',
@@ -465,9 +530,19 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
 
       if (isOrderClosedBusinessError(error)) {
         const queryResult = await orderStatusQuery.checkOrderState(orderId);
+        const latestAttachedTrackedOrder = resolveAttachedTrackedOrder(
+          runtime,
+          orderId,
+          trackedOrder,
+        );
+        if (latestAttachedTrackedOrder === null) {
+          logger.debug(`[订单修改] 订单 ${orderId} 已脱离追踪，丢弃过期改单终态查询结果`);
+          return;
+        }
+
         if (queryResult.kind === 'TERMINAL') {
           runtime.queriedTerminalStateByOrderId.set(orderId, queryResult);
-          clearReplaceState(runtime, orderId, trackedOrder);
+          clearReplaceState(runtime, orderId, latestAttachedTrackedOrder);
           setReplaceOutcome(runtime, orderId, {
             kind: 'TERMINAL_CONFIRMED',
             terminalState: queryResult,

@@ -1,5 +1,4 @@
 import type { LastState, MonitorContext } from '../../../types/state.js';
-import type { Signal } from '../../../types/signal.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { SymbolRegistry } from '../../../types/seat.js';
 import type { MarketDataClient, Trader } from '../../../types/services.js';
@@ -14,10 +13,20 @@ import type {
   MonitorTaskProcessor,
 } from '../../asyncProgram/monitorTaskProcessor/types.js';
 import type { MonitorTaskQueue } from '../../asyncProgram/monitorTaskQueue/types.js';
-import type { OrderMonitorWorker } from '../../asyncProgram/orderMonitorWorker/types.js';
-import type { PostTradeRefresher } from '../../asyncProgram/postTradeRefresher/types.js';
-import type { RefreshGate } from '../../../utils/types.js';
 import type { IndicatorCache } from '../../asyncProgram/indicatorCache/types.js';
+import type { TradingRiskEventRuntime } from '../../tradingRiskEventRuntime/types.js';
+import type { BusinessEventProgram } from '../../businessEventProgram/types.js';
+import type {
+  MonitorQuoteEventRuntime,
+  SwitchWakeupRuntime,
+} from '../../monitorQuoteEventRuntime/types.js';
+import type { MonitorDisplayRuntime } from '../../monitorDisplayRuntime/types.js';
+import type { TradingQuoteDisplayRuntime } from '../../tradingQuoteDisplayRuntime/types.js';
+import type { PeriodicSwitchWakeupRuntime } from '../../periodicSwitchWakeupRuntime/types.js';
+import type { QuoteSubscriptionRuntime } from '../../quoteSubscriptionRuntime/types.js';
+import type { AutoSearchWakeupRuntime } from '../../autoSearchWakeupRuntime/types.js';
+import type { SeatActivationDispatcher } from '../../seatActivationDispatcher/types.js';
+import type { SeatRuntimeCleanupDispatcher } from '../../seatRuntimeCleanupDispatcher/types.js';
 import type { WarrantListCache } from '../../../services/autoSymbolFinder/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 import type { DailyLossTracker } from '../../../types/risk.js';
@@ -25,8 +34,23 @@ import type { LiquidationCooldownTracker } from '../../../services/liquidationCo
 import type { ProtectiveLiquidationEpisodeTracker } from '../../../core/trader/protectiveLiquidationEpisodeTracker/types.js';
 
 /**
+ * lifecycle 持有的成交后一致性 runtime 最小契约。
+ * 类型用途：约束 signalRuntimeDomain 在生命周期切换时对 runtime 的启停与 baseline 推进能力。
+ * 数据来源：由 app 层注入 PostTradeConsistencyRuntime 实例。
+ * 使用范围：仅 lifecycle signalRuntimeDomain 使用。
+ */
+interface SignalRuntimePostTradeConsistencyRuntime {
+  readonly abortWaiting: () => void;
+  readonly resetAbort: () => void;
+  readonly start: () => void;
+  readonly stopAndDrain: () => Promise<void>;
+  readonly midnightClear: () => void;
+  readonly completeRebuildBaseline: () => void;
+}
+
+/**
  * 信号运行时域依赖。
- * 类型用途：createSignalRuntimeDomain 的入参，提供监控上下文、买卖/监控处理器、队列、refreshGate、releaseSignal 等。
+ * 类型用途：createSignalRuntimeDomain 的入参，提供监控上下文、订单监控 runtime、买卖/监控处理器、runtime 所有权与队列等。
  * 数据来源：由 lifecycle 或主程序在注册 cacheDomains 时组装传入。
  * 使用范围：仅 lifecycle 模块使用。
  */
@@ -35,14 +59,26 @@ export type SignalRuntimeDomainDeps = Readonly<{
   buyProcessor: Processor;
   sellProcessor: Processor;
   monitorTaskProcessor: MonitorTaskProcessor;
-  orderMonitorWorker: OrderMonitorWorker;
-  postTradeRefresher: PostTradeRefresher;
+  businessEventProgram: Pick<BusinessEventProgram, 'start' | 'stopAndDrain'>;
+  tradingRiskEventRuntime: Pick<TradingRiskEventRuntime, 'start' | 'stopAndDrain'>;
+  monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
+  monitorDisplayRuntime: Pick<MonitorDisplayRuntime, 'start' | 'stopAndDrain'>;
+  tradingQuoteDisplayRuntime: Pick<TradingQuoteDisplayRuntime, 'start' | 'stopAndDrain'>;
+  switchWakeupRuntime: Pick<SwitchWakeupRuntime, 'start' | 'stopAndDrain'>;
+  periodicSwitchWakeupRuntime: Pick<PeriodicSwitchWakeupRuntime, 'start' | 'stopAndDrain'>;
+  quoteSubscriptionRuntime: Pick<
+    QuoteSubscriptionRuntime,
+    'reconcileFromCurrentTruth' | 'start' | 'stopAndDrain'
+  >;
+  autoSearchWakeupRuntime: Pick<AutoSearchWakeupRuntime, 'start' | 'stopAndDrain'>;
+  seatActivationDispatcher: Pick<SeatActivationDispatcher, 'start' | 'stop'>;
+  seatRuntimeCleanupDispatcher: Pick<SeatRuntimeCleanupDispatcher, 'start' | 'stop'>;
+  trader: Pick<Trader, 'startOrderMonitorRuntime' | 'stopOrderMonitorRuntimeAndDrain'>;
+  postTradeConsistencyRuntime: SignalRuntimePostTradeConsistencyRuntime;
   indicatorCache: IndicatorCache;
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
-  refreshGate: RefreshGate;
-  releaseSignal: (signal: Signal) => void;
 }>;
 
 /**
@@ -60,12 +96,12 @@ export type SeatDomainDeps = Readonly<{
 
 /**
  * 订单域依赖。
- * 类型用途：createOrderDomain 的入参，提供 trader 用于午夜清理时重置运行时状态。
+ * 类型用途：createOrderDomain 的入参，提供 trader.resetRuntimeState 用于午夜清理时重置运行时状态。
  * 数据来源：由 lifecycle 在注册 cacheDomains 时传入。
  * 使用范围：仅 lifecycle 模块使用。
  */
 export type OrderDomainDeps = Readonly<{
-  trader: Trader;
+  trader: Pick<Trader, 'resetRuntimeState'>;
 }>;
 
 /**

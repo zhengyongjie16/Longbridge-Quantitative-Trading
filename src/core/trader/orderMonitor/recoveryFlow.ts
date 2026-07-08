@@ -12,7 +12,7 @@ import { decimalToNumber, isValidPositiveNumber } from '../../../utils/helpers/i
 import { PENDING_ORDER_STATUSES } from '../../../constants/index.js';
 import type { MonitorConfig } from '../../../types/config.js';
 import type { RawOrderFromAPI } from '../../../types/services.js';
-import { resolveOrderOwnership } from '../../orderRecorder/orderOwnershipParser.js';
+import { resolveOrderOwnership } from '../../orderRecorder/index.js';
 import { isSeatActive } from '../../../utils/seat/guards.js';
 import type {
   OrderSeatOwnership,
@@ -23,6 +23,7 @@ import type { RecoveryFlow, RecoveryFlowDeps } from './types.js';
 import { consumeQueriedTerminalState, resetOrderReplaceRuntimeState } from './orderOps.js';
 import { resolveSubmittedAtMs, resolveUpdatedAtMs } from './utils.js';
 import { hasProtectiveLiquidationRemark } from '../utils.js';
+import { resetRoutingIndex } from './routingIndex.js';
 
 /**
  * 创建恢复流程处理器。
@@ -130,7 +131,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
   }
 
   /**
-   * 重置恢复运行态（trackedOrders/pendingSell/refreshQueue）。
+   * 重置恢复运行态（trackedOrders/pendingSell 与终态查询缓存）。
    *
    * @returns 无返回值
    */
@@ -145,7 +146,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     runtime.closedOrderIds.clear();
     runtime.latestReplaceOutcomeByOrderId.clear();
     runtime.queriedTerminalStateByOrderId.clear();
-    runtime.pendingRefreshSymbols.length = 0;
+    resetRoutingIndex(runtime);
     clearAllPendingSellTracking();
   }
 
@@ -486,6 +487,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
         replayedOrderIds,
       });
       runtime.runtimeState = 'ACTIVE';
+
       const closedMismatchedBuyCount = closedMismatchedBuyOrderIds.size;
       if (recoveredCount > 0 || closedMismatchedBuyCount > 0) {
         logger.info(
@@ -494,6 +496,8 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       }
     } catch (error) {
       resetRecoveryTrackingState();
+      clearBootstrappingEventBuffer();
+      runtime.runtimeState = 'STOPPED';
       throw error;
     }
   }

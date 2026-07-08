@@ -14,11 +14,10 @@ import {
   calculateBuyQuantityByNotional,
   resolveDirectionSymbols,
 } from '../../../src/services/autoSymbolManager/signalBuilder.js';
-import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import { calculateTradingDurationMsBetween, getHKDateKey } from '../../../src/utils/time/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
+import type { PeriodicSwitchPendingState } from '../../../src/types/monitorContextPorts.js';
 import type {
-  PeriodicSwitchPendingState,
   SwitchState,
   SwitchSuppression,
 } from '../../../src/services/autoSymbolManager/types.js';
@@ -75,6 +74,19 @@ function createSwitchSuppressionsMap(): Map<'LONG' | 'SHORT', SwitchSuppression>
 function createPeriodicSwitchPendingMap(): Map<'LONG' | 'SHORT', PeriodicSwitchPendingState> {
   return new Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>();
 }
+
+async function runDistanceSwitch(
+  machine: ReturnType<typeof createSwitchStateMachine>,
+  params: Parameters<ReturnType<typeof createSwitchStateMachine>['startSwitchOnDistance']>[0],
+): Promise<void> {
+  if (machine.hasPendingSwitch(params.direction)) {
+    await machine.advancePendingSwitch(params);
+    return;
+  }
+
+  await machine.startSwitchOnDistance(params);
+}
+
 describe('autoSymbolManager switchStateMachine business flow', () => {
   it('treats periodic no-candidate as business closeout instead of state-machine failure', async () => {
     const monitorConfig = createMonitorConfigDouble({
@@ -125,7 +137,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       pendingSinceMs: nowMs - 5_000,
       blockedBy: 'ORDER_RECORDER',
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -153,7 +165,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger,
@@ -167,11 +178,10 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
     });
 
-    await machine.maybeSwitchOnInterval({
+    await machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
-      openProtectionActive: false,
     });
 
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
@@ -216,7 +226,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -247,7 +257,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -260,7 +269,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -305,7 +314,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -336,7 +345,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -349,7 +357,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -394,7 +402,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     seatStateManager.markSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
 
     let findBestCalls = 0;
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -428,7 +436,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -442,7 +449,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
     });
 
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -484,7 +491,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     let resolveCandidate!: (value: ReturnType<typeof createWarrantCandidate> | null) => void;
     const pendingCandidate = new Promise<ReturnType<typeof createWarrantCandidate> | null>(
       (resolve) => {
@@ -518,7 +525,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -532,7 +538,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
     });
 
-    const switchPromise = machine.maybeSwitchOnDistance({
+    const switchPromise = runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -584,7 +590,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     let executeCalls = 0;
     const trader = createTraderDouble({
       executeSignals: async () => {
@@ -620,7 +626,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -633,7 +638,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -647,7 +652,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
   });
 
-  it('executes sell then rebuy in pending-switch flow when position exists', async () => {
+  it('returns explicit wakeup requirements across distance switch start and advance', async () => {
     const monitorConfig = createMonitorConfigDouble({
       targetNotional: 5_000,
       autoSearchConfig: getDefaultAutoSearchConfig(),
@@ -677,7 +682,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const executedActions: Array<{
       action: string | null;
       symbol: string | null;
@@ -741,7 +746,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -754,7 +758,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
-    await machine.maybeSwitchOnDistance({
+    const startResult = await machine.startSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -770,6 +774,14 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         },
       ],
     });
+    expect(startResult).toMatchObject({
+      started: true,
+      direction: 'LONG',
+      driveResult: {
+        kind: 'WAIT',
+        wakeups: [{ kind: 'ORDER_EVENT', symbols: ['OLD_BULL.HK'] }, { kind: 'FRESHNESS' }],
+      },
+    });
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
     expect(executedActions).toHaveLength(1);
     expect(executedActions[0]).toEqual({
@@ -778,10 +790,31 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       quantity: 100,
     });
     nowMs += 1_000;
-    await machine.maybeSwitchOnDistance({
+    const barrierResult = await machine.advancePendingSwitch({
       direction: 'LONG',
-      monitorPrice: 20_000,
       positions: [],
+    });
+    expect(barrierResult).toMatchObject({
+      advanced: true,
+      direction: 'LONG',
+      stillPending: true,
+      driveResult: {
+        kind: 'WAIT',
+        wakeups: [{ kind: 'SYMBOL_QUOTE', symbol: 'NEW_BULL.HK' }],
+      },
+    });
+
+    const advanceResult = await machine.advancePendingSwitch({
+      direction: 'LONG',
+      positions: [],
+    });
+    expect(advanceResult).toMatchObject({
+      advanced: true,
+      direction: 'LONG',
+      stillPending: false,
+      driveResult: {
+        kind: 'COMPLETED',
+      },
     });
     expect(executedActions).toHaveLength(2);
     expect(executedActions[1]?.action).toBe('BUYCALL');
@@ -822,7 +855,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const executedActions: string[] = [];
     const quoteRequests: string[][] = [];
     const trader = createTraderDouble({
@@ -895,7 +928,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -906,7 +938,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       marketDataClient,
     });
 
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -957,7 +989,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const quoteRequests: string[][] = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
@@ -1035,7 +1067,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1046,7 +1077,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       marketDataClient,
     });
 
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -1065,7 +1096,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
 
     for (let attempts = 0; attempts < 6; attempts += 1) {
       nowMs += 2_000;
-      await machine.maybeSwitchOnDistance({
+      await runDistanceSwitch(machine, {
         direction: 'LONG',
         monitorPrice: 20_000,
         positions: [],
@@ -1108,7 +1139,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
@@ -1165,7 +1196,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1178,7 +1208,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -1219,7 +1249,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
@@ -1285,7 +1315,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1299,17 +1328,25 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
     });
 
-    await machine.maybeSwitchOnDistance({
+    const startResult = await machine.startSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
     });
 
+    expect(startResult).toMatchObject({
+      started: true,
+      direction: 'LONG',
+      driveResult: {
+        kind: 'WAIT',
+        wakeups: [{ kind: 'ORDER_EVENT', symbols: ['OLD_BULL.HK'] }, { kind: 'FRESHNESS' }],
+      },
+    });
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
     expect(symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
     expect(executeCalls).toBe(0);
 
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -1350,7 +1387,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
@@ -1423,7 +1460,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1437,16 +1473,15 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
     });
 
-    await machine.maybeSwitchOnInterval({
+    await machine.evaluatePeriodicSwitchDue({
       direction: 'LONG',
       currentTime: new Date(nowMs),
       canTradeNow: true,
-      openProtectionActive: false,
     });
 
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
 
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -1487,7 +1522,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
@@ -1553,7 +1588,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1567,7 +1601,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
     });
 
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -1575,7 +1609,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
     expect(symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
 
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -1617,7 +1651,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
@@ -1701,7 +1735,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1715,7 +1748,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
     });
 
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -1723,7 +1756,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(executedActions).toHaveLength(0);
 
     nowMs += 1_000;
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -1742,7 +1775,14 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(executedActions).toEqual(['SELLCALL']);
 
     nowMs += 1_000;
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+    expect(executedActions).toEqual(['SELLCALL']);
+
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -1752,7 +1792,267 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(symbolRegistry.getSeatState('HSI.HK', 'LONG').symbol).toBe('NEW_BULL.HK');
   });
 
-  it('keeps pending switch state when rebuy quote is not ready', async () => {
+  it('stops pending distance switch when seat version changes during SELL_OUT quote fetch', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+    });
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
+    const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    const signalBuilder = createSignalBuilder();
+    let executeCalls = 0;
+    const trader = createTraderDouble({
+      getPendingOrders: async () => [],
+      executeSignals: async () => {
+        executeCalls += 1;
+        return { submittedCount: 1, submittedOrderIds: ['SELL-ORDER-SHOULD-NOT-HAPPEN'] };
+      },
+    });
+    const marketDataClient = createMarketDataClientDouble({
+      getQuotes: async (symbols) => {
+        const currentSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+        symbolRegistry.bumpSeatVersion('HSI.HK', 'LONG');
+        symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+          ...currentSeat,
+          symbol: 'MANUAL_BULL.HK',
+          status: 'ACTIVE',
+          lastSwitchAt: nowMs + 1_000,
+        });
+
+        return new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1]))));
+      },
+    });
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader,
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+      marketDataClient,
+    });
+
+    const startResult = await machine.startSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [
+        {
+          symbol: 'OLD_BULL.HK',
+          quantity: 100,
+          availableQuantity: 100,
+          symbolName: 'OLD_BULL',
+          accountChannel: 'lb_papertrading',
+          currency: 'HKD',
+          costPrice: 1,
+          market: 'HK',
+        },
+      ],
+    });
+
+    expect(startResult).toMatchObject({
+      started: false,
+      direction: 'LONG',
+      driveResult: {
+        kind: 'NOOP',
+      },
+    });
+    expect(executeCalls).toBe(0);
+    expect(machine.hasPendingSwitch('LONG')).toBeFalse();
+    const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    expect(seat.status).toBe('ACTIVE');
+    expect(seat.symbol).toBe('MANUAL_BULL.HK');
+  });
+
+  it('stops pending distance switch when seat version changes during pending order fetch', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+    });
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
+    const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    const signalBuilder = createSignalBuilder();
+    let pendingOrderFetchCount = 0;
+    let executeCalls = 0;
+    const trader = createTraderDouble({
+      getPendingOrders: async () => {
+        pendingOrderFetchCount += 1;
+        if (pendingOrderFetchCount === 1) {
+          return [];
+        }
+
+        const currentSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+        symbolRegistry.bumpSeatVersion('HSI.HK', 'LONG');
+        symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+          ...currentSeat,
+          symbol: 'MANUAL_BULL.HK',
+          status: 'ACTIVE',
+          lastSwitchAt: nowMs + 1_000,
+        });
+
+        return [];
+      },
+      executeSignals: async () => {
+        executeCalls += 1;
+        return { submittedCount: 1, submittedOrderIds: ['SELL-ORDER-SHOULD-NOT-HAPPEN'] };
+      },
+    });
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader,
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+      }),
+    });
+
+    const startResult = await machine.startSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [
+        {
+          symbol: 'OLD_BULL.HK',
+          quantity: 100,
+          availableQuantity: 0,
+          symbolName: 'OLD_BULL',
+          accountChannel: 'lb_papertrading',
+          currency: 'HKD',
+          costPrice: 1,
+          market: 'HK',
+        },
+      ],
+    });
+    expect(startResult).toMatchObject({
+      started: true,
+      direction: 'LONG',
+      driveResult: {
+        kind: 'WAIT',
+        wakeups: [{ kind: 'ORDER_EVENT', symbols: ['OLD_BULL.HK'] }, { kind: 'FRESHNESS' }],
+      },
+    });
+    expect(machine.hasPendingSwitch('LONG')).toBeTrue();
+
+    const advanceResult = await machine.advancePendingSwitch({
+      direction: 'LONG',
+      positions: [],
+    });
+
+    expect(advanceResult).toMatchObject({
+      advanced: true,
+      direction: 'LONG',
+      stillPending: false,
+      driveResult: {
+        kind: 'NOOP',
+      },
+    });
+    expect(executeCalls).toBe(0);
+    const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    expect(seat.status).toBe('ACTIVE');
+    expect(seat.symbol).toBe('MANUAL_BULL.HK');
+  });
+
+  it('does not read next-symbol quote in the same advance that binds the new seat symbol', async () => {
     const monitorConfig = createMonitorConfigDouble({
       targetNotional: 5_000,
       autoSearchConfig: getDefaultAutoSearchConfig(),
@@ -1782,7 +2082,149 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
+    const trader = createTraderDouble({
+      executeSignals: async (signals) => {
+        const action = signals[0]?.action ?? null;
+        if (action === 'SELLCALL') {
+          return { submittedCount: 1, submittedOrderIds: ['SELL-ORDER-BARRIER'] };
+        }
+
+        return { submittedCount: 0, submittedOrderIds: [] };
+      },
+      getPendingOrders: async () => [],
+    });
+    const orderRecorder = createOrderRecorderDouble({
+      getSellRecordByOrderId: (orderId) =>
+        orderId === 'SELL-ORDER-BARRIER'
+          ? {
+              orderId: 'SELL-ORDER-BARRIER',
+              symbol: 'OLD_BULL.HK',
+              executedPrice: 2,
+              executedQuantity: 100,
+              executedTime: 9_999_999_999_999,
+              submittedAt: undefined,
+              updatedAt: undefined,
+            }
+          : null,
+    });
+    const quoteRequests: string[][] = [];
+    const marketDataClient = createMarketDataClientDouble({
+      getQuotes: async (symbols) => {
+        const requestedSymbols = [...symbols];
+        quoteRequests.push(requestedSymbols);
+        if (requestedSymbols[0] === 'OLD_BULL.HK') {
+          return new Map(createQuotes({ 'OLD_BULL.HK': 1 }));
+        }
+
+        throw new Error(`未订阅: ${requestedSymbols[0] ?? 'UNKNOWN'}`);
+      },
+    });
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader,
+      orderRecorder,
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+      marketDataClient,
+    });
+
+    await runDistanceSwitch(machine, {
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [
+        {
+          symbol: 'OLD_BULL.HK',
+          quantity: 100,
+          availableQuantity: 100,
+          symbolName: 'OLD_BULL',
+          accountChannel: 'lb_papertrading',
+          currency: 'HKD',
+          costPrice: 1,
+          market: 'HK',
+        },
+      ],
+    });
+
+    nowMs += 1_000;
+    const advanceResult = await machine.advancePendingSwitch({
+      direction: 'LONG',
+      positions: [],
+    });
+
+    expect(quoteRequests).toEqual([['OLD_BULL.HK']]);
+    expect(advanceResult).toMatchObject({
+      advanced: true,
+      direction: 'LONG',
+      stillPending: true,
+      driveResult: {
+        kind: 'WAIT',
+        wakeups: [{ kind: 'SYMBOL_QUOTE', symbol: 'NEW_BULL.HK' }],
+      },
+    });
+    expect(symbolRegistry.getSeatState('HSI.HK', 'LONG').symbol).toBe('NEW_BULL.HK');
+    expect(machine.hasPendingSwitch('LONG')).toBeTrue();
+  });
+
+  it('returns quote wakeup requirement when rebuy quote is not ready', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      targetNotional: 5_000,
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+    });
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
+    let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    const signalBuilder = createSignalBuilder();
     const executedActions: string[] = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
@@ -1832,7 +2274,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1847,22 +2288,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
             return new Map(createQuotes({ 'OLD_BULL.HK': 1 }));
           }
 
-          return new Map([
-            [
-              'NEW_BULL.HK',
-              {
-                symbol: 'NEW_BULL.HK',
-                name: 'NEW_BULL.HK',
-                price: 1,
-                prevClose: 1,
-                timestamp: Date.now(),
-              },
-            ],
-          ]);
+          return new Map([['NEW_BULL.HK', null]]);
         },
       }),
     });
-    await machine.maybeSwitchOnDistance({
+    const startResult = await machine.startSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -1878,13 +2308,39 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         },
       ],
     });
+    expect(startResult.started).toBeTrue();
     expect(executedActions).toEqual(['SELLCALL']);
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
     nowMs += 1_000;
-    await machine.maybeSwitchOnDistance({
+    const barrierResult = await machine.advancePendingSwitch({
       direction: 'LONG',
-      monitorPrice: 20_000,
       positions: [],
+    });
+    expect(barrierResult).toMatchObject({
+      advanced: true,
+      direction: 'LONG',
+      stillPending: true,
+      driveResult: {
+        kind: 'WAIT',
+        wakeups: [{ kind: 'SYMBOL_QUOTE', symbol: 'NEW_BULL.HK' }],
+      },
+    });
+
+    const advanceResult = await machine.advancePendingSwitch({
+      direction: 'LONG',
+      positions: [],
+    });
+    expect(advanceResult).toMatchObject({
+      advanced: true,
+      direction: 'LONG',
+      stillPending: true,
+      driveResult: {
+        kind: 'WAIT',
+        wakeups: [
+          { kind: 'SYMBOL_QUOTE', symbol: 'NEW_BULL.HK' },
+          { kind: 'RETRY_TIMER', atMs: nowMs + 2_000 },
+        ],
+      },
     });
     expect(executedActions).toEqual(['SELLCALL']);
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
@@ -1920,7 +2376,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const executedActions: Array<string | null> = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
@@ -1975,7 +2431,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -1988,7 +2443,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -2008,7 +2463,16 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
 
     nowMs += 1_000;
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    expect(executedActions).toEqual(['SELLCALL']);
+    expect(machine.hasPendingSwitch('LONG')).toBeTrue();
+
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -2021,7 +2485,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(seat.symbol).toBe('NEW_BULL.HK');
   });
 
-  it('releases rebuy signal when rebuy execution throws', async () => {
+  it('propagates rebuy execution error after sell stage succeeds', async () => {
     const monitorConfig = createMonitorConfigDouble({
       targetNotional: 5_000,
       autoSearchConfig: getDefaultAutoSearchConfig(),
@@ -2051,118 +2515,112 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const executedActions: Array<string | null> = [];
-    const originalRelease = signalObjectPool.release;
-    let releasedSignals = 0;
-    signalObjectPool.release = (signal) => {
-      releasedSignals += signal ? 1 : 0;
-      originalRelease.call(signalObjectPool, signal);
-    };
 
-    try {
-      const trader = createTraderDouble({
-        executeSignals: async (signals) => {
-          const action = signals[0]?.action ?? null;
-          executedActions.push(action);
-          if (action === 'SELLCALL') {
-            return { submittedCount: 1, submittedOrderIds: ['SELL-ORDER-REBUY-THROW'] };
-          }
+    const trader = createTraderDouble({
+      executeSignals: async (signals) => {
+        const action = signals[0]?.action ?? null;
+        executedActions.push(action);
+        if (action === 'SELLCALL') {
+          return { submittedCount: 1, submittedOrderIds: ['SELL-ORDER-REBUY-THROW'] };
+        }
 
-          throw new Error('rebuy submit failed');
+        throw new Error('rebuy submit failed');
+      },
+      getPendingOrders: async () => [],
+    });
+    const orderRecorder = createOrderRecorderDouble({
+      getSellRecordByOrderId: (orderId) =>
+        orderId === 'SELL-ORDER-REBUY-THROW'
+          ? {
+              orderId: 'SELL-ORDER-REBUY-THROW',
+              symbol: 'OLD_BULL.HK',
+              executedPrice: 2,
+              executedQuantity: 100,
+              executedTime: 9_999_999_999_999,
+              submittedAt: undefined,
+              updatedAt: undefined,
+            }
+          : null,
+    });
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader,
+      orderRecorder,
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+      }),
+    });
+
+    await runDistanceSwitch(machine, {
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [
+        {
+          symbol: 'OLD_BULL.HK',
+          quantity: 100,
+          availableQuantity: 100,
+          symbolName: 'OLD_BULL',
+          accountChannel: 'lb_papertrading',
+          currency: 'HKD',
+          costPrice: 1,
+          market: 'HK',
         },
-        getPendingOrders: async () => [],
-      });
-      const orderRecorder = createOrderRecorderDouble({
-        getSellRecordByOrderId: (orderId) =>
-          orderId === 'SELL-ORDER-REBUY-THROW'
-            ? {
-                orderId: 'SELL-ORDER-REBUY-THROW',
-                symbol: 'OLD_BULL.HK',
-                executedPrice: 2,
-                executedQuantity: 100,
-                executedTime: 9_999_999_999_999,
-                submittedAt: undefined,
-                updatedAt: undefined,
-              }
-            : null,
-      });
-      const machine = createSwitchStateMachine({
-        autoSearchConfig: monitorConfig.autoSearchConfig,
-        monitorSymbol: 'HSI.HK',
-        symbolRegistry,
-        trader,
-        orderRecorder,
-        riskChecker: createRiskCheckerDouble({
-          getWarrantDistanceInfo: () =>
-            createWarrantDistanceInfoDouble({
-              warrantType: 'BULL',
-              distanceToStrikePercent: 0.1,
-            }),
-        }),
-        now: () => new Date(nowMs),
-        switchStates,
-        periodicSwitchPending: createPeriodicSwitchPendingMap(),
-        resolveSuppression: seatStateManager.resolveSuppression,
-        markSuppression: seatStateManager.markSuppression,
-        enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
-        buildSeatState: seatStateManager.buildSeatState,
-        updateSeatState: seatStateManager.updateSeatState,
-        resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
-        buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
-        findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
-        resolveDirectionSymbols,
-        calculateBuyQuantityByNotional,
-        buildOrderSignal: signalBuilder.buildOrderSignal,
-        signalObjectPool,
-        pendingOrderStatuses: PENDING_ORDER_STATUSES,
-        buySide: OrderSide.Buy,
-        logger: createLoggerStub(),
-        maxSearchFailuresPerDay: 3,
-        getHKDateKey,
-        calculateTradingDurationMsBetween,
-        getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
-        marketDataClient: createMarketDataClientDouble({
-          getQuotes: async (symbols) =>
-            new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
-        }),
-      });
+      ],
+    });
 
-      await machine.maybeSwitchOnDistance({
+    nowMs += 1_000;
+    await runDistanceSwitch(machine, {
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    let caught: unknown = null;
+    try {
+      await runDistanceSwitch(machine, {
         direction: 'LONG',
         monitorPrice: 20_000,
-        positions: [
-          {
-            symbol: 'OLD_BULL.HK',
-            quantity: 100,
-            availableQuantity: 100,
-            symbolName: 'OLD_BULL',
-            accountChannel: 'lb_papertrading',
-            currency: 'HKD',
-            costPrice: 1,
-            market: 'HK',
-          },
-        ],
+        positions: [],
       });
-
-      nowMs += 1_000;
-      let caught: unknown = null;
-      try {
-        await machine.maybeSwitchOnDistance({
-          direction: 'LONG',
-          monitorPrice: 20_000,
-          positions: [],
-        });
-      } catch (error) {
-        caught = error;
-      }
-
-      expect(caught).toMatchObject({ message: 'rebuy submit failed' });
-      expect(executedActions).toEqual(['SELLCALL', 'BUYCALL']);
-      expect(releasedSignals).toBe(2);
-    } finally {
-      signalObjectPool.release = originalRelease;
+    } catch (error) {
+      caught = error;
     }
+
+    expect(caught).toMatchObject({ message: 'rebuy submit failed' });
+    expect(executedActions).toEqual(['SELLCALL', 'BUYCALL']);
   });
 
   it('fails and clears seat when rebuy sell-notional is unavailable', async () => {
@@ -2194,7 +2652,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const executedActions: string[] = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
@@ -2233,7 +2691,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2246,7 +2703,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -2263,7 +2720,14 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       ],
     });
     nowMs += 1_000;
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+    expect(executedActions).toEqual(['SELLCALL']);
+
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -2304,7 +2768,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     let findCalls = 0;
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
@@ -2335,7 +2799,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2348,7 +2811,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -2390,7 +2853,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     let executeCalls = 0;
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
@@ -2431,7 +2894,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2444,7 +2906,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'SHORT',
       monitorPrice: 20_000,
       positions: [],
@@ -2487,7 +2949,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -2519,7 +2981,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2533,7 +2994,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
     });
 
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'SHORT',
       monitorPrice: 20_000,
       positions: [],
@@ -2576,7 +3037,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const signalBuilder = createSignalBuilder();
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -2608,7 +3069,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
-      signalObjectPool,
       pendingOrderStatuses: PENDING_ORDER_STATUSES,
       buySide: OrderSide.Buy,
       logger: createLoggerStub(),
@@ -2622,7 +3082,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
     });
 
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'SHORT',
       monitorPrice: 20_000,
       positions: [],

@@ -7,9 +7,18 @@
  * - 区分终态、仍开放状态与查询失败原因
  */
 import { decimalToNumber } from '../../../utils/helpers/index.js';
+import {
+  isExternalApiRequestError,
+  wrapExternalApiRequest,
+} from '../../../utils/apiFailure/index.js';
 import type { OrderStateCheckResult } from '../../../types/trader.js';
 import type { OrderStatusQuery, OrderStatusQueryDeps } from './types.js';
-import { extractErrorCode, extractErrorMessage, resolveUpdatedAtMs } from './utils.js';
+import {
+  extractErrorCode,
+  extractErrorMessage,
+  isRetryableOrderApiError,
+  resolveUpdatedAtMs,
+} from './utils.js';
 
 const OPEN_API_ORDER_STATUS_FILLED = 5;
 const OPEN_API_ORDER_STATUS_REJECTED = 14;
@@ -43,13 +52,16 @@ function resolveClosedReasonFromStatus(
  * 单订单权威状态查询：仅用于撤单/改单 API 业务失败后的确认。
  */
 export function createOrderStatusQuery(deps: OrderStatusQueryDeps): OrderStatusQuery {
-  const { ctxPromise, rateLimiter } = deps;
+  const { ctx, rateLimiter } = deps;
 
   async function checkOrderState(orderId: string): Promise<OrderStateCheckResult> {
     try {
       await rateLimiter.throttle();
-      const ctx = await ctxPromise;
-      const detail = await ctx.orderDetail(orderId);
+      const detail = await wrapExternalApiRequest({
+        operation: 'TradeContext.orderDetail',
+        request: () => ctx.orderDetail(orderId),
+        shouldRetry: isRetryableOrderApiError,
+      });
       const status = detail.status;
       const executedPriceNumber = decimalToNumber(detail.executedPrice);
       const executedQuantityNumber = decimalToNumber(detail.executedQuantity);
@@ -78,10 +90,18 @@ export function createOrderStatusQuery(deps: OrderStatusQueryDeps): OrderStatusQ
         updatedAtMs,
       };
     } catch (error) {
+      if (isExternalApiRequestError(error)) {
+        throw error;
+      }
+
       const errorCode = extractErrorCode(error);
+      if (errorCode !== '603001') {
+        throw error;
+      }
+
       return {
         kind: 'QUERY_FAILED',
-        reason: errorCode === '603001' ? 'NOT_FOUND' : 'API_ERROR',
+        reason: 'NOT_FOUND',
         errorCode,
         message: extractErrorMessage(error),
       };

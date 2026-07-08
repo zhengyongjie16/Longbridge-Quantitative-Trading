@@ -26,14 +26,6 @@ export type ProfileIndicator =
   | `PSY:${number}`;
 
 /**
- * 信号条件支持的指标名称集合。
- * 类型用途：约束 signalConfig 进入策略求值的合法指标键，避免将仅用于延迟验证的指标（如 ADX/MACD/EMA）误用于信号生成。
- * 数据来源：由 signalConfig 编译生成。
- * 使用范围：IndicatorUsageProfile.actionSignalIndicators、strategy 等信号生成链路。
- */
-export type SignalIndicator = 'MFI' | 'K' | 'D' | 'J' | `RSI:${number}` | `PSY:${number}`;
-
-/**
  * 延迟验证支持的指标名称集合。
  * 类型用途：约束延迟验证链路可配置的指标键，避免将仅用于信号求值/展示的指标（如 RSI/MFI）误用于延迟验证。
  * 数据来源：由 verificationConfig 编译生成。
@@ -79,9 +71,6 @@ export type IndicatorUsageProfile = {
     readonly ema: ReadonlyArray<number>;
     readonly psy: ReadonlyArray<number>;
   };
-
-  /** 各动作在策略判定时要求存在的指标集合（与配置粒度一致，仅含信号条件支持集） */
-  readonly actionSignalIndicators: Readonly<Record<StrategyAction, ReadonlyArray<SignalIndicator>>>;
 
   /** 延迟验证按买卖方向要求存在的指标集合（与配置粒度一致） */
   readonly verificationIndicatorsBySide: {

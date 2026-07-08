@@ -6,8 +6,9 @@
  * - 管理订单缓存（缓存到显式清理/刷新为止）
  * - 在信任边界将 SDK Order 转换为 RawOrderFromAPI
  */
-import type { Order } from 'longbridge';
-import { decimalToNumber } from '../../utils/helpers/index.js';
+import { OrderSide, OrderStatus, OrderType, type Order } from 'longbridge';
+import { decimalToNumber, isRecord } from '../../utils/helpers/index.js';
+import { wrapExternalApiRequest } from '../../utils/apiFailure/index.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import type {
   MergedOrderEntry,
@@ -16,6 +17,146 @@ import type {
   OrderAPIManagerDeps,
   OrderSnapshotSource,
 } from './types.js';
+
+/**
+ * 校验外部订单 API 返回值必须是数组。
+ *
+ * @param value 外部 API 返回值
+ * @param operation 外部 API 操作名
+ */
+function assertOrderArray(
+  value: unknown,
+  operation: string,
+): asserts value is ReadonlyArray<unknown> {
+  if (!Array.isArray(value)) {
+    throw new TypeError(`[订单记录] ${operation} 返回值不是数组`);
+  }
+}
+
+function hasToNumber(value: unknown): value is { readonly toNumber: () => unknown } {
+  return isRecord(value) && typeof value['toNumber'] === 'function';
+}
+
+function isFiniteDecimalLike(value: unknown): boolean {
+  if (typeof value === 'number' || typeof value === 'string') {
+    return Number.isFinite(decimalToNumber(value));
+  }
+
+  if (hasToNumber(value)) {
+    const numeric = value.toNumber();
+    return typeof numeric === 'number' && Number.isFinite(numeric);
+  }
+
+  return false;
+}
+
+function isNullableFiniteDecimalLike(value: unknown): boolean {
+  return value === null || isFiniteDecimalLike(value);
+}
+
+function isValidOrderSide(value: unknown): value is OrderSide {
+  switch (value) {
+    case OrderSide.Unknown:
+    case OrderSide.Buy:
+    case OrderSide.Sell: {
+      return true;
+    }
+
+    default: {
+      return false;
+    }
+  }
+}
+
+function isValidOrderStatus(value: unknown): value is OrderStatus {
+  switch (value) {
+    case OrderStatus.Unknown:
+    case OrderStatus.NotReported:
+    case OrderStatus.ReplacedNotReported:
+    case OrderStatus.ProtectedNotReported:
+    case OrderStatus.VarietiesNotReported:
+    case OrderStatus.Filled:
+    case OrderStatus.WaitToNew:
+    case OrderStatus.New:
+    case OrderStatus.WaitToReplace:
+    case OrderStatus.PendingReplace:
+    case OrderStatus.Replaced:
+    case OrderStatus.PartialFilled:
+    case OrderStatus.WaitToCancel:
+    case OrderStatus.PendingCancel:
+    case OrderStatus.Rejected:
+    case OrderStatus.Canceled:
+    case OrderStatus.Expired:
+    case OrderStatus.PartialWithdrawal: {
+      return true;
+    }
+
+    default: {
+      return false;
+    }
+  }
+}
+
+function isValidOrderType(value: unknown): value is OrderType {
+  switch (value) {
+    case OrderType.Unknown:
+    case OrderType.LO:
+    case OrderType.ELO:
+    case OrderType.MO:
+    case OrderType.AO:
+    case OrderType.ALO:
+    case OrderType.ODD:
+    case OrderType.LIT:
+    case OrderType.MIT:
+    case OrderType.TSLPAMT:
+    case OrderType.TSLPPCT:
+    case OrderType.TSMAMT:
+    case OrderType.TSMPCT:
+    case OrderType.SLO: {
+      return true;
+    }
+
+    default: {
+      return false;
+    }
+  }
+}
+
+function assertValidOrder(value: unknown, operation: string): asserts value is Order {
+  if (!isRecord(value)) {
+    throw new TypeError(`[订单记录] ${operation} 订单数据结构无效`);
+  }
+
+  if (
+    typeof value['orderId'] !== 'string' ||
+    value['orderId'].length === 0 ||
+    typeof value['symbol'] !== 'string' ||
+    value['symbol'].length === 0 ||
+    typeof value['stockName'] !== 'string' ||
+    !isValidOrderSide(value['side']) ||
+    !isValidOrderStatus(value['status']) ||
+    !isValidOrderType(value['orderType']) ||
+    !isNullableFiniteDecimalLike(value['price']) ||
+    !isFiniteDecimalLike(value['quantity']) ||
+    !isNullableFiniteDecimalLike(value['executedPrice']) ||
+    !isFiniteDecimalLike(value['executedQuantity']) ||
+    !(value['submittedAt'] instanceof Date) ||
+    (value['updatedAt'] !== undefined &&
+      value['updatedAt'] !== null &&
+      !(value['updatedAt'] instanceof Date))
+  ) {
+    throw new TypeError(`[订单记录] ${operation} 订单数据结构无效`);
+  }
+}
+
+function assertValidOrders(
+  orders: ReadonlyArray<unknown>,
+  operation: string,
+): asserts orders is ReadonlyArray<Order> {
+  for (const order of orders) {
+    assertValidOrder(order, operation);
+  }
+}
 
 /**
  * 将 Longbridge SDK Order 实例转换为内部 RawOrderFromAPI（信任边界唯一转换处）。
@@ -142,11 +283,11 @@ function mergeAndDeduplicateOrders(
 /**
  * 创建订单 API 管理器
  * 管理全量订单缓存（history + today 合并去重），提供按标的缓存读写和强制刷新能力；信任边界内将 SDK Order 转为 RawOrderFromAPI。
- * @param deps 依赖注入（ctxPromise、rateLimiter）
+ * @param deps 依赖注入（ctx、rateLimiter）
  * @returns OrderAPIManager 接口实例（fetchAllOrdersFromAPI、cacheOrdersForSymbol、clearCacheForSymbol、clearCache）
  */
 export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManager {
-  const { ctxPromise, rateLimiter } = deps;
+  const { ctx, rateLimiter } = deps;
 
   // 闭包捕获的私有状态
   const ordersCache = new Map<string, OrderCache>();
@@ -198,13 +339,24 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
       return [...allOrdersCache];
     }
 
-    const ctx = await ctxPromise;
     await rateLimiter.throttle();
-    const historyOrdersRaw: ReadonlyArray<Order> = await ctx.historyOrders({
-      endAt: new Date(),
+    const historyOrdersRaw: unknown = await wrapExternalApiRequest({
+      operation: 'TradeContext.historyOrders',
+      request: () =>
+        ctx.historyOrders({
+          endAt: new Date(),
+        }),
     });
+    assertOrderArray(historyOrdersRaw, 'TradeContext.historyOrders');
+    assertValidOrders(historyOrdersRaw, 'TradeContext.historyOrders');
+
     await rateLimiter.throttle();
-    const todayOrdersRaw: ReadonlyArray<Order> = await ctx.todayOrders();
+    const todayOrdersRaw: unknown = await wrapExternalApiRequest({
+      operation: 'TradeContext.todayOrders',
+      request: () => ctx.todayOrders(),
+    });
+    assertOrderArray(todayOrdersRaw, 'TradeContext.todayOrders');
+    assertValidOrders(todayOrdersRaw, 'TradeContext.todayOrders');
 
     const historyOrders = Array.from(historyOrdersRaw, orderToRawOrderFromAPI);
     const todayOrders = Array.from(todayOrdersRaw, orderToRawOrderFromAPI);

@@ -1,12 +1,14 @@
 import type { TradeContext } from 'longbridge';
 import type { Quote } from '../../types/quote.js';
-import type { OrderFilteringEngine } from '../../types/orderRecorder.js';
+import type { MonitorConfig } from '../../types/config.js';
+import type { OrderFilteringEngine, OrderOwnership } from '../../types/orderRecorder.js';
 import type {
-  OrderRecorderPendingSellAndSellable,
   OrderRecord,
   PendingSellInfo,
   RateLimiter,
   RawOrderFromAPI,
+  SellableOrderResult,
+  SellableOrderSelectParams,
 } from '../../types/services.js';
 
 /**
@@ -113,7 +115,7 @@ export type FilteringState = {
  * 数据来源：如适用。
  * 使用范围：由 OrderRecorder 依赖注入；仅 orderRecorder 模块实现与使用。
  */
-export interface OrderStorage extends OrderRecorderPendingSellAndSellable {
+export interface OrderStorage {
   getBuyOrdersList: (symbol: string, isLongSymbol: boolean) => ReadonlyArray<OrderRecord>;
   setBuyOrdersListForLong: (symbol: string, newList: ReadonlyArray<OrderRecord>) => void;
   setBuyOrdersListForShort: (symbol: string, newList: ReadonlyArray<OrderRecord>) => void;
@@ -140,6 +142,40 @@ export interface OrderStorage extends OrderRecorderPendingSellAndSellable {
 
   /** 添加待成交卖出订单（提交时调用） */
   addPendingSell: (info: Omit<PendingSellInfo, 'filledQuantity' | 'status'>) => void;
+
+  /** 更新待成交卖单元数据（卖单合并后同步数量与占用集合） */
+  updatePendingSell: (
+    orderId: string,
+    params: {
+      readonly submittedQuantity: number;
+      readonly relatedBuyOrderIds: ReadonlyArray<string>;
+    },
+  ) => PendingSellInfo | null;
+
+  /** 标记卖出订单完全成交 */
+  markSellFilled: (orderId: string) => PendingSellInfo | null;
+
+  /** 标记卖出订单部分成交 */
+  markSellPartialFilled: (orderId: string, filledQuantity: number) => PendingSellInfo | null;
+
+  /** 标记卖出订单取消 */
+  markSellCancelled: (orderId: string) => PendingSellInfo | null;
+
+  /** 获取待成交卖单快照（用于恢复一致性校验） */
+  getPendingSellSnapshot: () => ReadonlyArray<PendingSellInfo>;
+
+  /** 恢复期：为待恢复的卖单分配关联买单 ID */
+  allocateRelatedBuyOrderIdsForRecovery: (
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    quantity: number,
+  ) => readonly string[];
+
+  /** 获取指定标的的成本均价（实时计算，无缓存） */
+  getCostAveragePrice: (symbol: string, isLongSymbol: boolean) => number | null;
+
+  /** 按策略筛选可卖订单（统一处理占用过滤、整笔截断与可选额外排除） */
+  selectSellableOrders: (params: SellableOrderSelectParams) => SellableOrderResult;
 
   /** 清空买卖记录与 pendingSells */
   clearAll: () => void;
@@ -168,41 +204,50 @@ export interface OrderAPIManager {
 // ==================== 依赖类型定义 ====================
 
 /**
- * 订单存储依赖。
- * 类型用途：创建 OrderStorage 时的依赖注入（当前无外部依赖，空对象）。
- * 数据来源：如适用。
- * 使用范围：仅 orderRecorder 模块内部使用。
- */
-export type OrderStorageDeps = {
-  readonly [key: string]: never;
-};
-
-/**
- * 订单过滤引擎依赖。
- * 类型用途：创建 OrderFilteringEngine 时的依赖注入（当前无外部依赖，空对象）。
- * 数据来源：如适用。
- * 使用范围：仅 orderRecorder 模块内部使用。
- */
-export type OrderFilteringEngineDeps = {
-  readonly [key: string]: never;
-};
-
-/**
  * 订单 API 管理器依赖。
  * 类型用途：用于创建 OrderAPIManager 时的依赖注入。
  * 数据来源：如适用。
  * 使用范围：仅 orderRecorder 模块内部使用。
  */
 export type OrderAPIManagerDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
+  readonly ctx: TradeContext;
   readonly rateLimiter: RateLimiter;
+};
+
+/**
+ * 订单记录器正式工厂依赖。
+ * 类型用途：创建 OrderRecorder 时注入外部交易上下文与 API 限流器。
+ * 数据来源：由 Trader 装配层创建后传入。
+ * 使用范围：仅 orderRecorder 对外工厂使用。
+ */
+export type OrderRecorderFactoryDeps = {
+  readonly ctx: TradeContext;
+  readonly rateLimiter: RateLimiter;
+};
+
+/**
+ * 日内亏损回算所需的订单分析依赖。
+ * 类型用途：作为 orderRecorder 对外暴露的最小分析能力集合，供装配层注入 dailyLossTracker。
+ * 数据来源：由 orderRecorder 公共边界内组装后返回。
+ * 使用范围：仅 orderRecorder 的对外分析导出使用。
+ */
+export type OrderDailyLossAnalysisDeps = {
+  readonly filteringEngine: OrderFilteringEngine;
+  readonly resolveOrderOwnership: (
+    order: RawOrderFromAPI,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
+  ) => OrderOwnership | null;
+  readonly classifyAndConvertOrders: (orders: ReadonlyArray<RawOrderFromAPI>) => {
+    readonly buyOrders: ReadonlyArray<OrderRecord>;
+    readonly sellOrders: ReadonlyArray<OrderRecord>;
+  };
 };
 
 /**
  * 订单记录器依赖。
  * 类型用途：用于创建 OrderRecorder 时的依赖注入。
  * 数据来源：如适用。
- * 使用范围：见调用方（如启动层、riskDomain）。
+ * 使用范围：仅 orderRecorder 模块内部组装使用。
  */
 export type OrderRecorderDeps = {
   readonly storage: OrderStorage;

@@ -19,8 +19,105 @@ import {
   createQuoteDouble,
   createSymbolRegistryDouble,
 } from '../helpers/testDoubles.js';
+import type { SellSignal, Signal } from '../../src/types/signal.js';
+
+function requireExecutableSellSignals(signals: ReadonlyArray<Signal>): SellSignal[] {
+  return signals.map((signal) => {
+    if (signal.action !== 'SELLCALL' && signal.action !== 'SELLPUT') {
+      throw new Error(`Expected executable sell signal, got ${signal.action}`);
+    }
+
+    const seatVersion = signal.seatVersion;
+    if (typeof seatVersion !== 'number' || !Number.isFinite(seatVersion)) {
+      throw new TypeError('Expected executable sell signal with finite seatVersion');
+    }
+
+    return {
+      ...signal,
+      action: signal.action,
+      seatVersion,
+    };
+  });
+}
 
 describe('sell-flow integration', () => {
+  it('throws ExternalApiRequestError without retry when sell quantity resolution reads stock positions', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    tradeCtx.seedStockPositions(
+      createStockPositionsResponse({
+        symbol: 'BULL.HK',
+        quantity: 300,
+        availableQuantity: 300,
+      }),
+    );
+
+    tradeCtx.setFailureRule('stockPositions', {
+      failAtCalls: [1, 2, 3],
+      maxFailures: 3,
+      errorMessage: 'service unavailable',
+    });
+
+    const orderExecutor = createOrderExecutor({
+      ctx: tradeCtx as unknown as TradeContext,
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: () => {},
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
+        replaceOrderPrice: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
+        recoverOrderTrackingFromSnapshot: async () => {},
+        getPendingSellOrders: () => [],
+        clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
+      },
+      orderRecorder: createOrderRecorderDouble(),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble(),
+      isExecutionAllowed: () => true,
+    });
+
+    let signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'SELLCALL',
+      price: 1.01,
+      triggerTimeMs: Date.now(),
+      reason: 'sell-quantity-stock-positions-no-retry',
+    });
+    signal = { ...signal, quantity: 100 };
+
+    let caught: unknown = null;
+    try {
+      await orderExecutor.executeSignals([signal]);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    if (!(caught instanceof Error)) {
+      throw new Error('expected Error');
+    }
+
+    expect(caught.name).toBe('ExternalApiRequestError');
+    expect(Reflect.get(caught, 'operation')).toBe('TradeContext.stockPositions.quantityResolver');
+    expect(Reflect.get(caught, 'attempts')).toBe(1);
+    expect(tradeCtx.getCalls('stockPositions')).toHaveLength(1);
+  });
+
   it('runs smart-close sell quantity resolution then submits sell order with capped quantity', async () => {
     const tradingConfig = createTradingConfig();
     const signalProcessor = createSignalProcessor({
@@ -89,7 +186,7 @@ describe('sell-flow integration', () => {
 
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -109,11 +206,13 @@ describe('sell-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: recorder,
       tradingConfig,
@@ -121,7 +220,9 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const executeResult = await orderExecutor.executeSignals(processed);
+    const executeResult = await orderExecutor.executeSignals(
+      requireExecutableSellSignals(processed),
+    );
 
     expect(executeResult.submittedCount).toBe(1);
     expect(trackedOrders).toHaveLength(1);
@@ -230,7 +331,7 @@ describe('sell-flow integration', () => {
 
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -250,11 +351,13 @@ describe('sell-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: recorder,
       tradingConfig,
@@ -262,7 +365,9 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const executeResult = await orderExecutor.executeSignals(processed);
+    const executeResult = await orderExecutor.executeSignals(
+      requireExecutableSellSignals(processed),
+    );
 
     expect(executeResult.submittedCount).toBe(1);
     expect(trackedOrders).toHaveLength(1);
@@ -353,7 +458,7 @@ describe('sell-flow integration', () => {
 
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -373,11 +478,13 @@ describe('sell-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: recorder,
       tradingConfig,
@@ -385,7 +492,9 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const executeResult = await orderExecutor.executeSignals(processed);
+    const executeResult = await orderExecutor.executeSignals(
+      requireExecutableSellSignals(processed),
+    );
 
     expect(executeResult.submittedCount).toBe(1);
     expect(trackedOrders).toHaveLength(1);
@@ -429,7 +538,7 @@ describe('sell-flow integration', () => {
     const submittedAt = Date.parse('2026-02-25T03:00:00.000Z');
 
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -449,7 +558,8 @@ describe('sell-flow integration', () => {
         replaceOrderPrice: async (orderId, price, quantity) => {
           replaceCalls.push({ orderId, price, quantity });
         },
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [
           {
@@ -464,8 +574,9 @@ describe('sell-flow integration', () => {
             submittedAt,
           },
         ],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble({
         getPendingSellSnapshot: () => [
@@ -494,15 +605,15 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const signal = createSignal({
+    let signal = createSignal({
       symbol: 'BULL.HK',
       action: 'SELLCALL',
       price: 1.02,
       triggerTimeMs: Date.now(),
       reason: 'replace-merge',
     });
-    signal.quantity = 50;
-    signal.relatedBuyOrderIds = ['BUY-NEW'];
+    signal = { ...signal, quantity: 50 };
+    signal = { ...signal, relatedBuyOrderIds: ['BUY-NEW'] };
 
     const result = await orderExecutor.executeSignals([signal]);
 
@@ -542,7 +653,7 @@ describe('sell-flow integration', () => {
 
     const cancelCalls: string[] = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -563,7 +674,8 @@ describe('sell-flow integration', () => {
           };
         },
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [
           {
@@ -578,8 +690,9 @@ describe('sell-flow integration', () => {
             submittedAt: Date.parse('2026-02-25T03:00:00.000Z'),
           },
         ],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -587,15 +700,15 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const signal = createSignal({
+    let signal = createSignal({
       symbol: 'BULL.HK',
       action: 'SELLCALL',
       price: 1.03,
       triggerTimeMs: Date.now(),
       reason: 'cancel-and-submit-wait-terminal',
     });
-    signal.quantity = 50;
-    signal.relatedBuyOrderIds = ['BUY-NEW'];
+    signal = { ...signal, quantity: 50 };
+    signal = { ...signal, relatedBuyOrderIds: ['BUY-NEW'] };
 
     const result = await orderExecutor.executeSignals([signal]);
 
@@ -627,7 +740,7 @@ describe('sell-flow integration', () => {
     }> = [];
 
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctx: tradeCtx as unknown as TradeContext,
       rateLimiter: {
         throttle: async () => {},
       },
@@ -650,7 +763,8 @@ describe('sell-flow integration', () => {
           };
         },
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [
           {
@@ -665,8 +779,9 @@ describe('sell-flow integration', () => {
             submittedAt: Date.parse('2026-02-25T03:00:00.000Z'),
           },
         ],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble({
         submitSellOrder: (orderId, _symbol, _direction, quantity, relatedBuyOrderIds) => {
@@ -682,15 +797,15 @@ describe('sell-flow integration', () => {
       isExecutionAllowed: () => true,
     });
 
-    const signal = createSignal({
+    let signal = createSignal({
       symbol: 'BULL.HK',
       action: 'SELLCALL',
       price: 1.03,
       triggerTimeMs: Date.now(),
       reason: 'cancel-and-submit-merge',
     });
-    signal.quantity = 50;
-    signal.relatedBuyOrderIds = ['BUY-NEW'];
+    signal = { ...signal, quantity: 50 };
+    signal = { ...signal, relatedBuyOrderIds: ['BUY-NEW'] };
 
     const result = await orderExecutor.executeSignals([signal]);
 

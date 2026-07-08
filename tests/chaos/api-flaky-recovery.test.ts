@@ -7,46 +7,93 @@
 import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderType, type TradeContext } from 'longbridge';
 
-import { API } from '../../src/constants/index.js';
 import { createOrderMonitor } from '../../src/core/trader/orderMonitor/index.js';
 import type { OrderMonitorDeps } from '../../src/core/trader/types.js';
-import { createPostTradeRefresher } from '../../src/main/asyncProgram/postTradeRefresher/index.js';
-import type { MonitorContext, LastState } from '../../src/types/state.js';
-import { createRefreshGate } from '../../src/utils/refreshGate/index.js';
 
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
 import {
-  createAccountSnapshotDouble,
-  createLiquidationCooldownTrackerDouble,
   createMarketDataClientDouble,
-  createMonitorConfigDouble,
   createOrderRecorderDouble,
-  createPositionCacheDouble,
-  createPositionDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
-  createRiskCheckerDouble,
   createSymbolRegistryDouble,
-  createTraderDouble,
   createQuoteDouble,
 } from '../helpers/testDoubles.js';
 
-function createLastState(): LastState {
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+type RuntimeTimerHarness = {
+  readonly advanceBy: (delayMs: number) => Promise<void>;
+  readonly restore: () => void;
+};
+
+function createRuntimeTimerHarness(initialNowMs: number): RuntimeTimerHarness {
+  const originalNow = Date.now;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  let nowMs = initialNowMs;
+  const timers = new Map<unknown, { readonly atMs: number; readonly callback: () => void }>();
+
+  function isTimerCallback(
+    handler: Parameters<typeof globalThis.setTimeout>[0],
+  ): handler is (...args: ReadonlyArray<unknown>) => void {
+    return typeof handler === 'function';
+  }
+
+  const fakeSetTimeout = Object.assign(
+    (
+      handler: Parameters<typeof globalThis.setTimeout>[0],
+      timeout?: number,
+    ): ReturnType<typeof originalSetTimeout> => {
+      if (!isTimerCallback(handler)) {
+        throw new TypeError('[测试] fake runtime timer 仅支持函数回调');
+      }
+
+      const handle = originalSetTimeout(() => {}, 0);
+      originalClearTimeout(handle);
+      timers.set(handle, {
+        atMs: nowMs + (typeof timeout === 'number' ? timeout : 0),
+        callback: () => {
+          handler();
+        },
+      });
+      return handle;
+    },
+    {
+      __promisify__: originalSetTimeout.__promisify__,
+    },
+  );
+
+  const fakeClearTimeout: typeof globalThis.clearTimeout = (handle) => {
+    timers.delete(handle);
+  };
+
+  Date.now = () => nowMs;
+  globalThis.setTimeout = fakeSetTimeout;
+  globalThis.clearTimeout = fakeClearTimeout;
+
   return {
-    canTrade: true,
-    isHalfDay: false,
-    openProtectionActive: false,
-    currentDayKey: '2026-02-16',
-    lifecycleState: 'ACTIVE',
-    pendingOpenRebuild: false,
-    targetTradingDayKey: null,
-    isTradingEnabled: true,
-    cachedAccount: null,
-    cachedPositions: [],
-    positionCache: createPositionCacheDouble(),
-    cachedTradingDayInfo: null,
-    monitorStates: new Map(),
-    allTradingSymbols: new Set(),
+    advanceBy: async (delayMs: number) => {
+      nowMs += delayMs;
+      const dueTimers = [...timers.entries()].filter(([, timer]) => timer.atMs <= nowMs);
+      for (const [handle, timer] of dueTimers) {
+        timers.delete(handle);
+        timer.callback();
+      }
+
+      await flushMicrotasks();
+      await flushMicrotasks();
+    },
+    restore: () => {
+      Date.now = originalNow;
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.clearTimeout = originalClearTimeout;
+    },
   };
 }
 
@@ -56,7 +103,7 @@ function createOrderMonitorDeps(params?: {
 }): { deps: OrderMonitorDeps; tradeCtx: ReturnType<typeof createTradeContextMock> } {
   const tradeCtx = createTradeContextMock();
   const deps: OrderMonitorDeps = {
-    ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+    ctx: tradeCtx as unknown as TradeContext,
     rateLimiter: {
       throttle: async () => {},
     },
@@ -80,9 +127,13 @@ function createOrderMonitorDeps(params?: {
       markOrderClosed: () => {},
       seedFromOrders: () => {},
       getHoldSymbols: () => new Set<string>(),
+      onOrderHoldSymbolsChanged: () => () => {},
       clear: () => {},
     },
     protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+    postTradeConsistencyRuntime: {
+      recordSettlementRefreshNeed: () => {},
+    },
     tradingConfig: createTradingConfig({
       global: {
         ...createTradingConfig().global,
@@ -128,160 +179,40 @@ describe('chaos: api flaky recovery', () => {
       errorMessage: 'transient cancelOrder failure',
     });
 
+    const runtimeTimers = createRuntimeTimerHarness(Date.parse('2026-02-25T03:00:00.000Z'));
     const monitor = createOrderMonitor(deps);
-    await monitor.initialize();
+    try {
+      await monitor.initialize();
+      await monitor.recoverOrderTrackingFromSnapshot([]);
+      monitor.startRuntime();
 
-    monitor.trackOrder({
-      orderId: 'SELL-CHAOS-001',
-      symbol: 'BULL.HK',
-      side: OrderSide.Sell,
-      price: 1,
-      initialSubmittedPrice: 1,
-      quantity: 100,
-      isLongSymbol: true,
-      monitorSymbol: 'HSI.HK',
-      isProtectiveLiquidation: false,
-      orderType: OrderType.ELO,
-    });
-
-    await monitor.processWithLatestQuotes();
-    await monitor.processWithLatestQuotes();
-    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
-    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
-    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
-
-    await Bun.sleep(1100);
-    await monitor.processWithLatestQuotes();
-
-    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(2);
-    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
-    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
-  });
-
-  it('keeps pending refresh symbols and drains merged backlog after API recovery', async () => {
-    const refreshGate = createRefreshGate();
-    const staleVersion = refreshGate.markStale();
-    const lastState = createLastState();
-
-    let accountCallCount = 0;
-    const refreshedSymbols: string[] = [];
-
-    const trader = createTraderDouble({
-      getAccountSnapshot: async () => {
-        accountCallCount += 1;
-        if (accountCallCount === 1) {
-          throw new Error('account API temporary unavailable');
-        }
-
-        return createAccountSnapshotDouble(66_000);
-      },
-      getStockPositions: async () => [
-        createPositionDouble({
-          symbol: 'BULL.HK',
-          quantity: 300,
-          availableQuantity: 300,
-        }),
-      ],
-    });
-
-    const monitorContext = {
-      config: createMonitorConfigDouble({
+      monitor.trackOrder({
+        orderId: 'SELL-CHAOS-001',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        price: 1,
+        initialSubmittedPrice: 1,
+        quantity: 100,
+        isLongSymbol: true,
         monitorSymbol: 'HSI.HK',
-        maxUnrealizedLossPerSymbol: 2_000,
-      }),
-      symbolRegistry: createSymbolRegistryDouble({
-        monitorSymbol: 'HSI.HK',
-        longSeat: {
-          symbol: 'BULL.HK',
-          status: 'ACTIVE',
-          lastSwitchAt: null,
-          lastSearchAt: null,
-          lastSeatActivatedAt: null,
-          searchFailCountToday: 0,
-          frozenTradingDayKey: null,
-        },
-        shortSeat: {
-          symbol: 'BEAR.HK',
-          status: 'ACTIVE',
-          lastSwitchAt: null,
-          lastSearchAt: null,
-          lastSeatActivatedAt: null,
-          searchFailCountToday: 0,
-          frozenTradingDayKey: null,
-        },
-      }),
-      longSymbolName: 'BULL',
-      shortSymbolName: 'BEAR',
-      orderRecorder: createOrderRecorderDouble(),
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
-      riskChecker: createRiskCheckerDouble({
-        refreshUnrealizedLossData: async (_orderRecorder, symbol) => {
-          refreshedSymbols.push(symbol);
-          return { r1: 100, n1: 100 };
-        },
-      }),
-    } as unknown as MonitorContext;
+        isProtectiveLiquidation: false,
+        orderType: OrderType.ELO,
+      });
+      await flushMicrotasks();
 
-    const refresher = createPostTradeRefresher({
-      refreshGate,
-      trader,
-      lastState,
-      monitorContexts: new Map([['HSI.HK', monitorContext]]),
-      dailyLossTracker: {
-        resetAll: () => {},
-        startNewProtectionEpisode: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
-      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
-      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
-      displayAccountAndPositions: async () => {},
-    });
+      expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+      expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
 
-    refresher.enqueue({
-      pending: [
-        {
-          symbol: 'BULL.HK',
-          isLongSymbol: true,
-          refreshAccount: true,
-          refreshPositions: true,
-        },
-      ],
-      quotesMap: new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.01)]]),
-    });
+      await flushMicrotasks();
+      await flushMicrotasks();
+      await runtimeTimers.advanceBy(2_100);
 
-    await Bun.sleep(80);
-
-    refresher.enqueue({
-      pending: [
-        {
-          symbol: 'BEAR.HK',
-          isLongSymbol: false,
-          refreshAccount: false,
-          refreshPositions: false,
-        },
-      ],
-      quotesMap: new Map([
-        ['BULL.HK', createQuoteDouble('BULL.HK', 1.01)],
-        ['BEAR.HK', createQuoteDouble('BEAR.HK', 1.02)],
-      ]),
-    });
-
-    await Bun.sleep(API.DEFAULT_RETRY_DELAY_MS + 180);
-    await refresher.stopAndDrain();
-
-    expect(accountCallCount).toBeGreaterThanOrEqual(2);
-    expect(new Set(refreshedSymbols)).toEqual(new Set(['BULL.HK', 'BEAR.HK']));
-    expect(lastState.cachedAccount?.buyPower).toBe(66_000);
-
-    const gateStatus = refreshGate.getStatus();
-    expect(gateStatus.currentVersion).toBe(staleVersion);
+      expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(2);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+      expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+    } finally {
+      runtimeTimers.restore();
+    }
   });
 });

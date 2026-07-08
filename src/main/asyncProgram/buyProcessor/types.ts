@@ -37,4 +37,7 @@ export type BuyProcessorDeps = {
 
   /** 生命周期门禁：false 时跳过任务执行 */
   readonly getCanProcessTask?: () => boolean;
+
+  /** 非 API 程序错误进入 fatal 通道 */
+  readonly onFatalError?: (error: unknown) => void;
 };
